@@ -45,27 +45,27 @@ public final class TestData {
 
     /** Room of the UCC Pasto campus, e.g. {@code room("203-A", SpaceType.AULA, 30, 5, 6, 1)}. */
     public static CampusSpace room(String code, SpaceType type, int capacity, Integer rows, Integer columns, int computers) {
-        String block = code.endsWith("A") ? "BLOQUE-A" : "BLOQUE-B";
+        String block = code.endsWith("A") || code.matches("\\dA-.*") ? "BLOQUE-A" : "BLOQUE-B";
         return new CampusSpace(code, "Salón " + code, type, capacity, capacity * 1.8, block,
                 block.equals("BLOQUE-A") ? "Bloque A" : "Bloque B", "UCC-PASTO", "Campus Pasto", "Pasto",
-                ClimateProfile.SEDE_ANDINA, 13.5, 865, code.charAt(0) - '0',
+                ClimateProfile.SEDE_ANDINA, 13.5, 865, Character.isDigit(code.charAt(0)) ? code.charAt(0) - '0' : 2,
                 rows == null ? null : new SeatLayout(rows, columns), computers);
     }
 
-    /** The rooms used by the defense scenarios, with the same layout as Flyway V11. */
+    /** The rooms used by the defense scenarios, with the same layout as Flyway V12. */
     public static List<CampusSpace> scenarioRooms() {
         return List.of(
-                room("202-A", SpaceType.AULA, 30, 5, 6, 1),
-                room("203-A", SpaceType.AULA, 30, 5, 6, 1),
-                room("204-A", SpaceType.AULA, 30, 5, 6, 1),
-                room("302-A", SpaceType.AULA, 30, 5, 6, 1),
-                room("304-A", SpaceType.AULA, 30, 5, 6, 1),
-                room("401-A", SpaceType.AULA, 35, 5, 7, 1),
+                room("420-A", SpaceType.AULA, 30, 5, 6, 1),
+                room("421-A", SpaceType.AULA, 30, 5, 6, 1),
+                room("422-A", SpaceType.AULA, 30, 5, 6, 1),
+                room("423-A", SpaceType.AULA, 18, 3, 6, 1),
                 room("503-A", SpaceType.AULA, 30, 5, 6, 1),
-                room("103-B", SpaceType.LABORATORIO, 24, 4, 6, 12),
-                room("104-B", SpaceType.LABORATORIO, 24, 4, 6, 4),
-                room("201-B", SpaceType.BIBLIOTECA, 48, null, null, 8),
-                room("302-B", SpaceType.SALA_COMPUTO, 30, 5, 6, 30));
+                room("402-B", SpaceType.AULA, 45, 5, 9, 1),
+                room("414-B", SpaceType.AULA, 40, 5, 8, 1),
+                room("309-A", SpaceType.SALA_COMPUTO, 24, 4, 6, 24),
+                room("3B-DE-BIOPROCESOS-LABORATORIO", SpaceType.LABORATORIO, 15, 3, 5, 3),
+                room("2B-LABORATORIO-MULTIFUNCIONAL", SpaceType.LABORATORIO, 35, 5, 7, 8),
+                room("BIBLIOTECA-2B", SpaceType.BIBLIOTECA, 120, null, null, 15));
     }
 
     public static Telemetry reading(String spaceId, Instant at, int people, double co2, double powerKw) {

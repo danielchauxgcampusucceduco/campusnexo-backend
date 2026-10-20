@@ -72,7 +72,7 @@ class SimulationServiceTest {
         SpaceTwinState crowded = run(SimulationScenario.SOBRECUPO);
         assertEquals(SpaceStatus.ALERTA_SOBRECUPO, crowded.status());
         assertEquals(RoomCondition.SOBRECUPO, crowded.condition());
-        assertEquals(24, seated(crowded));
+        assertEquals(15, seated(crowded));
         SpaceTwinState maintenance = run(SimulationScenario.MANTENIMIENTO);
         assertEquals(SpaceStatus.MANTENIMIENTO, maintenance.status());
         assertEquals(RoomCondition.MANTENIMIENTO, maintenance.condition());
@@ -92,7 +92,7 @@ class SimulationServiceTest {
         SpaceTwinState state = run(SimulationScenario.LUCES_ENCENDIDAS);
         assertEquals(1, fixture.equipment.commands.size());
         EquipmentCommand command = fixture.equipment.commands.get(0);
-        assertEquals("204-A", command.spaceId());
+        assertEquals("423-A", command.spaceId());
         assertTrue(command.lightsOff());
         assertFalse(command.suspendDevices());
         assertFalse(state.equipment().lightsOn());
@@ -100,14 +100,14 @@ class SimulationServiceTest {
     }
 
     @Test
-    @DisplayName("Sala de cómputo vacía con 30 equipos encendidos: se suspenden con las luces")
+    @DisplayName("Sala de cómputo vacía con 24 equipos encendidos: se suspenden con las luces")
     void computersLeftOn() {
         SpaceTwinState state = run(SimulationScenario.EQUIPOS_ENCENDIDOS);
         EquipmentCommand command = fixture.equipment.commands.get(0);
         assertTrue(command.lightsOff());
         assertTrue(command.suspendDevices());
         assertEquals(0, state.equipment().devicesOn());
-        assertEquals(30, state.equipment().devicesTotal());
+        assertEquals(24, state.equipment().devicesTotal());
     }
 
     @Test
@@ -117,10 +117,10 @@ class SimulationServiceTest {
         Map<String, DeskObservation> desks = state.desks().stream()
                 .collect(Collectors.toMap(DeskObservation::zoneId, Function.identity()));
         assertEquals(8, desks.size());
-        assertEquals(ZoneDeskState.LIBERADO_POR_ABANDONO, desks.get("201B-M01").state());
-        assertEquals(ZoneDeskState.ALERTA_ACAPARAMIENTO, desks.get("201B-M02").state());
-        assertEquals(ZoneDeskState.OCUPADO_VERIFICADO, desks.get("201B-M03").state());
-        assertEquals(ZoneDeskState.DISPONIBLE, desks.get("201B-M08").state());
+        assertEquals(ZoneDeskState.LIBERADO_POR_ABANDONO, desks.get("BIB2B-M01").state());
+        assertEquals(ZoneDeskState.ALERTA_ACAPARAMIENTO, desks.get("BIB2B-M02").state());
+        assertEquals(ZoneDeskState.OCUPADO_VERIFICADO, desks.get("BIB2B-M03").state());
+        assertEquals(ZoneDeskState.DISPONIBLE, desks.get("BIB2B-M08").state());
         assertEquals(33, state.occupancy().people());
     }
 

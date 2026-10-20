@@ -93,12 +93,12 @@ class ProcessSpaceTelemetryServiceTest {
     }
 
     private EnvironmentReading arduino(boolean lightsOn, int devicesOn) {
-        return new EnvironmentReading("302-B", fixture.clock.instant(), 19.5, 52, null, lightsOn ? 400 : 20, lightsOn,
+        return new EnvironmentReading("309-A", fixture.clock.instant(), 19.5, 52, null, lightsOn ? 400 : 20, lightsOn,
                 devicesOn);
     }
 
     private TelemetrySnapshot emptyRoomFrame() {
-        return new TelemetrySnapshot("302-B", fixture.clock.instant(), true, List.of(), 430, 19.5, 13.5, 52, 400, 0, 1.0);
+        return new TelemetrySnapshot("309-A", fixture.clock.instant(), true, List.of(), 430, 19.5, 13.5, 52, 400, 0, 1.0);
     }
 
     @Test
@@ -106,13 +106,13 @@ class ProcessSpaceTelemetryServiceTest {
     void idleShutdownAfterThreshold() {
         fixture.pipeline.process(emptyRoomFrame(), "MQTT · prueba");
         fixture.clock.advance(Duration.ofMinutes(2));
-        SpaceTwinState wasting = fixture.pipeline.processEnvironment(arduino(true, 30), "MQTT · Arduino");
+        SpaceTwinState wasting = fixture.pipeline.processEnvironment(arduino(true, 24), "MQTT · Arduino");
         assertEquals(RoomCondition.LUCES_Y_EQUIPOS_SIN_USO, wasting.condition());
-        assertEquals(30, wasting.equipment().devicesOn());
+        assertEquals(24, wasting.equipment().devicesOn());
         assertTrue(fixture.equipment.commands.isEmpty());
 
         fixture.clock.advance(Duration.ofMinutes(4));
-        SpaceTwinState shutDown = fixture.pipeline.processEnvironment(arduino(true, 30), "MQTT · Arduino");
+        SpaceTwinState shutDown = fixture.pipeline.processEnvironment(arduino(true, 24), "MQTT · Arduino");
         assertEquals(1, fixture.equipment.commands.size());
         assertTrue(fixture.equipment.commands.get(0).suspendDevices());
         assertFalse(shutDown.equipment().lightsOn());
@@ -133,7 +133,7 @@ class ProcessSpaceTelemetryServiceTest {
     @DisplayName("Con personas dentro no hay orden de apagado y el salón deja de estar vacío")
     void occupiedRoomKeepsEquipment() {
         fixture.clock.advance(Duration.ofMinutes(20));
-        TelemetrySnapshot occupied = new TelemetrySnapshot("302-B", fixture.clock.instant(), true,
+        TelemetrySnapshot occupied = new TelemetrySnapshot("309-A", fixture.clock.instant(), true,
                 List.of(new TrackedDetection(1, DetectedObjectClass.PERSON, 0.9, new BoundingBox(0.1, 0.4, 0.14, 0.47))),
                 600, 20, 13.5, 52, 400, 2, 1.5, true, 1);
         SpaceTwinState state = fixture.pipeline.process(occupied, "MQTT · prueba");

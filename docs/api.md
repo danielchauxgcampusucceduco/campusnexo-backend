@@ -11,7 +11,7 @@ Base local: `http://localhost:8080`. JSON en `camelCase`; instantes en ISO-8601 
 | `GET /api/v1/spaces?type=BIBLIOTECA` | Lista los espacios (filtro opcional por `AULA`, `BIBLIOTECA`, `LABORATORIO`, `AUDITORIO`, `ZONA_COMUN`). Incluye edificio, sede, perfil climático, temperatura exterior promedio y tarifa de energía (COP/kWh). |
 | `GET /api/v1/spaces/{spaceId}` | Un espacio. `404 space_not_found` si no existe. |
 
-Espacios de demostración: los 50 salones del campus Pasto, de `101-A` a `505-A` y de `101-B` a `505-B` (ver `docs/gemelo-digital.md`).
+Espacios: los 107 salones del campus Pasto tomados del plano institucional, por ejemplo `421-A`, `402-B` o `BIBLIOTECA-2B` (ver `docs/gemelo-digital.md`).
 
 ## Telemetría
 
@@ -19,7 +19,7 @@ Espacios de demostración: los 50 salones del campus Pasto, de `101-A` a `505-A`
 
 ```json
 {
-  "spaceId": "203-A",
+  "spaceId": "421-A",
   "recordedAt": "2026-10-20T15:00:00Z",
   "peopleCount": 18,
   "objectCount": 0,
@@ -60,7 +60,7 @@ Sin cuerpo. Usa la última lectura del espacio: estima la ocupación (IA, o resp
 
 ```json
 {
-  "space": { "spaceId": "203-A", "climateProfile": "SEDE_ANDINA", "...": "..." },
+  "space": { "spaceId": "421-A", "climateProfile": "SEDE_ANDINA", "...": "..." },
   "telemetry": { "recordedAt": "...", "peopleCount": 22, "...": "..." },
   "occupancy": { "estimateId": "...", "occupancyEstimate": 22, "confidencePct": 82.0, "source": "SERVICIO_IA" },
   "recommendation": { "hvac": { "mode": "CALEFACCION", "setpointC": 20.0 }, "occupancySource": "SERVICIO_IA", "sourceTelemetryAt": "..." },

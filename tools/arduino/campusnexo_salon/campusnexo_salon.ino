@@ -3,7 +3,7 @@
  *
  * Mide el ambiente del salón y publica cada 10 s en MQTT:
  *   ucc/pasto/<bloque>/<piso>/<salon>/ambiente
- *   {"space_id":"201-A","temperature_c":19.8,"humidity_pct":55.0,"illuminance_lux":410,
+ *   {"space_id":"421-A","temperature_c":19.8,"humidity_pct":55.0,"illuminance_lux":410,
  *    "lights_on":true,"devices_on":3}
  * y escucha órdenes del backend en
  *   ucc/pasto/<bloque>/<piso>/<salon>/equipos/comando
@@ -30,9 +30,9 @@
 #include "secrets.h"
 
 // ---- Salón que atiende esta placa ------------------------------------------------------------
-const char* SPACE_ID = "201-A";
+const char* SPACE_ID = "421-A";
 const char* BLOCK = "bloque_a";
-const char* FLOOR = "piso_2";
+const char* FLOOR = "piso_4";
 const int MQTT_PORT = 1883;
 
 // ---- Pines -----------------------------------------------------------------------------------

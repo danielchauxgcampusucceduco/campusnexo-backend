@@ -2,12 +2,13 @@
 
 ## El campus
 
-La migración `V11` deja un solo campus: Universidad Cooperativa de Colombia, campus Pasto (Calle 18 # 47-150, Torobajo), con dos bloques de cinco pisos y cinco salones por piso. El código de cada salón sigue la puerta: `201-A` es el salón 01 del piso 2 del bloque A.
+Un solo campus: Universidad Cooperativa de Colombia, campus Pasto (Calle 18 # 47-150, Torobajo). Los salones salen del plano institucional **PLANOS_UCC_2025_-_B.dwg** (actualización de planimetría 2025-B, pisos 0 a 5): la migración `V12` carga los 107 espacios que se reconocen en ese plano, con el área medida sobre él.
 
-- **Bloque A** (edificio antiguo): auditorio, admisiones, tesorería, logística interna y almacén en el piso 1; salones con pupitres individuales y una sala de estudio por piso en los pisos 2 a 4; decanatura, sala de profesores y salones en el piso 5.
-- **Bloque B** (edificio nuevo): cafetería, auditorio y laboratorios de electrónica, física y química en el piso 1; la biblioteca (sala general, estudio en grupo, sala silenciosa, préstamo) y una sala de cómputo en el piso 2; salas de cómputo y laboratorios de redes, software, simulación clínica, odontología, anatomía, microbiología e internet de las cosas en los pisos 3 a 5.
+- Los salones con código en el plano lo conservan: `AULA 420 A` → `420-A`, `AULA No 402 B` → `402-B`, las salas de informática 1 a 5 → `308-A` a `312-A`, el auditorio Urcunina → `608-B`.
+- Los espacios sin código reciben uno con su piso, bloque y nombre (`4A-SALA-DE-JUNTAS-GALERAS`); la biblioteca, la hemeroteca, la cafetería y el auditorio del bloque A tienen códigos cortos (`BIBLIOTECA-2B`, `HEMEROTECA-3B`, `CAFETERIA-1B`, `AUDITORIO-0A`).
+- **Bloque A**: salones con pupitres, salas de estudio, auditorio, oficinas y logística. **Bloque B**: biblioteca, cafetería, laboratorios, salas de cómputo y el auditorio Urcunina. Los espacios sin letra en el plano se asignan a un bloque según ese criterio.
 
-La distribución es un **modelo ilustrativo** para la demostración, no el inventario oficial del campus. Cada salón guarda su piso, su cuadrícula de puestos (`seat_rows × seat_columns`) y sus computadores.
+El aforo, la cuadrícula de puestos y los computadores de cada salón se **estiman** a partir de su tipo y su área (1,6 m² por pupitre en un salón, 2 m² por equipo en una sala de cómputo…): son valores ilustrativos, no el inventario oficial. Reemplázalos por los reales en la tabla `spaces` antes de usar el sistema en el campus.
 
 ## Flujo
 
@@ -59,7 +60,7 @@ Tópico: `ucc/pasto/bloque_b/piso_2/{space_id}/camara` (suscripción `ucc/+/+/+/
 
 ```json
 {
-  "space_id": "201-B",
+  "space_id": "BIBLIOTECA-2B",
   "timestamp": "2026-10-20T15:00:00Z",
   "camera_online": true,
   "detections": [
@@ -82,7 +83,7 @@ Tópico: `ucc/pasto/bloque_b/piso_2/{space_id}/camara` (suscripción `ucc/+/+/+/
 Tópico: `ucc/pasto/bloque_a/piso_2/{space_id}/ambiente` (suscripción `ucc/+/+/+/+/ambiente`). Firmware de referencia: `tools/arduino/campusnexo_salon` (DHT22, fotorresistencia, sensor de corriente ACS712 y dos relés).
 
 ```json
-{ "space_id": "204-A", "temperature_c": 19.2, "humidity_pct": 53, "illuminance_lux": 390,
+{ "space_id": "423-A", "temperature_c": 19.2, "humidity_pct": 53, "illuminance_lux": 390,
   "lights_on": true, "devices_on": 0, "co2_ppm": 640 }
 ```
 
@@ -104,8 +105,8 @@ El firmware del ESP32 es responsable de los enclavamientos eléctricos; el backe
 **Luces y equipos (Arduino).** Tópico `ucc/pasto/{bloque}/{piso}/{space_id}/equipos/comando`. QoS 1 y **sin** retener: una orden vieja no debe apagar un salón que volvió a usarse cuando la placa se reconecta.
 
 ```json
-{ "command_id": "…", "space_id": "302-B", "lights_off": true, "suspend_devices": true,
-  "issued_at": "2026-10-20T15:00:00Z", "reason": "Salón vacío hace 12 min con luces encendidas, 30/30 equipos encendidos" }
+{ "command_id": "…", "space_id": "309-A", "lights_off": true, "suspend_devices": true,
+  "issued_at": "2026-10-20T15:00:00Z", "reason": "Salón vacío hace 12 min con luces encendidas, 24/24 equipos encendidos" }
 ```
 
 ## Modelos
@@ -139,18 +140,18 @@ Todos los parámetros están en `app.twin.*` y son **ilustrativos**: no son medi
 
 | Escenario | Salón | Resultado esperado |
 |---|---|---|
-| `CLASE_EN_CURSO` | 203-A | 26 de 30 pupitres ocupados, `OCUPADO_OPTIMO` + `CORTE_INERCIA_TERMICA` |
-| `CO2_ALTO` | 302-A | `VENTILACION_CO2_ACTIVA` + alerta `CO2_ALTO` |
-| `FALLO_CAMARA` | 203-A | Kalman con 2 mediciones, cámara caída |
-| `SOBRECUPO` | 103-B | 24 puestos ocupados y 7 personas de pie, `ALERTA_SOBRECUPO` |
-| `NO_SHOW` | 304-A | `LIBERADO_POR_NO_SHOW` + `BLOQUEO_AHORRO_VACIO` |
-| `SUBUTILIZADO` | 401-A | `ALERTA_SUBUTILIZADO` |
+| `CLASE_EN_CURSO` | 421-A | 26 de 30 pupitres ocupados, `OCUPADO_OPTIMO` + `CORTE_INERCIA_TERMICA` |
+| `CO2_ALTO` | 422-A | `VENTILACION_CO2_ACTIVA` + alerta `CO2_ALTO` |
+| `FALLO_CAMARA` | 421-A | Kalman con 2 mediciones, cámara caída |
+| `SOBRECUPO` | Laboratorio de Bioprocesos | 15 puestos ocupados y 7 personas de pie, `ALERTA_SOBRECUPO` |
+| `NO_SHOW` | 402-B | `LIBERADO_POR_NO_SHOW` + `BLOQUEO_AHORRO_VACIO` |
+| `SUBUTILIZADO` | 414-B | `ALERTA_SUBUTILIZADO` |
 | `POPUP_PARCIALES` | 503-A | `HABILITADO_POPUP_PARCIALES` (2 h) |
-| `LUCES_ENCENDIDAS` | 204-A | Orden de apagar luces; el salón queda `LIBRE` |
-| `EQUIPOS_ENCENDIDOS` | 302-B | Orden de apagar luces y suspender 30 equipos |
-| `OVERRIDE_DOCENTE` | 202-A | `OVERRIDE_MANUAL_DOCENTE` (45 min) |
-| `MANTENIMIENTO` | 104-B | `MANTENIMIENTO` + clima `APAGADO` |
-| `ACAPARAMIENTO_BIBLIOTECA` | 201-B | Mesa 1 liberada, mesa 2 en alerta, mesas 3–5 verificadas |
+| `LUCES_ENCENDIDAS` | 423-A | Orden de apagar luces; el salón queda `LIBRE` |
+| `EQUIPOS_ENCENDIDOS` | 309-A | Orden de apagar luces y suspender 24 equipos |
+| `OVERRIDE_DOCENTE` | 420-A | `OVERRIDE_MANUAL_DOCENTE` (45 min) |
+| `MANTENIMIENTO` | Laboratorio Multifuncional N.º 1 | `MANTENIMIENTO` + clima `APAGADO` |
+| `ACAPARAMIENTO_BIBLIOTECA` | BIBLIOTECA-2B | Mesa 1 liberada, mesa 2 en alerta, mesas 3–5 verificadas |
 | `REINICIAR` | todos | Estado inicial y reservas de simulación eliminadas |
 
 Para la nube se pueden desactivar con `SIMULATION_ENABLED=false`.
@@ -160,9 +161,9 @@ Para la nube se pueden desactivar con `SIMULATION_ENABLED=false`.
 ```sh
 docker compose up --build -d          # PostgreSQL, Mosquitto y backend con MQTT_ENABLED=true
 pip install -r tools/edge/requirements.txt
-python tools/edge/yolo_edge_publisher.py --space-id 201-B --synthetic --people 12
-# con cámara real: pip install ultralytics && python tools/edge/yolo_edge_publisher.py --space-id 201-B --source 0
+python tools/edge/yolo_edge_publisher.py --space-id BIBLIOTECA-2B --synthetic --people 12
+# con cámara real: pip install ultralytics && python tools/edge/yolo_edge_publisher.py --space-id BIBLIOTECA-2B --source 0
 # lectura del Arduino sin placa:
-mosquitto_pub -t ucc/pasto/bloque_a/piso_2/204-A/ambiente \
+mosquitto_pub -t ucc/pasto/bloque_a/piso_4/423-A/ambiente \
   -m '{"temperature_c":19.2,"humidity_pct":53,"illuminance_lux":390,"lights_on":true,"devices_on":0}'
 ```

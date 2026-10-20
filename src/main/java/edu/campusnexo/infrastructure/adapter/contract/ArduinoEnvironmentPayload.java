@@ -8,7 +8,7 @@ import java.time.Instant;
 
 /**
  * JSON published by the room Arduino ({@code tools/arduino/campusnexo_salon/campusnexo_salon.ino}) on
- * {@code ucc/pasto/bloque_a/piso_2/{space_id}/ambiente}. Also accepted over HTTP by
+ * {@code ucc/pasto/bloque_a/piso_4/{space_id}/ambiente}. Also accepted over HTTP by
  * {@code POST /api/v1/twin/environment}. The board usually has no real-time clock, so {@code timestamp}
  * is optional and the reception time is used instead.
  */

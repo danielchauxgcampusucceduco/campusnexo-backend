@@ -73,8 +73,8 @@ Después de guardar una lectura, `TelemetryService` publica `TelemetryRecorded`.
 ## Guion de demostración (aprox. 10 minutos)
 
 1. `GET /api/v1/spaces`: mostrar las tres sedes y sus perfiles.
-2. Enviar al salón `203-A` una lectura fría con 40 personas y 1600 ppm de CO₂ (con `X-API-Key`). Consultar `GET /api/v1/alerts`: aparecen `CO2_ALTO` y `SOBRECUPO` (**Observer**).
-3. `POST /api/v1/spaces/203-A/evaluations` con el servicio de IA apagado: la ocupación sale con `source = RESPALDO_LOCAL` (**Decorator** sobre el **Adapter**) y la recomendación es `CALEFACCION` (**Facade**, **Abstract Factory**, **Strategy**, **Builder**).
+2. Enviar al salón `421-A` una lectura fría con 40 personas y 1600 ppm de CO₂ (con `X-API-Key`). Consultar `GET /api/v1/alerts`: aparecen `CO2_ALTO` y `SOBRECUPO` (**Observer**).
+3. `POST /api/v1/spaces/421-A/evaluations` con el servicio de IA apagado: la ocupación sale con `source = RESPALDO_LOCAL` (**Decorator** sobre el **Adapter**) y la recomendación es `CALEFACCION` (**Facade**, **Abstract Factory**, **Strategy**, **Builder**).
 4. Repetir la evaluación con IA encendida: `source = SERVICIO_IA`.
 5. Enviar la misma lectura a `AULA-MAGNA-204` (tropical) con 82 % de humedad: `DESHUMIDIFICACION`. Comparar las explicaciones entre familias.
 6. Crear una reserva en `AULA-ADM-101`, enviar lecturas vacías después de 15 minutos y mostrar `RESERVA_SIN_USO`.

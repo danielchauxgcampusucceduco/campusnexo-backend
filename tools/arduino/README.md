@@ -21,5 +21,5 @@ Sin placa, la misma lectura se puede enviar por HTTP:
 
 ```sh
 curl -X POST http://localhost:8080/api/v1/twin/environment -H 'Content-Type: application/json' \
-  -d '{"space_id":"204-A","temperature_c":19.2,"humidity_pct":53,"illuminance_lux":390,"lights_on":true,"devices_on":0}'
+  -d '{"space_id":"423-A","temperature_c":19.2,"humidity_pct":53,"illuminance_lux":390,"lights_on":true,"devices_on":0}'
 ```

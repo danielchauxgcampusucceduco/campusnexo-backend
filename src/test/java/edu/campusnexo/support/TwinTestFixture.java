@@ -30,7 +30,7 @@ public final class TwinTestFixture {
     public final InMemoryReservationRepository reservationRows = new InMemoryReservationRepository();
     public final InMemorySpaceRepositoryPort twins = new InMemorySpaceRepositoryPort()
             .withRois("BIB-PISO-2", InMemorySpaceRepositoryPort.libraryDesks())
-            .withRois("201-B", InMemorySpaceRepositoryPort.libraryDesks("201-B", "201B-M"));
+            .withRois("BIBLIOTECA-2B", InMemorySpaceRepositoryPort.libraryDesks("BIBLIOTECA-2B", "BIB2B-M"));
     public final RecordingOutboundAdapters.Actuator actuator = new RecordingOutboundAdapters.Actuator();
     public final RecordingOutboundAdapters.EquipmentActuator equipment = new RecordingOutboundAdapters.EquipmentActuator();
     public final RecordingOutboundAdapters.Notifier notifier = new RecordingOutboundAdapters.Notifier();

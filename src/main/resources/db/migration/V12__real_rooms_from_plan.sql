@@ -1,0 +1,140 @@
+-- Real rooms of the campus, taken from the institutional plan "PLANOS_UCC_2025_-_B.dwg" (planimetry update
+-- 2025-B, floors 0 to 5). Rooms with a door code keep it (AULA 420 A -> 420-A); the rest get one from their
+-- floor, block and name. Capacity, seat grid and computers are estimated from the room type and the area
+-- measured on the plan: they are illustrative values for the demo, not the official inventory.
+
+CREATE TEMPORARY TABLE old_spaces AS
+    SELECT s.space_id FROM spaces s JOIN buildings b ON b.building_id = s.building_id WHERE b.branch_id = 'UCC-PASTO';
+DELETE FROM study_zone_rois WHERE space_id IN (SELECT space_id FROM old_spaces);
+DELETE FROM space_twin_states WHERE space_id IN (SELECT space_id FROM old_spaces);
+DELETE FROM reservations WHERE space_id IN (SELECT space_id FROM old_spaces);
+DELETE FROM alerts WHERE space_id IN (SELECT space_id FROM old_spaces);
+DELETE FROM occupancy_estimates WHERE space_id IN (SELECT space_id FROM old_spaces);
+DELETE FROM climate_recommendations WHERE space_id IN (SELECT space_id FROM old_spaces);
+DELETE FROM telemetry_stream WHERE space_id IN (SELECT space_id FROM old_spaces);
+DELETE FROM spaces WHERE space_id IN (SELECT space_id FROM old_spaces);
+DROP TABLE old_spaces;
+
+UPDATE buildings SET floors = 6 WHERE branch_id = 'UCC-PASTO';
+ALTER TABLE spaces DROP CONSTRAINT IF EXISTS spaces_floor_check;
+ALTER TABLE spaces ADD CONSTRAINT spaces_floor_check CHECK (floor BETWEEN 0 AND 10);
+
+INSERT INTO spaces (space_id, building_id, name, space_type, capacity, area_sqm, floor, seat_rows, seat_columns, computers) VALUES
+('0A-BODEGA', 'BLOQUE-A', 'Bodega', 'LOGISTICA', 2, 22.40, 0, NULL, NULL, 1),
+('0A-DE-POSGRADO-AREA-DE-ESTUDIO', 'BLOQUE-A', 'Área de Estudio de Posgrado', 'SALA_ESTUDIO', 6, 12.00, 0, 2, 3, 1),
+('0B-ARCHIVO-HISTORIAS-CLINICAS', 'BLOQUE-B', 'Archivo Historias Clínicas', 'LABORATORIO', 6, 15.50, 0, 2, 3, 1),
+('0A-AREA-INSUMOS-ESTUDIANTES', 'BLOQUE-A', 'Área Insumos Estudiantes', 'ADMINISTRATIVA', 2, 14.90, 0, NULL, NULL, 2),
+('0B-DE-HISTORIAS-CLINICAS-SALA', 'BLOQUE-B', 'Consulta de historias clínicas', 'BIBLIOTECA', 6, 13.80, 0, 2, 3, 1),
+('0B-UNIDAD-DE-CUIDADO-CRITICO', 'BLOQUE-B', 'Unidad de Cuidado Crítico', 'LABORATORIO', 6, 13.80, 0, 2, 3, 1),
+('0B-LABORATORIO-DE-SIMULACION-C', 'BLOQUE-B', 'Laboratorio de Simulación Clínica', 'LABORATORIO', 28, 72.30, 0, 4, 7, 7),
+('0A-AREA-MULTIFUNCIONAL', 'BLOQUE-A', 'Área Multifuncional', 'ADMINISTRATIVA', 2, 10.80, 0, NULL, NULL, 2),
+('0A-AREA-MULTIFUNCIONAL-2', 'BLOQUE-A', 'Área Multifuncional', 'ADMINISTRATIVA', 2, 14.10, 0, NULL, NULL, 2),
+('AUDITORIO-0A', 'BLOQUE-A', 'Auditorio Bloque A', 'AUDITORIO', 176, 176.60, 0, 11, 16, 1),
+('112-A', 'BLOQUE-A', 'Laboratorio de Ceras', 'AULA', 45, 68.40, 1, 5, 9, 1),
+('113-A', 'BLOQUE-A', 'Laboratorio de Yesos', 'AULA', 54, 86.00, 1, 6, 9, 1),
+('1B-COORDINACION-PRECLINICA-ALM', 'BLOQUE-B', 'Coordinación Preclínica', 'LABORATORIO', 4, 10.70, 1, 2, 2, 1),
+('1A-COORDINACION-ODONTOLOGIA-PO', 'BLOQUE-A', 'Coordinación Odontología Posgrado', 'ADMINISTRATIVA', 2, 10.20, 1, NULL, NULL, 2),
+('1A-JUEGOS-DE-SALON', 'BLOQUE-A', 'Juegos de Salón', 'LOGISTICA', 3, 40.40, 1, NULL, NULL, 1),
+('1B-AREA-DE-PROCEDIMIENTOS-LABO', 'BLOQUE-B', 'Laboratorio de Morfología', 'LABORATORIO', 8, 19.00, 1, 2, 4, 2),
+('1A-AREA-DE-LOCKERS-CIRCULACION', 'BLOQUE-A', 'Área de Lockers', 'LOGISTICA', 8, 100.40, 1, NULL, NULL, 1),
+('1A-INFRAESTRUCTURA', 'BLOQUE-A', 'Infraestructura', 'LOGISTICA', 2, 9.10, 1, NULL, NULL, 1),
+('1A-TESORERIA-MERCADEO-ICETEX', 'BLOQUE-A', 'Tesorería Mercadeo ICETEX', 'LOGISTICA', 3, 44.20, 1, NULL, NULL, 1),
+('1A-UNIVERSITARIO-BIENESTAR', 'BLOQUE-A', 'Bienestar Universitario', 'ADMINISTRATIVA', 2, 15.60, 1, NULL, NULL, 2),
+('1B-COORD-CLINICA-AREA-DE-DESTR', 'BLOQUE-B', 'Área de Destrezas Clínicas', 'LABORATORIO', 6, 16.90, 1, 2, 3, 1),
+('1A-ENLACE', 'BLOQUE-A', 'Enlace', 'ADMINISTRATIVA', 2, 7.20, 1, NULL, NULL, 2),
+('1A-GIMNASIO', 'BLOQUE-A', 'Gimnasio', 'LOGISTICA', 3, 47.30, 1, NULL, NULL, 1),
+('1A-ADMINISTRATIVO-CAD', 'BLOQUE-A', 'Administrativo CAD', 'ADMINISTRATIVA', 6, 48.70, 1, NULL, NULL, 6),
+('1A-COMPRAS-INDESCO', 'BLOQUE-A', 'Compras INDESCO', 'ADMINISTRATIVA', 2, 8.70, 1, NULL, NULL, 2),
+('CAFETERIA-1B', 'BLOQUE-B', 'Cafetería', 'CAFETERIA', 176, 269.70, 1, 11, 16, 1),
+('2B-LABORATORIO-MULTIFUNCIONAL', 'BLOQUE-B', 'Laboratorio Multifuncional N.º 1', 'LABORATORIO', 35, 83.30, 2, 5, 7, 8),
+('2A-INVESSTIGACIONES-MEDICAS-CE', 'BLOQUE-A', 'Centro de Investigaciones Médicas', 'ADMINISTRATIVA', 3, 21.40, 2, NULL, NULL, 3),
+('205-B', 'BLOQUE-B', 'Salón 205-B', 'AULA', 35, 52.60, 2, 5, 7, 1),
+('204-B', 'BLOQUE-B', 'Salón 204-B', 'AULA', 20, 29.80, 2, 4, 5, 1),
+('203-B', 'BLOQUE-B', 'Salón 203-B', 'AULA', 20, 31.40, 2, 4, 5, 1),
+('206-B', 'BLOQUE-B', 'Salón 206-B', 'AULA', 24, 36.20, 2, 4, 6, 1),
+('207-B', 'BLOQUE-B', 'Salón 207-B', 'AULA', 24, 36.60, 2, 4, 6, 1),
+('202-B', 'BLOQUE-B', 'Salón 202-B', 'AULA', 15, 23.70, 2, 3, 5, 1),
+('219-B', 'BLOQUE-B', 'Salón 219-B', 'AULA', 18, 26.10, 2, 3, 6, 1),
+('2A-COMUNICACIONES-OFICINA-DE', 'BLOQUE-A', 'Oficina de Comunicaciones', 'ADMINISTRATIVA', 2, 9.40, 2, NULL, NULL, 2),
+('201-B', 'BLOQUE-B', 'Salón 201-B', 'AULA', 15, 22.50, 2, 3, 5, 1),
+('2A-Y-EGRESADOS-INTERNACION-OFI', 'BLOQUE-A', 'Internacionalización y Egresados', 'ADMINISTRATIVA', 2, 15.00, 2, NULL, NULL, 2),
+('2B-REAL-LIDAD-LABORATORIO-MIXT', 'BLOQUE-B', 'Laboratorio de Realidad Mixta', 'LABORATORIO', 4, 11.70, 2, 2, 2, 1),
+('220-B', 'BLOQUE-B', 'Salón 220-B', 'AULA', 35, 56.10, 2, 5, 7, 1),
+('2B-MICROBIOLOGIA-LABORATORIO-D', 'BLOQUE-B', 'Laboratorio de Microbiología', 'LABORATORIO', 4, 9.50, 2, 2, 2, 1),
+('2B-SALA-DE-CONSULTA-DIGITAL', 'BLOQUE-B', 'Sala de Consulta Digital', 'BIBLIOTECA', 6, 14.20, 2, 2, 3, 1),
+('2A-COORD-PRACTICAS-MEDICINA', 'BLOQUE-A', 'Coordinación de Prácticas de Medicina', 'ADMINISTRATIVA', 2, 12.00, 2, NULL, NULL, 2),
+('BIBLIOTECA-2B', 'BLOQUE-B', 'Biblioteca · sala de lectura', 'BIBLIOTECA', 120, 395.30, 2, NULL, NULL, 15),
+('308-A', 'BLOQUE-A', 'Laboratorio de Informática 1', 'SALA_COMPUTO', 40, 77.00, 3, 5, 8, 40),
+('3A-SALA-PROFESORES-INGENIERIA', 'BLOQUE-A', 'Sala de Profesores de Ingeniería', 'ADMINISTRATIVA', 2, 16.70, 3, NULL, NULL, 2),
+('310-A', 'BLOQUE-A', 'Laboratorio de Informática 3', 'SALA_COMPUTO', 24, 47.30, 3, 4, 6, 24),
+('309-A', 'BLOQUE-A', 'Laboratorio de Informática 2', 'SALA_COMPUTO', 24, 47.90, 3, 4, 6, 24),
+('311-A', 'BLOQUE-A', 'Laboratorio de Informática 4', 'SALA_COMPUTO', 15, 26.50, 3, 3, 5, 15),
+('312-A', 'BLOQUE-A', 'Laboratorio de Informática 5', 'SALA_COMPUTO', 12, 25.90, 3, 3, 4, 12),
+('3B-DE-BIOPROCESOS-LABORATORIO', 'BLOQUE-B', 'Laboratorio de Bioprocesos', 'LABORATORIO', 15, 36.70, 3, 3, 5, 3),
+('3B-LAB-DE-APLICACION-A-LA-QUIM', 'BLOQUE-B', 'Lab. de Aplicación a la Química', 'LABORATORIO', 20, 49.10, 3, 4, 5, 5),
+('307-B', 'BLOQUE-B', 'Salón 307-B', 'AULA', 24, 36.70, 3, 4, 6, 1),
+('308-B', 'BLOQUE-B', 'Salón 308-B', 'AULA', 24, 36.70, 3, 4, 6, 1),
+('3A-SALA-DE-AUDIENCIA', 'BLOQUE-A', 'Sala de Audiencia', 'ADMINISTRATIVA', 7, 51.60, 3, NULL, NULL, 7),
+('318-B', 'BLOQUE-B', 'Salón 318-B', 'AULA', 35, 56.20, 3, 5, 7, 1),
+('316-B', 'BLOQUE-B', 'Salón 316-B', 'AULA', 40, 58.40, 3, 5, 8, 1),
+('3B-LAB-DE-APLICACION-DE-LA-FIS', 'BLOQUE-B', 'Lab. de Aplicación de la Física', 'LABORATORIO', 8, 22.00, 3, 2, 4, 2),
+('3A-GESTION-TEC-OFICINA-DE', 'BLOQUE-A', 'Oficina de Gestión TIC', 'ADMINISTRATIVA', 2, 19.80, 3, NULL, NULL, 2),
+('3A-CUARTO-DE-ESTUDIO', 'BLOQUE-A', 'Cuarto de Estudio', 'SALA_ESTUDIO', 6, 11.40, 3, 2, 3, 1),
+('3A-ODONTOLOGIA-SALA-DOCENTE', 'BLOQUE-A', 'Sala Docente de Odontología', 'ADMINISTRATIVA', 2, 18.90, 3, NULL, NULL, 2),
+('HEMEROTECA-3B', 'BLOQUE-B', 'Hemeroteca', 'BIBLIOTECA', 108, 267.40, 3, 9, 12, 13),
+('4A-GESTION-HUMANA', 'BLOQUE-A', 'Gestión Humana', 'ADMINISTRATIVA', 2, 7.80, 4, NULL, NULL, 2),
+('4A-SALA-JUNTAS', 'BLOQUE-A', 'Sala de Juntas', 'ADMINISTRATIVA', 6, 44.30, 4, NULL, NULL, 6),
+('4A-DIR-DE-SEDE', 'BLOQUE-A', 'Dirección de Sede', 'ADMINISTRATIVA', 2, 14.00, 4, NULL, NULL, 2),
+('4A-INSTITUCIONAL-SUB-DIR-DE-DL', 'BLOQUE-A', 'Subdirección Administrativa y Financiera', 'ADMINISTRATIVA', 2, 10.20, 4, NULL, NULL, 2),
+('422-A', 'BLOQUE-A', 'Salón 422-A', 'AULA', 30, 47.00, 4, 5, 6, 1),
+('423-A', 'BLOQUE-A', 'Salón 423-A', 'AULA', 18, 26.80, 4, 3, 6, 1),
+('421-A', 'BLOQUE-A', 'Salón 421-A', 'AULA', 30, 47.20, 4, 5, 6, 1),
+('424-A', 'BLOQUE-A', 'Salón 424-A', 'AULA', 18, 26.80, 4, 3, 6, 1),
+('420-A', 'BLOQUE-A', 'Salón 420-A', 'AULA', 30, 46.80, 4, 5, 6, 1),
+('4A-SOCIOJURIDICO-INVESTIGACION', 'BLOQUE-A', 'Centro de Investigación Sociojurídica', 'ADMINISTRATIVA', 3, 26.30, 4, NULL, NULL, 3),
+('4A-OFICINA-DE-PROYECTOS', 'BLOQUE-A', 'Oficina de Proyectos', 'ADMINISTRATIVA', 4, 29.40, 4, NULL, NULL, 4),
+('402-B', 'BLOQUE-B', 'Salón 402-B', 'AULA', 45, 67.00, 4, 5, 9, 1),
+('401-B', 'BLOQUE-B', 'Salón 401-B', 'AULA', 35, 51.30, 4, 5, 7, 1),
+('4A-ENFERMERIA-PROGRAMA-DE', 'BLOQUE-A', 'Programa de Enfermería', 'ADMINISTRATIVA', 2, 18.20, 4, NULL, NULL, 2),
+('407-B', 'BLOQUE-B', 'Salón 407-B', 'AULA', 24, 36.20, 4, 4, 6, 1),
+('406-B', 'BLOQUE-B', 'Salón 406-B', 'AULA', 24, 36.80, 4, 4, 6, 1),
+('404-B', 'BLOQUE-B', 'Salón 404-B', 'AULA', 18, 27.70, 4, 3, 6, 1),
+('415-B', 'BLOQUE-B', 'Salón 415-B', 'AULA', 35, 56.10, 4, 5, 7, 1),
+('414-B', 'BLOQUE-B', 'Salón 414-B', 'AULA', 40, 58.20, 4, 5, 8, 1),
+('4A-SALA-DE-PROFESORES-ENFERMER', 'BLOQUE-A', 'Sala de Profesores de Enfermería', 'ADMINISTRATIVA', 3, 24.10, 4, NULL, NULL, 3),
+('4A-SALA-DE-JUNTAS-GALERAS', 'BLOQUE-A', 'Sala de Juntas Galeras', 'ADMINISTRATIVA', 2, 11.10, 4, NULL, NULL, 2),
+('513-A', 'BLOQUE-A', 'Salón 513-A', 'AULA', 28, 46.30, 5, 4, 7, 1),
+('514-A', 'BLOQUE-A', 'Salón 514-A', 'AULA', 18, 26.60, 5, 3, 6, 1),
+('512-A', 'BLOQUE-A', 'Salón 512-A', 'AULA', 30, 47.70, 5, 5, 6, 1),
+('515-A', 'BLOQUE-A', 'Salón 515-A', 'AULA', 18, 27.20, 5, 3, 6, 1),
+('511-A', 'BLOQUE-A', 'Posgrados', 'AULA', 28, 46.10, 5, 4, 7, 1),
+('5A-SALA-DE-DOCENTES-DERECHO', 'BLOQUE-A', 'Sala de Docentes de Derecho', 'ADMINISTRATIVA', 3, 26.50, 5, NULL, NULL, 3),
+('5B-PROGRAMA-DE-INGENIERIA-INDU', 'BLOQUE-B', 'Laboratorio de Operaciones · Ing. Industrial', 'LABORATORIO', 24, 61.40, 5, 4, 6, 6),
+('5B-SENSORIAL-CAFE-LABORATORIO', 'BLOQUE-B', 'Laboratorio Sensorial de Café', 'CAFETERIA', 20, 31.20, 5, 4, 5, 1),
+('504-B', 'BLOQUE-B', 'Salón 504-B', 'AULA', 24, 36.70, 5, 4, 6, 1),
+('505-B', 'BLOQUE-B', 'Salón 505-B', 'AULA', 24, 36.20, 5, 4, 6, 1),
+('511-A-2', 'BLOQUE-A', 'Salón 511-A-2', 'AULA', 15, 25.20, 5, 3, 5, 1),
+('510-A', 'BLOQUE-A', 'Salón 510-A', 'AULA', 45, 68.60, 5, 5, 9, 1),
+('509-B', 'BLOQUE-B', 'Salón 509-B', 'AULA', 35, 54.70, 5, 5, 7, 1),
+('608-B', 'BLOQUE-B', 'Auditorio Urcunina', 'AUDITORIO', 114, 114.20, 5, 9, 13, 1),
+('5A-BODEGA-1', 'BLOQUE-A', 'Bodega 1', 'LOGISTICA', 2, 23.90, 5, NULL, NULL, 1),
+('5A-BODEGA-2', 'BLOQUE-A', 'Bodega 2', 'LOGISTICA', 2, 24.00, 5, NULL, NULL, 1),
+('5B-INFORMATICA-AULA-DE', 'BLOQUE-B', 'Aula de Informática', 'SALA_COMPUTO', 24, 49.00, 5, 4, 6, 24),
+('501-A', 'BLOQUE-A', 'Salón 501-A', 'AULA', 18, 27.80, 5, 3, 6, 1),
+('503-A', 'BLOQUE-A', 'Salón 503-A', 'AULA', 30, 48.80, 5, 5, 6, 1),
+('502-A', 'BLOQUE-A', 'Salón 502-A', 'AULA', 20, 29.00, 5, 4, 5, 1),
+('517-A', 'BLOQUE-A', 'Salón 517-A', 'AULA', 12, 16.20, 5, 3, 4, 1),
+('518-A', 'BLOQUE-A', 'Salón 518-A', 'AULA', 8, 11.50, 5, 2, 4, 1),
+('5A-FOREING-LANGUAGE-CENTER', 'BLOQUE-A', 'Foreign Language Center', 'ADMINISTRATIVA', 2, 12.00, 5, NULL, NULL, 2),
+('501-A-2', 'BLOQUE-A', 'Laboratorio Estudio de Trabajo', 'SALA_ESTUDIO', 15, 31.20, 5, 3, 5, 1);
+
+-- The reading room of the library has tables, not a seat grid: eight table regions drawn over its camera.
+INSERT INTO study_zone_rois (zone_id, space_id, label, polygon) VALUES
+('BIB2B-M01', 'BIBLIOTECA-2B', 'Mesa 1', '0.0600 0.3500;0.2600 0.3500;0.2600 0.5800;0.0600 0.5800'),
+('BIB2B-M02', 'BIBLIOTECA-2B', 'Mesa 2', '0.2900 0.3500;0.4900 0.3500;0.4900 0.5800;0.2900 0.5800'),
+('BIB2B-M03', 'BIBLIOTECA-2B', 'Mesa 3', '0.5200 0.3500;0.7200 0.3500;0.7200 0.5800;0.5200 0.5800'),
+('BIB2B-M04', 'BIBLIOTECA-2B', 'Mesa 4', '0.7500 0.3500;0.9500 0.3500;0.9500 0.5800;0.7500 0.5800'),
+('BIB2B-M05', 'BIBLIOTECA-2B', 'Mesa 5', '0.0600 0.6500;0.2600 0.6500;0.2600 0.8800;0.0600 0.8800'),
+('BIB2B-M06', 'BIBLIOTECA-2B', 'Mesa 6', '0.2900 0.6500;0.4900 0.6500;0.4900 0.8800;0.2900 0.8800'),
+('BIB2B-M07', 'BIBLIOTECA-2B', 'Mesa 7', '0.5200 0.6500;0.7200 0.6500;0.7200 0.8800;0.5200 0.8800'),
+('BIB2B-M08', 'BIBLIOTECA-2B', 'Mesa 8', '0.7500 0.6500;0.9500 0.6500;0.9500 0.8800;0.7500 0.8800');

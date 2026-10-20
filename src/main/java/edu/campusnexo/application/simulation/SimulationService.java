@@ -86,8 +86,9 @@ public class SimulationService implements SimulationUseCase {
             case FALLO_CAMARA -> send(new TelemetrySnapshot(room, now, false, List.of(), 820, 20.3, OUTDOOR_C, 57,
                     410, 22, 0.8));
             case SOBRECUPO -> {
-                send(seatedFrame(room, now, 31, 980, 21.8, 58, 520, 30, 2.4));
-                arduino(room, now, 21.8, 58, 980.0, 520, true, 12);
+                int crowd = catalog.getRequiredSpace(room).capacity() + 7;
+                send(seatedFrame(room, now, crowd, 980, 21.8, 58, 520, crowd, 2.4));
+                arduino(room, now, 21.8, 58, 980.0, 520, true, catalog.getRequiredSpace(room).computers());
             }
             case NO_SHOW -> {
                 clearSimulationReservations(room, now);
