@@ -22,7 +22,19 @@ jobs:
           java-version: '21'
           cache: maven
       - name: Unit and integration tests (Testcontainers PostgreSQL)
-        run: mvn --batch-mode --no-transfer-progress verify
+        run: |
+          set -o pipefail
+          mvn --batch-mode --no-transfer-progress verify 2>&1 | tee build.log
+      - name: Report build errors as annotations
+        if: failure()
+        run: |
+          # Compilation errors and failing tests become annotations, readable in the PR without the raw log.
+          grep -E "\[ERROR\]" build.log | grep -vE "^\[ERROR\] *$|Re-run Maven|Help 1|full stack trace|-> \[Help" \
+            | head -60 | split -l 12 - chunk-
+          for f in chunk-*; do
+            [ -f "$f" ] || continue
+            echo "::error title=Maven ($f)::$(sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g' "$f")"
+          done
       - name: Upload test reports and coverage
         if: always()
         uses: actions/upload-artifact@v4
