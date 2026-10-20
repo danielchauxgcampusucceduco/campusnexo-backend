@@ -152,7 +152,7 @@ class CampusNexoApiIntegrationTest {
     void reservations() {
         Instant start = Instant.now().plus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.HOURS);
         Map<String, Object> body = Map.of("startsAt", start.toString(), "endsAt", start.plus(2, ChronoUnit.HOURS).toString(),
-                "expectedAttendees", 20, "reference", "IS-701");
+                "expectedAttendees", 15, "reference", "IS-701");
         ResponseEntity<Map<String, Object>> created = post("/api/v1/spaces/424-A/reservations", body, true);
         assertEquals(201, created.getStatusCode().value());
         assertNotNull(created.getHeaders().getLocation());

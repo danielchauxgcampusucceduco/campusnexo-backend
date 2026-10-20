@@ -96,7 +96,7 @@ Son obligatorios `temperature_c`, `humidity_pct` y `lights_on`. `co2_ppm` es opc
 **Clima (ESP32).** Tópico `ucc/pasto/{bloque}/{piso}/{space_id}/clima/comando`. QoS 1, mensaje retenido y solo cuando cambia la estrategia.
 
 ```json
-{ "command_id": "…", "space_id": "203-A", "mode": "CORTE_INERCIA_TERMICA", "compressor_on": false,
+{ "command_id": "…", "space_id": "421-A", "mode": "CORTE_INERCIA_TERMICA", "compressor_on": false,
   "setpoint_c": 24.0, "issued_at": "2026-10-20T15:00:00Z", "reason": "La inercia térmica mantiene el confort…" }
 ```
 

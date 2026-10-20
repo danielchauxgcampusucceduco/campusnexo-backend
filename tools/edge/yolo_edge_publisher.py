@@ -16,7 +16,7 @@ Room sensors (temperature, light, computers) are published by the room's Arduino
 
 Example::
 
-    python yolo_edge_publisher.py --space-id 203-A --synthetic --people 12
+    python yolo_edge_publisher.py --space-id 421-A --synthetic --people 12
 """
 from __future__ import annotations
 
