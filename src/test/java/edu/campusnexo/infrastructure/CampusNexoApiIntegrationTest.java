@@ -179,7 +179,8 @@ class CampusNexoApiIntegrationTest {
         assertEquals(400, missingField.getStatusCode().value());
         assertEquals("validation_failed", missingField.getBody().get("code"));
 
-        ResponseEntity<Map<String, Object>> noTelemetry = post("/api/v1/spaces/BIB-PISO-2/evaluations", Map.of(), false);
+        // AULA-ADM-101 only receives reservations in this suite, never telemetry.
+        ResponseEntity<Map<String, Object>> noTelemetry = post("/api/v1/spaces/AULA-ADM-101/evaluations", Map.of(), false);
         assertEquals(409, noTelemetry.getStatusCode().value());
     }
 
