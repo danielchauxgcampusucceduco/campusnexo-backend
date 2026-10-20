@@ -15,4 +15,6 @@ public interface ReservationUseCase {
     List<Reservation> list(String spaceId, Instant from, Instant to);
 
     Optional<Reservation> activeAt(String spaceId, Instant instant);
+
+    void cancel(UUID reservationId);
 }

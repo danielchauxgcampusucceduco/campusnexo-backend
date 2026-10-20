@@ -75,4 +75,10 @@ public class ReservationService implements ReservationUseCase {
     public Optional<Reservation> activeAt(String spaceId, Instant instant) {
         return repository.findActiveAt(spaceId, instant);
     }
+
+    @Override
+    public void cancel(UUID reservationId) {
+        get(reservationId);
+        repository.delete(reservationId);
+    }
 }

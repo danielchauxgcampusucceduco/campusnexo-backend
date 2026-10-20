@@ -15,4 +15,9 @@ public interface ReservationRepository {
     List<Reservation> findOverlapping(String spaceId, Instant from, Instant to);
 
     Optional<Reservation> findActiveAt(String spaceId, Instant instant);
+
+    /** First reservation of the space that starts strictly after {@code instant}. */
+    Optional<Reservation> findNextStartingAfter(String spaceId, Instant instant);
+
+    void delete(UUID reservationId);
 }
