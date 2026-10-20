@@ -1,15 +1,17 @@
 package edu.campusnexo.infrastructure.config;
 
+import edu.campusnexo.application.DashboardSummaryService;
 import edu.campusnexo.application.OccupancyEstimationService;
 import edu.campusnexo.application.TelemetryService;
 import edu.campusnexo.application.catalog.SpaceCatalogService;
 import edu.campusnexo.application.climate.AndeanClimatePolicyFactory;
 import edu.campusnexo.application.climate.ClimateRecommendationService;
-import edu.campusnexo.application.climate.TemplatedClimatePolicyFactory;
+import edu.campusnexo.application.climate.MildClimatePolicyFactory;
 import edu.campusnexo.application.climate.TropicalClimatePolicyFactory;
 import edu.campusnexo.application.event.TelemetryEventPublisher;
 import edu.campusnexo.application.event.TelemetryObserver;
 import edu.campusnexo.application.event.ObserverFailureReporter;
+import edu.campusnexo.application.port.in.CampusCatalogUseCase;
 import edu.campusnexo.domain.port.ClimateRecommendationRepository;
 import edu.campusnexo.domain.port.OccupancyEstimator;
 import edu.campusnexo.domain.port.SpaceCatalogRepository;
@@ -30,7 +32,7 @@ public class ApplicationConfiguration {
     }
 
     @Bean
-    OccupancyEstimationService occupancyEstimationService(OccupancyEstimator estimator, SpaceCatalogService spaces) {
+    OccupancyEstimationService occupancyEstimationService(OccupancyEstimator estimator, CampusCatalogUseCase spaces) {
         return new OccupancyEstimationService(estimator, spaces);
     }
 
@@ -41,15 +43,20 @@ public class ApplicationConfiguration {
     }
 
     @Bean
-    TelemetryService telemetryService(TelemetryRepository telemetry, SpaceCatalogService spaces,
+    TelemetryService telemetryService(TelemetryRepository telemetry, CampusCatalogUseCase spaces,
                                       TelemetryEventPublisher publisher) {
         return new TelemetryService(telemetry, spaces, publisher);
     }
 
     @Bean
-    ClimateRecommendationService climateRecommendationService(Clock clock, SpaceCatalogService spaces,
+    ClimateRecommendationService climateRecommendationService(Clock clock, CampusCatalogUseCase spaces,
             ClimateRecommendationRepository recommendations, List<ClimatePolicyFactory> factories) {
         return new ClimateRecommendationService(clock, spaces, recommendations, factories);
+    }
+
+    @Bean
+    DashboardSummaryService dashboardSummaryService(Clock clock, TelemetryRepository telemetry) {
+        return new DashboardSummaryService(clock, telemetry);
     }
 
     @Bean
@@ -59,5 +66,5 @@ public class ApplicationConfiguration {
     ClimatePolicyFactory tropicalClimatePolicyFactory() { return new TropicalClimatePolicyFactory(); }
 
     @Bean
-    ClimatePolicyFactory templatedClimatePolicyFactory() { return new TemplatedClimatePolicyFactory(); }
+    ClimatePolicyFactory mildClimatePolicyFactory() { return new MildClimatePolicyFactory(); }
 }

@@ -1,8 +1,10 @@
 package edu.campusnexo.infrastructure.web;
 
-import edu.campusnexo.application.TelemetryService;
-import edu.campusnexo.application.OccupancyEstimationService;
-import edu.campusnexo.application.climate.ClimateRecommendationService;
+import edu.campusnexo.application.port.in.CampusCatalogUseCase;
+import edu.campusnexo.application.port.in.ClimateRecommendationUseCase;
+import edu.campusnexo.application.port.in.DashboardQueryUseCase;
+import edu.campusnexo.application.port.in.OccupancyEstimationUseCase;
+import edu.campusnexo.application.port.in.TelemetryUseCase;
 import edu.campusnexo.domain.model.CampusSpace;
 import edu.campusnexo.domain.model.ClimateRecommendation;
 import edu.campusnexo.domain.model.OccupancyEstimate;
@@ -34,15 +36,24 @@ import java.util.List;
 @Validated
 @RequestMapping("/api/v1")
 public class TelemetryController {
-    private final TelemetryService service;
-    private final OccupancyEstimationService occupancyEstimation;
-    private final ClimateRecommendationService climateRecommendations;
+    private final TelemetryUseCase telemetry;
+    private final CampusCatalogUseCase catalog;
+    private final OccupancyEstimationUseCase occupancyEstimation;
+    private final ClimateRecommendationUseCase climateRecommendations;
+    private final DashboardQueryUseCase dashboard;
     private final Clock clock;
-    public TelemetryController(TelemetryService service, OccupancyEstimationService occupancyEstimation,
-                               ClimateRecommendationService climateRecommendations, Clock clock) {
-        this.service = service;
+
+    public TelemetryController(TelemetryUseCase telemetry,
+                               CampusCatalogUseCase catalog,
+                               OccupancyEstimationUseCase occupancyEstimation,
+                               ClimateRecommendationUseCase climateRecommendations,
+                               DashboardQueryUseCase dashboard,
+                               Clock clock) {
+        this.telemetry = telemetry;
+        this.catalog = catalog;
         this.occupancyEstimation = occupancyEstimation;
         this.climateRecommendations = climateRecommendations;
+        this.dashboard = dashboard;
         this.clock = clock;
     }
 
@@ -52,11 +63,11 @@ public class TelemetryController {
             @NotNull @Min(0) Integer peopleCount,
             @NotNull @Min(0) Integer objectCount,
             @NotNull @Min(0) Integer wifiDevices,
-            @NotNull @DecimalMin("0") Double co2Ppm,
+            @NotNull @DecimalMin("0") @DecimalMax("10000") Double co2Ppm,
             @NotNull @DecimalMin("-30") @DecimalMax("60") Double temperatureC,
             @NotNull @DecimalMin("0") @DecimalMax("100") Double humidityPct,
-            @NotNull @DecimalMin("0") Double illuminanceLux,
-            @NotNull @DecimalMin("0") Double activePowerKw) {
+            @NotNull @DecimalMin("0") @DecimalMax("20000") Double illuminanceLux,
+            @NotNull @DecimalMin("0") @DecimalMax("10000") Double activePowerKw) {
         Telemetry toDomain(Instant defaultRecordedAt) {
             Instant effectiveRecordedAt = recordedAt == null ? defaultRecordedAt : recordedAt;
             return new Telemetry(spaceId, effectiveRecordedAt, peopleCount, objectCount, wifiDevices,
@@ -64,32 +75,11 @@ public class TelemetryController {
         }
     }
 
-    @PostMapping("/telemetry")
-    @ResponseStatus(HttpStatus.CREATED)
-    public Telemetry ingest(@Valid @RequestBody TelemetryRequest request) {
-        return service.ingest(request.toDomain(clock.instant()));
-    }
-
-    @GetMapping("/telemetry")
-    public List<Telemetry> recent(
-            @RequestParam(required = false) String spaceId,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit) {
-        return service.recent(spaceId, limit);
-    }
-
     public record OccupancyEstimateRequest(
             @Min(0) @Max(1000) Integer yoloPeople,
             @NotNull @DecimalMin("0") @DecimalMax("10000") Double co2Ppm,
             @NotNull @Min(0) @Max(10000) Integer wifiDevices,
             @DecimalMin("300") @DecimalMax("1000") Double outdoorCo2Ppm) {}
-
-    @PostMapping("/occupancy/estimate")
-    public OccupancyEstimate estimate(
-            @RequestParam @NotBlank @Size(max = 32) String spaceId,
-            @Valid @RequestBody OccupancyEstimateRequest request) {
-        return occupancyEstimation.estimate(spaceId, request.yoloPeople(), request.co2Ppm(),
-                request.wifiDevices(), request.outdoorCo2Ppm() == null ? 415.0 : request.outdoorCo2Ppm());
-    }
 
     public record ClimateRecommendationRequest(
             @NotNull @Min(0) @Max(1000) Integer occupancy,
@@ -100,27 +90,53 @@ public class TelemetryController {
             boolean hvacOn,
             @NotNull @Min(0) @Max(10000) Integer minutesInCurrentHvacState) {}
 
+    @PostMapping("/telemetry")
+    @ResponseStatus(HttpStatus.CREATED)
+    public Telemetry ingest(@Valid @RequestBody TelemetryRequest request) {
+        return telemetry.ingest(request.toDomain(clock.instant()));
+    }
+
+    @GetMapping("/telemetry")
+    public List<Telemetry> recentTelemetry(
+            @RequestParam(required = false) @Size(max = 32) String spaceId,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit) {
+        return telemetry.recent(spaceId, limit);
+    }
+
+    @PostMapping("/occupancy/estimate")
+    public OccupancyEstimate estimateOccupancy(
+            @RequestParam @NotBlank @Size(max = 32) String spaceId,
+            @Valid @RequestBody OccupancyEstimateRequest request) {
+        return occupancyEstimation.estimate(spaceId, request.yoloPeople(), request.co2Ppm(),
+                request.wifiDevices(), request.outdoorCo2Ppm() == null ? 415.0 : request.outdoorCo2Ppm());
+    }
+
     @PostMapping("/climate/recommendations")
     public ClimateRecommendation recommendClimate(
             @RequestParam @NotBlank @Size(max = 32) String spaceId,
             @Valid @RequestBody ClimateRecommendationRequest request) {
-        var space = service.space(spaceId);
-        var context = new ClimateContext(request.occupancy(), request.co2Ppm(), request.indoorTemperatureC(),
+        CampusSpace space = catalog.getRequiredSpace(spaceId);
+        ClimateContext context = new ClimateContext(request.occupancy(), request.co2Ppm(),
+                request.indoorTemperatureC(),
                 request.outsideTemperatureC() == null ? space.averageOutsideTempC() : request.outsideTemperatureC(),
                 request.illuminanceLux(), request.hvacOn(), request.minutesInCurrentHvacState());
         return climateRecommendations.recommend(spaceId, context);
     }
 
+    @GetMapping("/climate/recommendations")
+    public List<ClimateRecommendation> recentClimateRecommendations(
+            @RequestParam(required = false) @Size(max = 32) String spaceId,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit) {
+        return climateRecommendations.recent(spaceId, limit);
+    }
+
     @GetMapping("/spaces")
     public List<CampusSpace> spaces() {
-        return service.spaces();
+        return catalog.listSpaces();
     }
 
     @GetMapping("/dashboard/summary")
-    public Summary summary() {
-        Instant since = clock.instant().minusSeconds(86_400);
-        return new Summary(service.spaces().size(), service.readingsSince(since), since);
+    public DashboardQueryUseCase.DashboardSummary summary() {
+        return dashboard.summarizeLast24Hours();
     }
-
-    public record Summary(int monitoredSpaces, long readingsLast24h, Instant since) {}
 }

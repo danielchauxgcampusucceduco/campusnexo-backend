@@ -17,5 +17,6 @@ class JpaTelemetryAdapter implements TelemetryRepository {
                 ? data.findTop100ByOrderByRecordedAtDesc() : data.findTop100BySpaceIdOrderByRecordedAtDesc(spaceId);
         return rows.stream().limit(limit).map(TelemetryEntity::toDomain).toList();
     }
-    @Override public long countSince(Instant from) { return data.countByRecordedAtAfter(from); }
+    @Override public long countSince(Instant from) { return data.countByRecordedAtGreaterThanEqual(from); }
+    @Override public long countDistinctSpacesSince(Instant from) { return data.countDistinctSpaceIdsSince(from); }
 }

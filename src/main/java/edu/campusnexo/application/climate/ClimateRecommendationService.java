@@ -1,6 +1,7 @@
 package edu.campusnexo.application.climate;
 
-import edu.campusnexo.application.catalog.SpaceCatalogService;
+import edu.campusnexo.application.port.in.CampusCatalogUseCase;
+import edu.campusnexo.application.port.in.ClimateRecommendationUseCase;
 import edu.campusnexo.domain.model.ClimateRecommendation;
 import edu.campusnexo.domain.model.ClimateProfile;
 import edu.campusnexo.domain.policy.ClimateContext;
@@ -11,12 +12,12 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-public class ClimateRecommendationService {
+public class ClimateRecommendationService implements ClimateRecommendationUseCase {
     private final Clock clock;
-    private final SpaceCatalogService spaces;
+    private final CampusCatalogUseCase spaces;
     private final ClimateRecommendationRepository recommendations;
     private final Map<ClimateProfile, ClimatePolicyFactory> factories;
-    public ClimateRecommendationService(Clock clock, SpaceCatalogService spaces,
+    public ClimateRecommendationService(Clock clock, CampusCatalogUseCase spaces,
             ClimateRecommendationRepository recommendations, List<ClimatePolicyFactory> factories) {
         this.clock = clock;
         this.spaces = spaces;
@@ -29,8 +30,8 @@ public class ClimateRecommendationService {
         }
         this.factories = Map.copyOf(byProfile);
     }
-    public ClimateRecommendation recommend(String spaceId, ClimateContext context) {
-        var space = spaces.getRequired(spaceId);
+    @Override public ClimateRecommendation recommend(String spaceId, ClimateContext context) {
+        var space = spaces.getRequiredSpace(spaceId);
         ClimatePolicyFactory factory = factories.get(space.climateProfile());
         if (factory == null) throw new IllegalStateException("No hay políticas para " + space.climateProfile());
         var hvac = factory.createThermalPolicy().recommend(context);
@@ -40,5 +41,11 @@ public class ClimateRecommendationService {
                 .spaceId(space.spaceId()).climateProfile(space.climateProfile()).generatedAt(clock.instant())
                 .hvac(hvac).ventilation(ventilation).lighting(lighting).build();
         return recommendations.save(recommendation);
+    }
+
+    @Override public List<ClimateRecommendation> recent(String spaceId, int limit) {
+        if (spaceId != null && !spaceId.isBlank()) spaces.getRequiredSpace(spaceId);
+        if (limit < 1 || limit > 100) throw new IllegalArgumentException("limit debe estar entre 1 y 100");
+        return recommendations.findRecent(spaceId, limit);
     }
 }

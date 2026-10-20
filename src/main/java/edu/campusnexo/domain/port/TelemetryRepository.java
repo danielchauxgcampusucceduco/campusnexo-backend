@@ -8,4 +8,5 @@ public interface TelemetryRepository {
     Telemetry save(Telemetry telemetry);
     List<Telemetry> findRecent(String spaceId, int limit);
     long countSince(Instant from);
+    long countDistinctSpacesSince(Instant from);
 }
