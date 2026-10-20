@@ -5,6 +5,8 @@ import edu.campusnexo.domain.twin.KalmanMeasurement;
 import edu.campusnexo.domain.twin.KalmanMeasurement.MeasurementSource;
 import edu.campusnexo.domain.twin.KalmanStep;
 import edu.campusnexo.domain.twin.OccupancyBelief;
+import edu.campusnexo.domain.twin.RoomCondition;
+import edu.campusnexo.domain.twin.RoomEquipment;
 import edu.campusnexo.domain.twin.SpaceStatus;
 import edu.campusnexo.domain.twin.SpaceTwinState;
 import edu.campusnexo.domain.twin.ThermalDecision;
@@ -15,7 +17,9 @@ import java.util.List;
 
 /**
  * Storage format of {@link SpaceTwinState}. Kept separate from the domain records so that refactoring the
- * domain does not silently change the persisted JSON; {@link #VERSION} identifies the format.
+ * domain does not silently change the persisted JSON; {@link #VERSION} identifies the format. Version 1
+ * documents (before rooms reported lights and computers) are still read: their equipment is unknown and
+ * starts switched off.
  */
 record TwinDocument(
         int version,
@@ -36,27 +40,47 @@ record TwinDocument(
         Instant overrideUntil,
         Instant popUpUntil,
         boolean maintenance,
-        Instant updatedAt) {
+        Instant updatedAt,
+        Equipment equipment,
+        RoomCondition condition,
+        Instant emptySince,
+        Instant equipmentShutdownAt) {
 
-    static final int VERSION = 1;
+    static final int VERSION = 2;
 
     static TwinDocument from(SpaceTwinState state) {
         return new TwinDocument(VERSION, state.spaceId(), state.status(), state.hvacState(), state.hvacStateSince(),
                 Belief.from(state.occupancy()), Kalman.from(state.lastKalmanStep()), Thermal.from(state.lastThermalDecision()),
                 state.indoorTemperatureC(), state.outdoorTemperatureC(), state.co2Ppm(), state.humidityPct(),
                 state.cameraOnline(), state.desks().stream().map(Desk::from).toList(), state.energySavedKwh(),
-                state.overrideUntil(), state.popUpUntil(), state.maintenance(), state.updatedAt());
+                state.overrideUntil(), state.popUpUntil(), state.maintenance(), state.updatedAt(),
+                Equipment.from(state.equipment()), state.condition(), state.emptySince(), state.equipmentShutdownAt());
     }
 
     SpaceTwinState toDomain() {
-        if (version != VERSION) {
+        if (version != 1 && version != VERSION) {
             throw new IllegalStateException("Versión de documento de gemelo no soportada: " + version);
         }
-        return new SpaceTwinState(spaceId, status, hvacState, hvacStateSince, occupancy.toDomain(),
+        OccupancyBelief belief = occupancy.toDomain();
+        return new SpaceTwinState(spaceId, status, hvacState, hvacStateSince, belief,
                 kalman == null ? null : kalman.toDomain(), thermal == null ? null : thermal.toDomain(), indoorTemperatureC,
                 outdoorTemperatureC, co2Ppm, humidityPct, cameraOnline,
                 desks == null ? List.of() : desks.stream().map(Desk::toDomain).toList(), energySavedKwh, overrideUntil,
-                popUpUntil, maintenance, updatedAt);
+                popUpUntil, maintenance, updatedAt,
+                equipment == null ? RoomEquipment.off(0) : equipment.toDomain(),
+                condition == null ? (belief.people() > 0 ? RoomCondition.OCUPADO : RoomCondition.LIBRE) : condition,
+                emptySince, equipmentShutdownAt);
+    }
+
+    record Equipment(boolean lightsOn, double illuminanceLux, int devicesOn, int devicesTotal) {
+        static Equipment from(RoomEquipment equipment) {
+            return new Equipment(equipment.lightsOn(), equipment.illuminanceLux(), equipment.devicesOn(),
+                    equipment.devicesTotal());
+        }
+
+        RoomEquipment toDomain() {
+            return new RoomEquipment(lightsOn, illuminanceLux, devicesOn, devicesTotal);
+        }
     }
 
     record Belief(double estimate, double variance, Instant at) {

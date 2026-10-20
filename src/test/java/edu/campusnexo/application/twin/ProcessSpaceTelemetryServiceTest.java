@@ -1,13 +1,17 @@
 package edu.campusnexo.application.twin;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import edu.campusnexo.domain.trace.ArchitectureTrace;
 import edu.campusnexo.domain.trace.HexagonalLayer;
 import edu.campusnexo.domain.trace.TraceStep;
+import edu.campusnexo.domain.twin.EnvironmentReading;
 import edu.campusnexo.domain.twin.HvacControlState;
+import edu.campusnexo.domain.twin.RoomCondition;
 import edu.campusnexo.domain.twin.SpaceStatus;
 import edu.campusnexo.domain.twin.SpaceTwinState;
 import edu.campusnexo.domain.twin.TelemetrySnapshot;
@@ -86,5 +90,56 @@ class ProcessSpaceTelemetryServiceTest {
         SpaceTwinState overridden = fixture.controls.manualOverride("LAB-IA-102", Duration.ofMinutes(45));
         assertEquals(HvacControlState.OVERRIDE_MANUAL_DOCENTE, overridden.hvacState());
         assertEquals(2, fixture.actuator.commands.size());
+    }
+
+    private EnvironmentReading arduino(boolean lightsOn, int devicesOn) {
+        return new EnvironmentReading("302-B", fixture.clock.instant(), 19.5, 52, null, lightsOn ? 400 : 20, lightsOn,
+                devicesOn);
+    }
+
+    private TelemetrySnapshot emptyRoomFrame() {
+        return new TelemetrySnapshot("302-B", fixture.clock.instant(), true, List.of(), 430, 19.5, 13.5, 52, 400, 0, 1.0);
+    }
+
+    @Test
+    @DisplayName("El Arduino reporta luces y equipos; se apagan solo tras 5 min de salón vacío")
+    void idleShutdownAfterThreshold() {
+        fixture.pipeline.process(emptyRoomFrame(), "MQTT · prueba");
+        fixture.clock.advance(Duration.ofMinutes(2));
+        SpaceTwinState wasting = fixture.pipeline.processEnvironment(arduino(true, 30), "MQTT · Arduino");
+        assertEquals(RoomCondition.LUCES_Y_EQUIPOS_SIN_USO, wasting.condition());
+        assertEquals(30, wasting.equipment().devicesOn());
+        assertTrue(fixture.equipment.commands.isEmpty());
+
+        fixture.clock.advance(Duration.ofMinutes(4));
+        SpaceTwinState shutDown = fixture.pipeline.processEnvironment(arduino(true, 30), "MQTT · Arduino");
+        assertEquals(1, fixture.equipment.commands.size());
+        assertTrue(fixture.equipment.commands.get(0).suspendDevices());
+        assertFalse(shutDown.equipment().lightsOn());
+        assertEquals(RoomCondition.LIBRE, shutDown.condition());
+        assertNotNull(shutDown.equipmentShutdownAt());
+
+        // Someone switches the lights on again without staying: no second order until the threshold passes again.
+        fixture.clock.advance(Duration.ofMinutes(1));
+        fixture.pipeline.processEnvironment(arduino(true, 0), "MQTT · Arduino");
+        assertEquals(1, fixture.equipment.commands.size());
+        fixture.clock.advance(Duration.ofMinutes(5));
+        fixture.pipeline.processEnvironment(arduino(true, 0), "MQTT · Arduino");
+        assertEquals(2, fixture.equipment.commands.size());
+        assertFalse(fixture.equipment.commands.get(1).suspendDevices());
+    }
+
+    @Test
+    @DisplayName("Con personas dentro no hay orden de apagado y el salón deja de estar vacío")
+    void occupiedRoomKeepsEquipment() {
+        fixture.clock.advance(Duration.ofMinutes(20));
+        TelemetrySnapshot occupied = new TelemetrySnapshot("302-B", fixture.clock.instant(), true,
+                List.of(new TrackedDetection(1, DetectedObjectClass.PERSON, 0.9, new BoundingBox(0.1, 0.4, 0.14, 0.47))),
+                600, 20, 13.5, 52, 400, 2, 1.5, true, 1);
+        SpaceTwinState state = fixture.pipeline.process(occupied, "MQTT · prueba");
+        assertEquals(RoomCondition.OCUPADO, state.condition());
+        assertNull(state.emptySince());
+        assertTrue(fixture.equipment.commands.isEmpty());
+        assertTrue(fixture.notifier.traces.get(0).steps().stream().anyMatch(s -> s.component().equals("RoomConditionPolicy")));
     }
 }

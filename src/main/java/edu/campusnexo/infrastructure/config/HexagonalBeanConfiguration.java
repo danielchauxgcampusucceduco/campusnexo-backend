@@ -14,10 +14,12 @@ import edu.campusnexo.application.twin.TwinQueryService;
 import edu.campusnexo.domain.port.HvacActuatorCommandPort;
 import edu.campusnexo.domain.port.RealtimeDashboardNotifierPort;
 import edu.campusnexo.domain.port.ReservationRepository;
+import edu.campusnexo.domain.port.RoomEquipmentCommandPort;
 import edu.campusnexo.domain.port.SpaceRepositoryPort;
 import edu.campusnexo.domain.twin.EnergyAccountingPolicy;
 import edu.campusnexo.domain.twin.KalmanParameters;
 import edu.campusnexo.domain.twin.OccupancyKalmanDomainService;
+import edu.campusnexo.domain.twin.RoomConditionPolicy;
 import edu.campusnexo.domain.twin.SpaceStatusPolicy;
 import edu.campusnexo.domain.twin.ThermalInertiaMpcDomainService;
 import edu.campusnexo.domain.twin.ThermalParameters;
@@ -31,7 +33,7 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Composition root of the digital twin. Domain services are plain Java objects built here from
  * {@link TwinProperties}; the domain never sees Spring. {@link ProcessSpaceTelemetryService} is one bean
- * exposed through its two input ports (telemetry processing and re-evaluation).
+ * exposed through its three input ports (camera frames, Arduino readings and re-evaluation).
  */
 @Configuration
 @EnableConfigurationProperties(TwinProperties.class)
@@ -77,9 +79,11 @@ class HexagonalBeanConfiguration {
                                                               OccupancyKalmanDomainService kalman,
                                                               ThermalInertiaMpcDomainService thermal,
                                                               SpaceStatusPolicy statusPolicy, EnergyAccountingPolicy energy,
-                                                              RecentTraceBuffer traces, TwinProperties properties) {
+                                                              RecentTraceBuffer traces, TwinProperties properties,
+                                                              RoomEquipmentCommandPort equipment) {
         return new ProcessSpaceTelemetryService(clock, catalog, telemetry, reservations, twins, actuator, notifier, kalman,
-                thermal, statusPolicy, energy, properties.status().deskAbandonThreshold(), traces);
+                thermal, statusPolicy, energy, properties.status().deskAbandonThreshold(), traces, equipment,
+                new RoomConditionPolicy(), properties.status().equipmentIdleShutdown());
     }
 
     @Bean
@@ -100,6 +104,6 @@ class HexagonalBeanConfiguration {
     SimulationUseCase simulation(Clock clock, ProcessSpaceTelemetryService pipeline, TwinControlUseCase controls,
                                  ReservationUseCase reservations, CampusCatalogUseCase catalog, SpaceRepositoryPort twins,
                                  TwinQueryUseCase queries) {
-        return new SimulationService(clock, pipeline, controls, reservations, catalog, twins, queries);
+        return new SimulationService(clock, pipeline, pipeline, controls, reservations, catalog, twins, queries);
     }
 }

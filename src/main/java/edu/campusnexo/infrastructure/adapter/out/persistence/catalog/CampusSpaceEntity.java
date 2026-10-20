@@ -1,6 +1,7 @@
 package edu.campusnexo.infrastructure.adapter.out.persistence.catalog;
 
 import edu.campusnexo.domain.catalog.CampusSpace;
+import edu.campusnexo.domain.catalog.SeatLayout;
 import edu.campusnexo.domain.catalog.SpaceType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -36,6 +37,18 @@ class CampusSpaceEntity {
     @Column(name = "area_sqm", nullable = false)
     private double areaSqm;
 
+    @Column(nullable = false)
+    private int floor;
+
+    @Column(name = "seat_rows")
+    private Integer seatRows;
+
+    @Column(name = "seat_columns")
+    private Integer seatColumns;
+
+    @Column(nullable = false)
+    private int computers;
+
     protected CampusSpaceEntity() {
     }
 
@@ -43,6 +56,7 @@ class CampusSpaceEntity {
         CampusBranchEntity branch = building.getBranch();
         return new CampusSpace(spaceId, name, type, capacity, areaSqm, building.getBuildingId(), building.getName(),
                 branch.getBranchId(), branch.getName(), branch.getCity(), branch.getClimateProfile(),
-                branch.getAverageOutsideTempC(), branch.getKwhTariffCop().doubleValue());
+                branch.getAverageOutsideTempC(), branch.getKwhTariffCop().doubleValue(), floor,
+                seatRows == null || seatColumns == null ? null : new SeatLayout(seatRows, seatColumns), computers);
     }
 }

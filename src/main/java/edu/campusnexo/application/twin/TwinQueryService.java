@@ -80,7 +80,7 @@ public class TwinQueryService implements TwinQueryUseCase {
     private SpaceTwinView view(CampusSpace space, SpaceTwinState state, Instant now) {
         SpaceTwinState effective = state == null ? SpaceTwinState.initial(space, now) : state;
         return new SpaceTwinView(space, effective, reservations.findActiveAt(space.spaceId(), now).orElse(null),
-                twins.findRois(space.spaceId()));
+                SeatRegions.of(space, twins));
     }
 
     private static double round(double value, int decimals) {

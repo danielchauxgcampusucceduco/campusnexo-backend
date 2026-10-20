@@ -42,7 +42,7 @@ class Esp32HvacActuatorAdapter implements HvacActuatorCommandPort {
 
     @Override
     public void send(HvacCommand command) {
-        String topic = topicTemplate.replace("{space_id}", command.spaceId());
+        String topic = RoomTopicTemplate.resolve(topicTemplate, command.spaceId());
         MqttMessage message = new MqttMessage(json.writeValueAsBytes(Esp32Command.from(command)));
         message.setQos(qos);
         message.setRetained(true);

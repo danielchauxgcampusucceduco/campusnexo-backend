@@ -2,7 +2,9 @@ package edu.campusnexo.support;
 
 import edu.campusnexo.domain.port.HvacActuatorCommandPort;
 import edu.campusnexo.domain.port.RealtimeDashboardNotifierPort;
+import edu.campusnexo.domain.port.RoomEquipmentCommandPort;
 import edu.campusnexo.domain.trace.ArchitectureTrace;
+import edu.campusnexo.domain.twin.EquipmentCommand;
 import edu.campusnexo.domain.twin.HvacCommand;
 import edu.campusnexo.domain.twin.SpaceTwinState;
 import java.util.ArrayList;
@@ -17,6 +19,15 @@ public final class RecordingOutboundAdapters {
 
         @Override
         public void send(HvacCommand command) {
+            commands.add(command);
+        }
+    }
+
+    public static final class EquipmentActuator implements RoomEquipmentCommandPort {
+        public final List<EquipmentCommand> commands = new ArrayList<>();
+
+        @Override
+        public void send(EquipmentCommand command) {
             commands.add(command);
         }
     }

@@ -1,6 +1,7 @@
 package edu.campusnexo.infrastructure.adapter.in.web;
 
 import edu.campusnexo.application.exception.ResourceNotFoundException;
+import edu.campusnexo.application.port.in.ProcessEnvironmentReadingUseCase;
 import edu.campusnexo.application.port.in.ProcessSpaceTelemetryUseCase;
 import edu.campusnexo.application.port.in.SimulationScenario;
 import edu.campusnexo.application.port.in.SimulationUseCase;
@@ -8,6 +9,7 @@ import edu.campusnexo.application.port.in.TwinControlUseCase;
 import edu.campusnexo.application.port.in.TwinQueryUseCase;
 import edu.campusnexo.domain.shared.DomainValidationException;
 import edu.campusnexo.domain.shared.ResultLimit;
+import edu.campusnexo.infrastructure.adapter.contract.ArduinoEnvironmentPayload;
 import edu.campusnexo.infrastructure.adapter.contract.EdgeTelemetryPayload;
 import edu.campusnexo.infrastructure.adapter.contract.TwinContracts.SavingsResponse;
 import edu.campusnexo.infrastructure.adapter.contract.TwinContracts.ScenarioResponse;
@@ -31,7 +33,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * REST face of the digital twin: state of every space, energy savings, architecture traces, manual
- * controls, HTTP ingestion of edge frames (same JSON as MQTT) and the live demonstration scenarios.
+ * controls, HTTP ingestion of edge frames and Arduino readings (same JSON as MQTT) and the live
+ * demonstration scenarios.
  */
 @RestController
 @RequestMapping(ApiPaths.BASE)
@@ -41,16 +44,18 @@ class CampusNexoRestController {
     private final TwinQueryUseCase queries;
     private final TwinControlUseCase controls;
     private final ProcessSpaceTelemetryUseCase pipeline;
+    private final ProcessEnvironmentReadingUseCase environment;
     private final SimulationUseCase simulation;
     private final Clock clock;
     private final boolean simulationEnabled;
 
     CampusNexoRestController(TwinQueryUseCase queries, TwinControlUseCase controls, ProcessSpaceTelemetryUseCase pipeline,
-                             SimulationUseCase simulation, Clock clock,
+                             ProcessEnvironmentReadingUseCase environment, SimulationUseCase simulation, Clock clock,
                              @Value("${app.simulation.enabled}") boolean simulationEnabled) {
         this.queries = queries;
         this.controls = controls;
         this.pipeline = pipeline;
+        this.environment = environment;
         this.simulation = simulation;
         this.clock = clock;
         this.simulationEnabled = simulationEnabled;
@@ -80,6 +85,13 @@ class CampusNexoRestController {
     @PostMapping("/twin/telemetry")
     TwinStateResponse ingest(@RequestBody EdgeTelemetryPayload payload) {
         return TwinStateResponse.from(pipeline.process(payload.toSnapshot(null, clock.instant()), HTTP_INBOUND));
+    }
+
+    /** Room Arduino reading over HTTP, for boards without MQTT. Same JSON as the MQTT topic. */
+    @PostMapping("/twin/environment")
+    TwinStateResponse environment(@RequestBody ArduinoEnvironmentPayload payload) {
+        return TwinStateResponse.from(environment.processEnvironment(payload.toReading(null, clock.instant()),
+                HTTP_INBOUND));
     }
 
     @PostMapping("/twin/spaces/{spaceId}/override")

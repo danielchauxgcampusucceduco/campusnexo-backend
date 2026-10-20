@@ -16,13 +16,18 @@ public final class InMemorySpaceRepositoryPort implements SpaceRepositoryPort {
 
     /** Same 4 × 2 desk layout seeded by Flyway V10 for BIB-PISO-2. */
     public static List<StudyZoneRoi> libraryDesks() {
+        return libraryDesks("BIB-PISO-2", "BIB2-M");
+    }
+
+    /** The 4 × 2 table layout of a library hall, e.g. {@code 201-B} with zone ids {@code 201B-M01…}. */
+    public static List<StudyZoneRoi> libraryDesks(String spaceId, String zonePrefix) {
         List<StudyZoneRoi> desks = new ArrayList<>();
         double[][] columns = {{0.06, 0.26}, {0.29, 0.49}, {0.52, 0.72}, {0.75, 0.95}};
         double[][] rows = {{0.35, 0.58}, {0.65, 0.88}};
         int number = 1;
         for (double[] row : rows) {
             for (double[] column : columns) {
-                desks.add(new StudyZoneRoi(String.format("BIB2-M%02d", number), "BIB-PISO-2", "Mesa " + number, List.of(
+                desks.add(new StudyZoneRoi(String.format("%s%02d", zonePrefix, number), spaceId, "Mesa " + number, List.of(
                         new NormalizedPoint(column[0], row[0]), new NormalizedPoint(column[1], row[0]),
                         new NormalizedPoint(column[1], row[1]), new NormalizedPoint(column[0], row[1]))));
                 number++;

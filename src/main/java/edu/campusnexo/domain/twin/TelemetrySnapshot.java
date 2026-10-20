@@ -14,6 +14,8 @@ import java.util.List;
  * One frame of edge telemetry: tracked detections from the camera plus the room sensors.
  * When {@code cameraOnline} is false the detections are ignored by the occupancy filter.
  * {@code outdoorTemperatureC} is optional: the branch average is used when it is {@code null}.
+ * {@code lightsOn} and {@code devicesOn} are optional too: frames from a camera without an Arduino in the
+ * room leave them {@code null} and the last equipment state reported for the room is kept.
  */
 public record TelemetrySnapshot(
         String spaceId,
@@ -26,7 +28,9 @@ public record TelemetrySnapshot(
         double humidityPct,
         double illuminanceLux,
         int wifiDevices,
-        double activePowerKw) {
+        double activePowerKw,
+        Boolean lightsOn,
+        Integer devicesOn) {
 
     public TelemetrySnapshot {
         requireText(spaceId, "spaceId");
@@ -41,6 +45,17 @@ public record TelemetrySnapshot(
         requireRange(illuminanceLux, MIN_ILLUMINANCE_LUX, MAX_ILLUMINANCE_LUX, "illuminanceLux");
         requireRange(wifiDevices, 0, MAX_DEVICES, "wifiDevices");
         requireRange(activePowerKw, MIN_POWER_KW, MAX_POWER_KW, "activePowerKw");
+        if (devicesOn != null) {
+            requireRange(devicesOn, 0, MAX_DEVICES, "devicesOn");
+        }
+    }
+
+    /** Frame without equipment data (camera only). */
+    public TelemetrySnapshot(String spaceId, Instant capturedAt, boolean cameraOnline, List<TrackedDetection> detections,
+                             double co2Ppm, double indoorTemperatureC, Double outdoorTemperatureC, double humidityPct,
+                             double illuminanceLux, int wifiDevices, double activePowerKw) {
+        this(spaceId, capturedAt, cameraOnline, detections, co2Ppm, indoorTemperatureC, outdoorTemperatureC,
+                humidityPct, illuminanceLux, wifiDevices, activePowerKw, null, null);
     }
 
     /** People counted by the camera in this frame, or {@code null} when the camera is offline. */

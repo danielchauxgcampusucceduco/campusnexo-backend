@@ -26,7 +26,7 @@ class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     static final String HEADER = "X-API-Key";
     private static final Logger log = LoggerFactory.getLogger(ApiKeyAuthenticationFilter.class);
     private static final Pattern PROTECTED_POST = Pattern.compile(
-            "^/api/v1/(telemetry|twin/telemetry|spaces/[^/]+/reservations|twin/spaces/[^/]+/(override|popup|maintenance))/?$");
+            "^/api/v1/(telemetry|twin/telemetry|twin/environment|spaces/[^/]+/reservations|twin/spaces/[^/]+/(override|popup|maintenance))/?$");
     private static final Pattern PROTECTED_DELETE = Pattern.compile("^/api/v1/reservations/[^/]+/?$");
 
     private final byte[] expectedKey;

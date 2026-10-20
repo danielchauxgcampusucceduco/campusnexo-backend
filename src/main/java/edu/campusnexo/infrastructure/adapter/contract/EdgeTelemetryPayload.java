@@ -14,7 +14,7 @@ import java.util.Objects;
 
 /**
  * JSON published by the edge worker ({@code tools/edge/yolo_edge_publisher.py}) on
- * {@code universidad/sede_principal/bloque_b/piso_2/{space_id}/telemetria}. Also accepted over HTTP by
+ * {@code ucc/pasto/bloque_a/piso_2/{space_id}/camara}. Also accepted over HTTP by
  * {@code POST /api/v1/twin/telemetry}. Bounding boxes use YOLO's normalized {@code xyxyn} format.
  * Classes other than person, laptop, backpack and book are ignored.
  */
@@ -42,7 +42,9 @@ public record EdgeTelemetryPayload(
             @JsonProperty("humidity_pct") Double humidityPct,
             @JsonProperty("illuminance_lux") Double illuminanceLux,
             @JsonProperty("wifi_devices") Integer wifiDevices,
-            @JsonProperty("active_power_kw") Double activePowerKw) {
+            @JsonProperty("active_power_kw") Double activePowerKw,
+            @JsonProperty("lights_on") Boolean lightsOn,
+            @JsonProperty("devices_on") Integer devicesOn) {
     }
 
     /**
@@ -66,7 +68,7 @@ public record EdgeTelemetryPayload(
         return new TelemetrySnapshot(effectiveSpace, timestamp == null ? receivedAt : timestamp, online, tracked,
                 sensors.co2Ppm(), sensors.temperatureC(), sensors.outdoorTemperatureC(), sensors.humidityPct(),
                 orZero(sensors.illuminanceLux()), sensors.wifiDevices() == null ? 0 : sensors.wifiDevices(),
-                orZero(sensors.activePowerKw()));
+                orZero(sensors.activePowerKw()), sensors.lightsOn(), sensors.devicesOn());
     }
 
     private static TrackedDetection toDetection(Detection detection) {

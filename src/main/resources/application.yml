@@ -61,9 +61,12 @@ app:
     username: ${MQTT_USERNAME:}
     password: ${MQTT_PASSWORD:}
     qos: ${MQTT_QOS:1}
-    # universidad/{sede}/{bloque}/{piso}/{space_id}/telemetria
-    telemetry-topic-filter: ${MQTT_TELEMETRY_TOPIC_FILTER:universidad/+/+/+/+/telemetria}
-    hvac-command-topic-template: ${MQTT_HVAC_TOPIC_TEMPLATE:universidad/sede_principal/bloque_b/piso_2/{space_id}/hvac/comando}
+    # ucc/{sede}/{bloque}/{piso}/{space_id}/{canal}, e.g. ucc/pasto/bloque_a/piso_2/201-A/camara
+    telemetry-topic-filter: ${MQTT_TELEMETRY_TOPIC_FILTER:ucc/+/+/+/+/camara}
+    environment-topic-filter: ${MQTT_ENVIRONMENT_TOPIC_FILTER:ucc/+/+/+/+/ambiente}
+    # {bloque} and {piso} come from the room code (201-A → bloque_a, piso_2).
+    hvac-command-topic-template: ${MQTT_HVAC_TOPIC_TEMPLATE:ucc/pasto/{bloque}/{piso}/{space_id}/clima/comando}
+    equipment-command-topic-template: ${MQTT_EQUIPMENT_TOPIC_TEMPLATE:ucc/pasto/{bloque}/{piso}/{space_id}/equipos/comando}
   twin:
     # Illustrative parameters: calibrate with campus measurements before real use.
     trace-history: 50
@@ -89,6 +92,8 @@ app:
       no-show-grace: ${NO_SHOW_GRACE:15m}
       underuse-ratio: 0.3
       desk-abandon-threshold: ${DESK_ABANDON_THRESHOLD:15m}
+      # An empty room with lights or computers on for this long gets a shutdown order.
+      equipment-idle-shutdown: ${EQUIPMENT_IDLE_SHUTDOWN:5m}
     energy:
       rated-kw-per-sqm: 0.12
       max-reading-interval: 15m

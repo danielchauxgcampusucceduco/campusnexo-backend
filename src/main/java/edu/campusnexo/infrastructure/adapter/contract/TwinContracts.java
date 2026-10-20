@@ -12,6 +12,7 @@ import edu.campusnexo.domain.trace.HexagonalLayer;
 import edu.campusnexo.domain.twin.HvacControlState;
 import edu.campusnexo.domain.twin.KalmanMeasurement.MeasurementSource;
 import edu.campusnexo.domain.twin.KalmanStep;
+import edu.campusnexo.domain.twin.RoomCondition;
 import edu.campusnexo.domain.twin.SpaceStatus;
 import edu.campusnexo.domain.twin.SpaceTwinState;
 import edu.campusnexo.domain.twin.ThermalDecision;
@@ -40,13 +41,16 @@ public final class TwinContracts {
     }
 
     public record SpaceInfo(String spaceId, String name, SpaceType type, int capacity, double areaSqm,
-                            String buildingName, String branchId, String branchName, String city,
-                            ClimateProfile climateProfile, double energyTariffCopPerKwh) {
+                            String buildingId, String buildingName, String branchId, String branchName, String city,
+                            ClimateProfile climateProfile, double energyTariffCopPerKwh, int floor, int computers,
+                            Integer seatRows, Integer seatColumns) {
         static SpaceInfo from(SpaceTwinView view) {
             var space = view.space();
+            var layout = space.seatLayout();
             return new SpaceInfo(space.spaceId(), space.name(), space.type(), space.capacity(), space.areaSqm(),
-                    space.buildingName(), space.branchId(), space.branchName(), space.city(), space.climateProfile(),
-                    space.energyTariffCopPerKwh());
+                    space.buildingId(), space.buildingName(), space.branchId(), space.branchName(), space.city(),
+                    space.climateProfile(), space.energyTariffCopPerKwh(), space.floor(), space.computers(),
+                    layout == null ? null : layout.rows(), layout == null ? null : layout.columns());
         }
     }
 
@@ -70,7 +74,9 @@ public final class TwinContracts {
                                     double occupancyStdDev, double indoorTemperatureC, double outdoorTemperatureC,
                                     double co2Ppm, double humidityPct, boolean cameraOnline, double energySavedKwh,
                                     Instant overrideUntil, Instant popUpUntil, boolean maintenance, Instant updatedAt,
-                                    List<DeskResponse> desks, KalmanResponse kalman, ThermalResponse thermal) {
+                                    List<DeskResponse> desks, KalmanResponse kalman, ThermalResponse thermal,
+                                    RoomCondition condition, boolean lightsOn, double illuminanceLux, int devicesOn,
+                                    int devicesTotal, Instant emptySince, Instant equipmentShutdownAt) {
         public static TwinStateResponse from(SpaceTwinState state) {
             return new TwinStateResponse(state.spaceId(), state.status(), state.hvacState(), state.hvacStateSince(),
                     state.occupancy().people(), round(state.occupancy().estimate()),
@@ -78,7 +84,10 @@ public final class TwinContracts {
                     state.co2Ppm(), state.humidityPct(), state.cameraOnline(), state.energySavedKwh(),
                     state.overrideUntil(), state.popUpUntil(), state.maintenance(), state.updatedAt(),
                     state.desks().stream().map(DeskResponse::from).toList(),
-                    KalmanResponse.from(state.lastKalmanStep()), ThermalResponse.from(state.lastThermalDecision()));
+                    KalmanResponse.from(state.lastKalmanStep()), ThermalResponse.from(state.lastThermalDecision()),
+                    state.condition(), state.equipment().lightsOn(), state.equipment().illuminanceLux(),
+                    state.equipment().devicesOn(), state.equipment().devicesTotal(), state.emptySince(),
+                    state.equipmentShutdownAt());
         }
     }
 

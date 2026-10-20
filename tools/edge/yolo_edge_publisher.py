@@ -2,26 +2,28 @@
 """Edge publisher for CampusNexo.
 
 Publishes one JSON frame per interval on
-``universidad/<sede>/<bloque>/<piso>/<space_id>/telemetria``, the topic consumed by
-``YoloMqttTelemetryInboundAdapter``. Two modes:
+``ucc/<sede>/<bloque>/<piso>/<space_id>/camara``, the topic consumed by
+``YoloMqttTelemetryInboundAdapter``. For room codes such as ``201-A`` the block and floor are taken
+from the code (``bloque_a``, ``piso_2``). Two modes:
 
 * ``--source <camera index | video path>``: runs YOLO with ByteTrack (``ultralytics``) and keeps the
   classes person, backpack, laptop and book. Only aggregated detections leave the device: no image is
   published, which keeps the camera within the data-minimisation principle (Habeas Data).
 * ``--synthetic``: generates plausible detections, for demos without a camera.
 
-Room sensors are read from the command line (or simulated with ``--synthetic``) because the sensor
-board integration belongs to the ESP32 firmware.
+Room sensors (temperature, light, computers) are published by the room's Arduino on its own
+``ambiente`` channel (``tools/arduino``); the values sent here are only the camera-side fallback.
 
 Example::
 
-    python yolo_edge_publisher.py --space-id BIB-PISO-2 --synthetic --people 12
+    python yolo_edge_publisher.py --space-id 203-A --synthetic --people 12
 """
 from __future__ import annotations
 
 import argparse
 import json
 import random
+import re
 import time
 from datetime import datetime, timezone
 
@@ -31,8 +33,15 @@ import paho.mqtt.client as mqtt
 COCO_CLASSES = {0: "person", 24: "backpack", 63: "laptop", 73: "book"}
 
 
+ROOM_CODE = re.compile(r"^(\d)(\d{2})-([A-Za-z])$")
+
+
 def topic_for(args: argparse.Namespace) -> str:
-    return f"universidad/{args.sede}/{args.bloque}/{args.piso}/{args.space_id}/telemetria"
+    bloque, piso = args.bloque, args.piso
+    match = ROOM_CODE.match(args.space_id)
+    if match:
+        bloque, piso = f"bloque_{match.group(3).lower()}", f"piso_{match.group(1)}"
+    return f"ucc/{args.sede}/{bloque}/{piso}/{args.space_id}/camara"
 
 
 def sensors(args: argparse.Namespace, people: int) -> dict:
@@ -88,9 +97,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--broker", default="localhost")
     parser.add_argument("--port", type=int, default=1883)
-    parser.add_argument("--sede", default="sede_principal")
-    parser.add_argument("--bloque", default="bloque_b")
-    parser.add_argument("--piso", default="piso_2")
+    parser.add_argument("--sede", default="pasto")
+    parser.add_argument("--bloque", default="bloque_a", help="solo si el space_id no es un código de salón")
+    parser.add_argument("--piso", default="piso_1", help="solo si el space_id no es un código de salón")
     parser.add_argument("--space-id", required=True)
     parser.add_argument("--interval", type=float, default=5.0, help="segundos entre frames publicados")
     mode = parser.add_mutually_exclusive_group(required=True)

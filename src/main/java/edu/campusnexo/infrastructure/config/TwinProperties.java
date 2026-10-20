@@ -19,7 +19,7 @@ record TwinProperties(Kalman kalman, Thermal thermal, Status status, Energy ener
                    double ecoSetbackOffsetC, double co2VentilationPpm) {
     }
 
-    record Status(Duration noShowGrace, double underuseRatio, Duration deskAbandonThreshold) {
+    record Status(Duration noShowGrace, double underuseRatio, Duration deskAbandonThreshold, Duration equipmentIdleShutdown) {
     }
 
     record Energy(double ratedKwPerSqm, Duration maxReadingInterval, int scheduleStartHour, int scheduleEndHour,

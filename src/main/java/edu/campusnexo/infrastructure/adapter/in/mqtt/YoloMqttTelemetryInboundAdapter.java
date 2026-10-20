@@ -3,14 +3,11 @@ package edu.campusnexo.infrastructure.adapter.in.mqtt;
 import edu.campusnexo.application.port.in.ProcessSpaceTelemetryUseCase;
 import edu.campusnexo.domain.twin.TelemetrySnapshot;
 import edu.campusnexo.infrastructure.adapter.contract.EdgeTelemetryPayload;
+import edu.campusnexo.infrastructure.config.MqttSubscriptions;
 import java.time.Clock;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
-import org.eclipse.paho.client.mqttv3.MqttCallbackExtended;
-import org.eclipse.paho.client.mqttv3.MqttClient;
-import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,20 +18,20 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Inbound adapter for the edge vision worker. Subscribes to
- * {@code universidad/+/+/+/+/telemetria} (campus/branch/block/floor/space), translates the JSON frame
- * into a {@link TelemetrySnapshot} and calls {@link ProcessSpaceTelemetryUseCase}. Frames are processed
- * on a single worker thread so that frames of the same space keep their order without blocking the
- * MQTT network thread. Malformed frames are logged and discarded; they never stop the subscription.
+ * Inbound adapter for the edge vision worker (YOLO + ByteTrack). Subscribes to
+ * {@code ucc/+/+/+/+/camara} (campus/branch/block/floor/space), translates the JSON frame into a
+ * {@link TelemetrySnapshot} and calls {@link ProcessSpaceTelemetryUseCase}. The legacy channel name
+ * {@code telemetria} is still accepted. Frames are processed on a single worker thread so that frames of
+ * the same space keep their order without blocking the MQTT network thread. Malformed frames are logged
+ * and discarded; they never stop the subscription.
  */
 @Component
 @ConditionalOnProperty(name = "app.mqtt.enabled", havingValue = "true")
 class YoloMqttTelemetryInboundAdapter implements SmartLifecycle {
     static final String NAME = "MQTT · YoloMqttTelemetryInboundAdapter";
     private static final Logger log = LoggerFactory.getLogger(YoloMqttTelemetryInboundAdapter.class);
-    private static final int SPACE_SEGMENT_FROM_END = 2;
 
-    private final MqttClient client;
+    private final MqttSubscriptions subscriptions;
     private final ProcessSpaceTelemetryUseCase useCase;
     private final JsonMapper json;
     private final Clock clock;
@@ -43,10 +40,11 @@ class YoloMqttTelemetryInboundAdapter implements SmartLifecycle {
     private ExecutorService worker;
     private volatile boolean running;
 
-    YoloMqttTelemetryInboundAdapter(MqttClient client, ProcessSpaceTelemetryUseCase useCase, JsonMapper json, Clock clock,
+    YoloMqttTelemetryInboundAdapter(MqttSubscriptions subscriptions, ProcessSpaceTelemetryUseCase useCase,
+                                    JsonMapper json, Clock clock,
                                     @Value("${app.mqtt.telemetry-topic-filter}") String topicFilter,
                                     @Value("${app.mqtt.qos}") int qos) {
-        this.client = client;
+        this.subscriptions = subscriptions;
         this.useCase = useCase;
         this.json = json;
         this.clock = clock;
@@ -56,53 +54,15 @@ class YoloMqttTelemetryInboundAdapter implements SmartLifecycle {
 
     @Override
     public void start() {
-        worker = Executors.newSingleThreadExecutor(Thread.ofVirtual().name("mqtt-telemetry-", 0).factory());
-        client.setCallback(new MqttCallbackExtended() {
-            @Override
-            public void connectComplete(boolean reconnect, String serverUri) {
-                if (reconnect) {
-                    subscribe();
-                }
-            }
-
-            @Override
-            public void connectionLost(Throwable cause) {
-                log.warn("Conexión MQTT perdida; Paho reintentará: {}", cause.getMessage());
-            }
-
-            @Override
-            public void messageArrived(String topic, MqttMessage message) {
-                // Messages are delivered to the per-subscription listener registered in subscribe().
-            }
-
-            @Override
-            public void deliveryComplete(IMqttDeliveryToken token) {
-                // This adapter only subscribes; deliveries belong to the actuator adapter.
-            }
-        });
-        subscribe();
+        worker = Executors.newSingleThreadExecutor(Thread.ofVirtual().name("mqtt-camara-", 0).factory());
+        subscriptions.add(topicFilter, qos, (topic, message) -> worker.execute(() -> handle(topic, message)));
         running = true;
-    }
-
-    private void subscribe() {
-        try {
-            client.subscribe(topicFilter, qos, (topic, message) -> worker.execute(() -> handle(topic, message)));
-            log.info("Suscrito a telemetría edge en {}", topicFilter);
-        } catch (MqttException failure) {
-            throw new IllegalStateException("No se pudo suscribir a " + topicFilter, failure);
-        }
     }
 
     @Override
     public void stop() {
         running = false;
-        try {
-            if (client.isConnected()) {
-                client.unsubscribe(topicFilter);
-            }
-        } catch (MqttException failure) {
-            log.warn("No se pudo cancelar la suscripción a {}", topicFilter, failure);
-        }
+        subscriptions.remove(topicFilter);
         worker.shutdown();
         try {
             if (!worker.awaitTermination(5, TimeUnit.SECONDS)) {
@@ -130,12 +90,8 @@ class YoloMqttTelemetryInboundAdapter implements SmartLifecycle {
         }
     }
 
-    /** {@code universidad/sede_principal/bloque_b/piso_2/{space_id}/telemetria} → {@code space_id}. */
+    /** {@code ucc/pasto/bloque_a/piso_2/{space_id}/camara} → {@code space_id}. */
     static String spaceIdFromTopic(String topic) {
-        String[] segments = topic.split("/");
-        if (segments.length < SPACE_SEGMENT_FROM_END || !"telemetria".equals(segments[segments.length - 1])) {
-            throw new IllegalArgumentException("Tópico de telemetría no reconocido: " + topic);
-        }
-        return segments[segments.length - SPACE_SEGMENT_FROM_END];
+        return MqttTopics.spaceId(topic, "camara", "telemetria");
     }
 }
