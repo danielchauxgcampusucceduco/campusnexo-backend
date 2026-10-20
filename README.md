@@ -1,6 +1,6 @@
 # CampusNexo Backend
 
-API REST del campus universitario inteligente (proyecto de grado de Patrones de Software). Está hecha con Java 21, Spring Boot 4.1 y PostgreSQL. Recibe mediciones agregadas de los espacios, estima la ocupación con el servicio de IA (con respaldo local si la IA falla), genera recomendaciones auditables de climatización, ventilación e iluminación según el clima de cada sede, detecta alertas, gestiona reservas y muestra en vivo los puestos libres de la biblioteca.
+API REST del campus universitario inteligente, proyecto del curso Patrones de Software, modelada sobre la Universidad Cooperativa de Colombia, campus Pasto (bloques A y B, 107 espacios tomados del plano 2025-B). Está hecha con Java 21, Spring Boot 4.1 y PostgreSQL. Recibe mediciones agregadas de los espacios, estima la ocupación con el servicio de IA (con respaldo local si la IA falla), genera recomendaciones auditables de climatización, ventilación e iluminación según el clima del campus, detecta alertas, gestiona reservas y muestra en vivo los puestos libres de la biblioteca.
 
 ## Qué problema del caso resuelve cada parte
 
@@ -12,7 +12,7 @@ API REST del campus universitario inteligente (proyecto de grado de Patrones de 
 
 ## Gemelo digital en tiempo real
 
-La cámara edge (YOLO + ByteTrack) publica por MQTT. Un filtro de Kalman fusiona la cámara, el CO₂ y el Wi-Fi; cada puesto de la biblioteca se evalúa por ray casting con un cronómetro anti-acaparamiento; y un controlador predictivo de inercia térmica elige la estrategia del aire acondicionado y la envía al ESP32. El dashboard recibe cada cambio y la traza por la arquitectura vía WebSocket/STOMP. Los detalles, los contratos MQTT y los 12 escenarios de sustentación están en [`docs/gemelo-digital.md`](docs/gemelo-digital.md).
+La cámara edge (YOLO + ByteTrack) y el Arduino de cada salón (DHT22, fotorresistencia, sensor de corriente y relés) publican por MQTT. Un filtro de Kalman fusiona la cámara, el CO₂ y el Wi-Fi; cada puesto de la biblioteca se evalúa por ray casting con un cronómetro anti-acaparamiento; y un controlador predictivo de inercia térmica elige la estrategia del aire acondicionado y la envía al ESP32. Si un salón queda vacío 5 minutos con luces o equipos encendidos, el Arduino recibe la orden de apagarlos. El dashboard recibe cada cambio y la traza por la arquitectura vía WebSocket/STOMP. Los detalles, los contratos MQTT y los 13 escenarios de sustentación están en [`docs/gemelo-digital.md`](docs/gemelo-digital.md).
 
 ## Arquitectura
 
@@ -49,11 +49,11 @@ edu.campusnexo
     ├── config/                 ApplicationConfiguration, HexagonalBeanConfiguration, MQTT, WebSocket
     └── adapter/
         ├── in/web/             controladores REST (incluye CampusNexoRestController), errores, API key
-        ├── in/mqtt/            YoloMqttTelemetryInboundAdapter
+        ├── in/mqtt/            YoloMqttTelemetryInboundAdapter, ArduinoMqttEnvironmentInboundAdapter
         ├── contract/           JSON compartido por REST, STOMP y MQTT
         ├── out/persistence/    adaptadores JPA (incluye PostgresSpaceRepositoryAdapter)
         ├── out/ai/             HttpOccupancyEstimatorAdapter (Adapter)
-        ├── out/mqtt/           Esp32HvacActuatorAdapter
+        ├── out/mqtt/           Esp32HvacActuatorAdapter, ArduinoEquipmentCommandAdapter
         ├── out/websocket/      StompRealtimeDashboardNotifierAdapter
         └── out/observability/  logs y actuador sin hardware
 ```
@@ -87,7 +87,7 @@ El reporte de cobertura queda en `target/site/jacoco/index.html`, y la CI lo pub
 | `domain/**` | Familias del Abstract Factory, estrategias, decorador de ciclo mínimo, Builder, validaciones. |
 | `application/**` | Idempotencia y validación de la ingesta, Observer con fallos aislados, decoradores de IA, fachada de punta a punta, reservas, ocupación en vivo, energía. |
 | `HexagonalArchitectureTest` | ArchUnit: el dominio y la aplicación no dependen de Spring, JPA, Jackson ni Paho. |
-| `CampusNexoApiIntegrationTest` | Arranque real con Flyway V1–V10 y validación JPA, API key, alertas, evaluación con la IA caída, rutas antiguas, `ProblemDetail`. |
+| `CampusNexoApiIntegrationTest` | Arranque real con Flyway V1–V12 y validación JPA, API key, alertas, evaluación con la IA caída, rutas antiguas, `ProblemDetail`. |
 
 ## API v1 (resumen)
 
@@ -107,6 +107,7 @@ El reporte de cobertura queda en `target/site/jacoco/index.html`, y la CI lo pub
 | `GET /api/v1/twin/savings` | Ahorro estimado en kWh, COP y kg CO₂. |
 | `GET /api/v1/twin/traces` | Últimas trazas por la arquitectura hexagonal. |
 | `POST /api/v1/twin/telemetry` 🔑 | Frame edge por HTTP (mismo JSON que MQTT). |
+| `POST /api/v1/twin/environment` 🔑 | Lectura del Arduino del salón por HTTP (mismo JSON que MQTT). |
 | `POST /api/v1/twin/spaces/{id}/override\|popup\|maintenance` 🔑 | Controles manuales del personal. |
 | `GET /api/v1/simulation/scenarios`, `POST /api/v1/simulation/{escenario}` | Escenarios de sustentación. |
 | WebSocket STOMP `/ws` → `/topic/twin`, `/topic/traces` | Actualizaciones en tiempo real. |
@@ -124,6 +125,6 @@ La guía para desplegar en Render con PostgreSQL administrado (incluye `render.y
 ## Límites del prototipo
 
 - Los umbrales, setpoints y la heurística de respaldo son valores ilustrativos y no están calibrados. No se deben presentar como ahorro ni precisión medidos.
-- El backend no acciona HVAC, luces ni relés; el estado del HVAC se infiere de la última recomendación.
+- El backend publica las órdenes de HVAC (ESP32) y de luces y equipos (Arduino) por MQTT; sin broker, solo las registra en el log. El sketch de `tools/arduino` no se ha probado con hardware real.
 - La API key protege la ingesta, pero no identifica personas ni roles. Un uso institucional necesita autenticación de usuarios, TLS, retención de datos y evaluación de privacidad de la cámara.
-- Las migraciones `V2` y `V5` siembran un catálogo de demostración (ya aplicadas; no se pueden editar sin romper las bases existentes). Los nombres son ilustrativos.
+- `V11` reemplaza el catálogo de demostración de `V2` y `V5` por el campus Pasto y `V12` carga los 107 espacios reales del plano. Pupitres, aforo y computadores por salón son estimados a partir del tipo y del área; no vienen en el plano.
