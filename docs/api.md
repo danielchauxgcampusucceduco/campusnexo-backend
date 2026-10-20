@@ -183,3 +183,7 @@ La energía en espacios vacíos se **estima** integrando la potencia de las lect
 - La recomendación manual exige `humidityPct` y reemplaza `hvacOn` por `currentHvacMode` + `minutesInCurrentHvacMode` (ambos opcionales).
 - `hvac.setpointC` ahora es decimal y `hvac` y `ventilation` tienen `mode`.
 - `POST /telemetry` responde `200` (en lugar de `201`) cuando la lectura ya existía.
+
+## Gemelo digital y simulación
+
+Las rutas `/api/v1/twin/**`, `/api/v1/simulation/**`, el WebSocket STOMP `/ws` y los contratos MQTT están documentados en [`gemelo-digital.md`](gemelo-digital.md). También se agregó `DELETE /api/v1/reservations/{id}` 🔑 (`204`), para cancelar reservas.

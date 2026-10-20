@@ -1,0 +1,113 @@
+# Gemelo digital, visión edge y control térmico
+
+## Flujo
+
+```text
+Cámara + YOLO/ByteTrack (tools/edge/yolo_edge_publisher.py)
+   │  MQTT  universidad/{sede}/{bloque}/{piso}/{space_id}/telemetria
+   ▼
+YoloMqttTelemetryInboundAdapter ─┐            POST /api/v1/twin/telemetry (mismo JSON)
+SimulationService (escenarios) ──┼──► ProcessSpaceTelemetryUseCase
+                                 ▼
+ProcessSpaceTelemetryService
+   ├─ OccupancyKalmanDomainService      cámara + CO2 + Wi-Fi → ocupación (x, P)
+   ├─ StudyZoneRoi.evaluateDeskGhosting ray casting por puesto + cronómetro de abandono
+   ├─ SpaceStatusPolicy                 aforo, reserva, no-show, pop-up, mantenimiento
+   ├─ ThermalInertiaMpcDomainService    modelo RC + horizonte → estrategia HVAC
+   ├─ TelemetryUseCase.ingest           lectura agregada → observadores de alertas
+   ├─ SpaceRepositoryPort               PostgresSpaceRepositoryAdapter
+   ├─ HvacActuatorCommandPort           Esp32HvacActuatorAdapter (MQTT) o LoggingHvacActuatorAdapter
+   └─ RealtimeDashboardNotifierPort     StompRealtimeDashboardNotifierAdapter (/topic/twin, /topic/traces)
+```
+
+Cada evento genera una `ArchitectureTrace` con los pasos `INBOUND_ADAPTER → INPUT_PORT → USE_CASE → DOMAIN_SERVICE → OUTPUT_PORT → OUTBOUND_ADAPTER`. El dashboard la recibe por WebSocket y la consulta en `GET /api/v1/twin/traces`. `HexagonalArchitectureTest` (ArchUnit) hace fallar el build si el dominio o la aplicación importan Spring, JPA, Jackson o Paho.
+
+## Contrato MQTT de entrada
+
+Tópico: `universidad/sede_principal/bloque_b/piso_2/{space_id}/telemetria` (suscripción `universidad/+/+/+/+/telemetria`). El `space_id` del tópico debe coincidir con el del mensaje.
+
+```json
+{
+  "space_id": "BIB-PISO-2",
+  "timestamp": "2026-10-20T15:00:00Z",
+  "camera_online": true,
+  "detections": [
+    { "track_id": 17, "class": "person", "confidence": 0.91, "bbox": [0.31, 0.40, 0.36, 0.52] },
+    { "track_id": 18, "class": "laptop", "confidence": 0.78, "bbox": [0.12, 0.42, 0.18, 0.47] }
+  ],
+  "sensors": {
+    "co2_ppm": 760, "temperature_c": 20.5, "outdoor_temperature_c": 14.0, "humidity_pct": 52,
+    "illuminance_lux": 420, "wifi_devices": 40, "active_power_kw": 5.4
+  }
+}
+```
+
+- `bbox` usa el formato `xyxyn` de YOLO (normalizado de 0 a 1). Las clases aceptadas son `person`, `laptop`, `backpack` y `book`; las demás se ignoran.
+- Son obligatorios `sensors.co2_ppm`, `sensors.temperature_c` y `sensors.humidity_pct`. Si falta `timestamp`, se usa la hora de llegada; si falta `outdoor_temperature_c`, el promedio de la sede.
+- **No se publican imágenes**: solo cajas y conteos agregados (minimización de datos, Ley 1581 de 2012). El desenfoque en el dashboard es una representación visual de ese principio.
+
+## Contrato MQTT de salida (ESP32)
+
+Tópico: `universidad/sede_principal/bloque_b/piso_2/{space_id}/hvac/comando`. QoS 1, mensaje retenido y solo cuando cambia la estrategia.
+
+```json
+{ "command_id": "…", "space_id": "AULA-301", "mode": "CORTE_INERCIA_TERMICA", "compressor_on": false,
+  "setpoint_c": 24.0, "issued_at": "2026-10-20T15:00:00Z", "reason": "La inercia térmica mantiene el confort…" }
+```
+
+El firmware del ESP32 es responsable de los enclavamientos eléctricos; el backend solo indica la estrategia deseada.
+
+## Modelos
+
+**Kalman (ocupación).** Usa un modelo de paseo aleatorio. La predicción es `x⁻ = x` y `P⁻ = P + Q·Δt`. Después corrige en secuencia con cada medición `z` de varianza `R`: `K = P⁻/(P⁻+R)`, `x = x⁻ + K(z − x⁻)`, `P = (1 − K)P⁻`. Las mediciones son:
+
+- la cámara (R = 0,64);
+- el CO₂ por balance de masa, `(CO₂ − CO₂ₑₓₜ)·A/1000`, con un error relativo del 35 %;
+- el Wi-Fi, a 0,8 personas por dispositivo y con un error relativo del 30 %.
+
+Si la cámara cae, el filtro sigue estimando con las otras dos señales y la varianza aumenta.
+
+**MPC térmico.** Modelo RC de primer orden, `T(k+1) = Tₑₓₜ + (T(k) − Tₑₓₜ)·e^(−Δt/τ) + g·n·(50/A)·Δt/60`, con τ = 120 min y paso de 5 min. En cada frame simula la trayectoria sin climatizar y elige la estrategia más barata que mantiene la banda de confort de la sede:
+
+- `CORTE_INERCIA_TERMICA` si la trayectoria se mantiene en la banda hasta que termina la clase;
+- `PRE_ENFRIAMIENTO_IA` si una clase próxima empezaría fuera de la banda;
+- `ECO_SETBACK_ENTRE_CLASES` entre clases;
+- `BLOQUEO_AHORRO_VACIO` si el espacio está vacío y no hay clase próxima;
+- `VENTILACION_CO2_ACTIVA` si el CO₂ supera el umbral;
+- `CONFORT_ACTIVO` en el resto de los casos.
+
+**Puestos de biblioteca.** El algoritmo de ray casting (regla par-impar) asigna cada objeto a su puesto según el centro de su caja. Una persona en el puesto lo deja `OCUPADO_VERIFICADO`. Pertenencias sin persona lo pasan a `ALERTA_ACAPARAMIENTO` y arranca el cronómetro; a los 15 minutos el puesto queda `LIBERADO_POR_ABANDONO`.
+
+**Ahorro.** Se compara contra una línea base de climatización al 100 % entre las 07:00 y las 21:00 (hora de Bogotá), con potencia nominal de 0,12 kW/m². Fuera de ese horario, encender el equipo cuenta como consumo adicional. Las conversiones usan la tarifa de cada sede (COP/kWh) y un factor de emisión configurable (`EMISSION_FACTOR_KG_CO2_PER_KWH`).
+
+Todos los parámetros están en `app.twin.*` y son **ilustrativos**: no son mediciones calibradas.
+
+## Escenarios de sustentación
+
+`GET /api/v1/simulation/scenarios` lista los escenarios y `POST /api/v1/simulation/{escenario}` ejecuta uno. Cada escenario prepara sus precondiciones (reservas `SIM-…`, controles, temporizadores) y envía frames sintéticos por el **mismo** caso de uso que la telemetría real.
+
+| Escenario | Espacio | Resultado esperado |
+|---|---|---|
+| `CLASE_EN_CURSO` | AULA-301 | `OCUPADO_OPTIMO` + `CORTE_INERCIA_TERMICA` |
+| `CO2_ALTO` | AULA-301 | `VENTILACION_CO2_ACTIVA` + alerta `CO2_ALTO` |
+| `FALLO_CAMARA` | AULA-301 | Kalman con 2 mediciones, cámara caída |
+| `NO_SHOW` | AULA-MAGNA-204 | `LIBERADO_POR_NO_SHOW` + `BLOQUEO_AHORRO_VACIO` |
+| `PRE_ENFRIAMIENTO` | AULA-MAGNA-204 | `PRE_ENFRIAMIENTO_IA` |
+| `OVERRIDE_DOCENTE` | AULA-MAGNA-204 | `OVERRIDE_MANUAL_DOCENTE` (45 min) |
+| `SOBRECUPO` | LAB-IA-102 | `ALERTA_SOBRECUPO` + alerta |
+| `MANTENIMIENTO` | LAB-IA-102 | `MANTENIMIENTO` + HVAC `APAGADO` |
+| `SUBUTILIZADO` | AULA-ADM-101 | `ALERTA_SUBUTILIZADO` |
+| `POPUP_PARCIALES` | AULA-ADM-101 | `HABILITADO_POPUP_PARCIALES` (2 h) |
+| `ACAPARAMIENTO_BIBLIOTECA` | BIB-PISO-2 | Mesa 1 liberada, mesa 2 en alerta, mesas 3–5 verificadas |
+| `REINICIAR` | todos | Estado inicial y reservas de simulación eliminadas |
+
+Para la nube se pueden desactivar con `SIMULATION_ENABLED=false`.
+
+## Probar con MQTT local
+
+```sh
+docker compose up --build -d          # PostgreSQL, Mosquitto y backend con MQTT_ENABLED=true
+pip install -r tools/edge/requirements.txt
+python tools/edge/yolo_edge_publisher.py --space-id BIB-PISO-2 --synthetic --people 12
+# con cámara real: pip install ultralytics && python tools/edge/yolo_edge_publisher.py --space-id BIB-PISO-2 --source 0
+```

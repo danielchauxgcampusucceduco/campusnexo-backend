@@ -10,6 +10,10 @@ API REST del campus universitario inteligente (proyecto de grado de Patrones de 
 | Consumo de energía en espacios vacíos | Alerta `CONSUMO_ESPACIO_VACIO`, recomendaciones de HVAC e iluminación por sede y estimación en kWh y COP en el dashboard. |
 | Biblioteca saturada sin información de puestos libres | `GET /api/v1/occupancy/live?type=BIBLIOTECA`: puestos libres, % de ocupación y estado `LIBRE`, `MODERADO` o `SATURADO`. |
 
+## Gemelo digital en tiempo real
+
+La cámara edge (YOLO + ByteTrack) publica por MQTT. Un filtro de Kalman fusiona la cámara, el CO₂ y el Wi-Fi; cada puesto de la biblioteca se evalúa por ray casting con un cronómetro anti-acaparamiento; y un controlador predictivo de inercia térmica elige la estrategia del aire acondicionado y la envía al ESP32. El dashboard recibe cada cambio y la traza por la arquitectura vía WebSocket/STOMP. Los detalles, los contratos MQTT y los 12 escenarios de sustentación están en [`docs/gemelo-digital.md`](docs/gemelo-digital.md).
+
 ## Arquitectura
 
 El núcleo (`domain` y `application`) **no depende de Spring, JPA ni HTTP**; se puede compilar con `javac` sin dependencias. Los adaptadores de `infrastructure` implementan los puertos y `ApplicationConfiguration` es la raíz de composición.
@@ -30,18 +34,28 @@ edu.campusnexo
 │   ├── catalog/ telemetry/ occupancy/ alert/ reservation/
 │   ├── climate/                decisiones, contexto, recomendación (Builder)
 │   │   └── policy/             Abstract Factory + Strategy + Decorator térmico
-│   └── port/                   puertos de salida (repositorios, OccupancyEstimator)
+│   ├── vision/                 StudyZoneRoi (ray casting), detecciones, estado de puestos
+│   ├── twin/                   Kalman, MPC térmico, estados del gemelo, ahorro
+│   ├── trace/                  traza de la arquitectura hexagonal
+│   └── port/                   puertos de salida (repositorios, IA, actuador HVAC, notificador)
 ├── application/                casos de uso, uno por subpaquete
 │   ├── port/in/                contratos de entrada, comandos y resultados
 │   ├── exception/              errores de aplicación con código estable
 │   ├── catalog/ telemetry/ occupancy/ climate/ alert/ reservation/ dashboard/
-│   └── operations/             CampusOperationsFacade (Facade)
+│   ├── operations/             CampusOperationsFacade (Facade)
+│   ├── twin/                   ProcessSpaceTelemetryService, controles, consultas, trazas
+│   └── simulation/             escenarios de sustentación sobre el mismo caso de uso
 └── infrastructure/
-    ├── config/                 composición de dependencias y reloj
-    ├── web/                    controladores por recurso, DTO, errores, CORS, API key
-    ├── persistence/            un subpaquete por agregado (entidades + adaptadores)
-    ├── ai/                     HttpOccupancyEstimatorAdapter (Adapter)
-    └── observability/          logs de observadores
+    ├── config/                 ApplicationConfiguration, HexagonalBeanConfiguration, MQTT, WebSocket
+    └── adapter/
+        ├── in/web/             controladores REST (incluye CampusNexoRestController), errores, API key
+        ├── in/mqtt/            YoloMqttTelemetryInboundAdapter
+        ├── contract/           JSON compartido por REST, STOMP y MQTT
+        ├── out/persistence/    adaptadores JPA (incluye PostgresSpaceRepositoryAdapter)
+        ├── out/ai/             HttpOccupancyEstimatorAdapter (Adapter)
+        ├── out/mqtt/           Esp32HvacActuatorAdapter
+        ├── out/websocket/      StompRealtimeDashboardNotifierAdapter
+        └── out/observability/  logs y actuador sin hardware
 ```
 
 Los patrones, sus participantes y el guion de demostración están en [`docs/patrones-de-software.md`](docs/patrones-de-software.md).
@@ -72,7 +86,8 @@ El reporte de cobertura queda en `target/site/jacoco/index.html`, y la CI lo pub
 |---|---|
 | `domain/**` | Familias del Abstract Factory, estrategias, decorador de ciclo mínimo, Builder, validaciones. |
 | `application/**` | Idempotencia y validación de la ingesta, Observer con fallos aislados, decoradores de IA, fachada de punta a punta, reservas, ocupación en vivo, energía. |
-| `CampusNexoApiIntegrationTest` | Arranque real con Flyway V1–V9 y validación JPA, API key, alertas, evaluación con la IA caída, rutas antiguas, `ProblemDetail`. |
+| `HexagonalArchitectureTest` | ArchUnit: el dominio y la aplicación no dependen de Spring, JPA, Jackson ni Paho. |
+| `CampusNexoApiIntegrationTest` | Arranque real con Flyway V1–V10 y validación JPA, API key, alertas, evaluación con la IA caída, rutas antiguas, `ProblemDetail`. |
 
 ## API v1 (resumen)
 
@@ -88,6 +103,13 @@ El reporte de cobertura queda en `target/site/jacoco/index.html`, y la CI lo pub
 | `GET /api/v1/alerts[?spaceId=&type=&limit=]` | Alertas detectadas por los observadores. |
 | `POST /api/v1/spaces/{id}/reservations` 🔑, `GET …/reservations` | Reservas. |
 | `GET /api/v1/dashboard/summary` | Indicadores de las últimas 24 horas. |
+| `GET /api/v1/twin/spaces`, `GET /api/v1/twin/spaces/{id}` | Gemelo digital: estado, HVAC, Kalman, MPC, puestos. |
+| `GET /api/v1/twin/savings` | Ahorro estimado en kWh, COP y kg CO₂. |
+| `GET /api/v1/twin/traces` | Últimas trazas por la arquitectura hexagonal. |
+| `POST /api/v1/twin/telemetry` 🔑 | Frame edge por HTTP (mismo JSON que MQTT). |
+| `POST /api/v1/twin/spaces/{id}/override\|popup\|maintenance` 🔑 | Controles manuales del personal. |
+| `GET /api/v1/simulation/scenarios`, `POST /api/v1/simulation/{escenario}` | Escenarios de sustentación. |
+| WebSocket STOMP `/ws` → `/topic/twin`, `/topic/traces` | Actualizaciones en tiempo real. |
 
 🔑 = requiere la cabecera `X-API-Key` cuando `INGEST_API_KEY` está definida (obligatoria en producción). El detalle está en [`docs/api.md`](docs/api.md).
 
