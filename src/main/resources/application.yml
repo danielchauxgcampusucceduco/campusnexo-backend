@@ -1,3 +1,4 @@
+# Local development defaults. The "prod" profile (application-prod.yml) removes the insecure ones.
 spring:
   application:
     name: campusnexo-backend
@@ -13,9 +14,12 @@ spring:
     enabled: true
   lifecycle:
     timeout-per-shutdown-phase: 20s
+
 server:
-  port: ${SERVER_PORT:8080}
+  # PORT is injected by hosting platforms such as Render.
+  port: ${PORT:${SERVER_PORT:8080}}
   shutdown: graceful
+
 management:
   endpoints:
     web:
@@ -25,13 +29,31 @@ management:
     health:
       probes:
         enabled: true
+
 app:
   cors:
-    allowed-origin: ${CORS_ALLOWED_ORIGIN:http://localhost:5173}
+    # Comma-separated list. 5173 = Vite dev server, 3000 = frontend container.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:${CORS_ALLOWED_ORIGIN:http://localhost:5173,http://localhost:3000}}
+  security:
+    ingest-api-key: ${INGEST_API_KEY:}
+    require-ingest-api-key: ${REQUIRE_INGEST_API_KEY:false}
+  telemetry:
+    max-future-skew: ${TELEMETRY_MAX_FUTURE_SKEW:5m}
+    max-age: ${TELEMETRY_MAX_AGE:30d}
   ai:
     base-url: ${AI_SERVICE_URL:http://localhost:8001}
     connect-timeout: ${AI_CONNECT_TIMEOUT:2s}
     read-timeout: ${AI_READ_TIMEOUT:5s}
+    max-attempts: ${AI_MAX_ATTEMPTS:2}
+    fallback-enabled: ${AI_FALLBACK_ENABLED:true}
+    default-outdoor-co2-ppm: ${OUTDOOR_CO2_PPM:420}
+  occupancy:
+    stale-after: ${OCCUPANCY_STALE_AFTER:30m}
+  dashboard:
+    max-reading-interval: ${DASHBOARD_MAX_READING_INTERVAL:15m}
   alerts:
+    # Demo thresholds: calibrate with the campus baseline before real use.
     co2-threshold-ppm: ${CO2_ALERT_THRESHOLD_PPM:1000}
     empty-space-power-threshold-kw: ${EMPTY_SPACE_POWER_THRESHOLD_KW:0.15}
+    cooldown: ${ALERT_COOLDOWN:15m}
+    reservation-grace: ${RESERVATION_GRACE:15m}

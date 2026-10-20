@@ -1,0 +1,16 @@
+# Production profile: no default credentials and the ingestion API key is mandatory.
+# Either DATABASE_URL (JDBC) or DB_HOST/DB_PORT/DB_NAME must be provided.
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}}
+    username: ${DATABASE_USER:${DB_USER}}
+    password: ${DATABASE_PASSWORD:${DB_PASSWORD}}
+
+management:
+  endpoint:
+    health:
+      show-details: never
+
+app:
+  security:
+    require-ingest-api-key: true
