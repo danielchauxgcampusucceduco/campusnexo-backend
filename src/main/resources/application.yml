@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: campusnexo-backend
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/campusnexo}
+    username: ${DATABASE_USER:campusnexo}
+    password: ${DATABASE_PASSWORD:campusnexo}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+server:
+  port: ${SERVER_PORT:8080}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+app:
+  cors:
+    allowed-origin: ${CORS_ALLOWED_ORIGIN:http://localhost:5173}
+  ai:
+    base-url: ${AI_SERVICE_URL:http://localhost:8001}
