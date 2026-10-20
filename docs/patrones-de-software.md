@@ -1,12 +1,12 @@
 # Patrones de software en CampusNexo Backend
 
-Esta selección aplica las categorías estudiadas en el curso y se limita a patrones que tienen participantes concretos y una colaboración visible en el flujo del backend. La arquitectura hexagonal no se suma al conteo de patrones GoF.
+Esta selección aplica las categorías estudiadas en el curso y se limita a patrones que tienen participantes concretos y una colaboración visible en el flujo del backend. La arquitectura hexagonal no se suma al conteo de patrones GoF. Los adaptadores HTTP consumen contratos de `application/port/in`; los casos de uso usan puertos de salida internos para persistencia e IA.
 
 ## Resumen
 
 | Categoría | Patrón | Necesidad en el caso | Participantes del código |
 |---|---|---|---|
-| Creacional | Abstract Factory | Mantener juntas las políticas compatibles con el perfil climático de cada sede. | `ClimatePolicyFactory`; `AndeanClimatePolicyFactory`, `TropicalClimatePolicyFactory`, `TemplatedClimatePolicyFactory`; productos `ThermalPolicy`, `VentilationPolicy`, `LightingPolicy`. |
+| Creacional | Abstract Factory | Mantener juntas las políticas compatibles con el perfil climático de cada sede. | `ClimatePolicyFactory`; `AndeanClimatePolicyFactory`, `TropicalClimatePolicyFactory`, `MildClimatePolicyFactory`; productos `ThermalPolicy`, `VentilationPolicy`, `LightingPolicy`. |
 | Creacional | Builder | Crear una recomendación inmutable sin permitir que falten decisiones obligatorias. | `ClimateRecommendation.Builder` y `ClimateRecommendation`. |
 | Estructural | Adapter | Integrar el contrato Java con el endpoint HTTP/Pydantic del microservicio Python. | Puerto `OccupancyEstimator` y adaptador `HttpOccupancyEstimatorAdapter`. |
 | De comportamiento | Observer | Reaccionar a una lectura persistida con alertas independientes y extensibles. | `TelemetryEventPublisher`, evento `TelemetryRecorded` y `TelemetryObserver`; observadores `AirQualityAlertObserver`, `CapacityAlertObserver`, `EnergyWasteAlertObserver`. |
@@ -14,7 +14,7 @@ Esta selección aplica las categorías estudiadas en el curso y se limita a patr
 
 ## Abstract Factory y Strategy
 
-`ClimateRecommendationService` obtiene el perfil de la sede del catálogo. Busca la fábrica correspondiente y solicita tres estrategias relacionadas. Así, la sede andina, tropical o templada selecciona una familia coherente de algoritmos sin llenar el caso de uso de condiciones por cada decisión.
+`ClimateRecommendationService` obtiene el perfil de la sede del catálogo. Busca la fábrica correspondiente y solicita tres estrategias relacionadas. Así, la sede andina, tropical o templada selecciona una familia coherente de algoritmos sin llenar el caso de uso de condiciones por cada decisión. El catálogo de demostración incluye las tres familias para probar esa selección desde la API.
 
 Cada interfaz de política también representa el contrato de una Strategy: el caso de uso ejecuta la política por interfaz y no necesita conocer cómo se calcula. La fábrica crea la familia; la estrategia encapsula el algoritmo de una decisión.
 

@@ -4,7 +4,7 @@ API REST del campus universitario inteligente, implementada con Java 21, Spring 
 
 ## Arquitectura
 
-El núcleo de dominio y los casos de uso no dependen de Spring, JPA, HTTP ni del servicio Python. Los puertos describen lo que la aplicación necesita; los adaptadores de infraestructura implementan esas interfaces. La composición de dependencias se hace en `infrastructure/config/ApplicationConfiguration`.
+El núcleo de dominio y los casos de uso no dependen de Spring, JPA, HTTP ni del servicio Python. Los puertos de entrada (`application/port/in`) describen las operaciones que ofrecen los casos de uso; los puertos de salida (`domain/port`) expresan sus dependencias externas. Los adaptadores de infraestructura implementan los puertos de salida. La composición de dependencias se hace en `infrastructure/config/ApplicationConfiguration`.
 
 ```mermaid
 flowchart LR
@@ -19,7 +19,7 @@ Los paquetes siguen esta dirección:
 
 ```text
 domain/           modelos, eventos, reglas e interfaces de puertos
-application/      casos de uso y coordinación de reglas
+application/      casos de uso, puertos de entrada y coordinación de reglas
 infrastructure/   HTTP, JPA, configuración y adaptadores externos
 ```
 
@@ -55,7 +55,7 @@ Requisitos: Java 21, Maven 3.9+ y PostgreSQL 15+. Configura `DATABASE_URL`, `DAT
 mvn spring-boot:run
 ```
 
-Flyway administra el esquema y carga un catálogo de demostración de dos sedes, edificios y espacios. Hibernate valida el esquema, pero no lo modifica (`ddl-auto: validate`).
+Flyway administra el esquema y carga un catálogo ilustrativo de tres sedes, edificios y espacios. Las ciudades y valores ambientales de ejemplo no son datos oficiales de una universidad. Hibernate valida el esquema, pero no lo modifica (`ddl-auto: validate`).
 
 ## API v1
 
@@ -67,7 +67,10 @@ Flyway administra el esquema y carga un catálogo de demostración de dos sedes,
 | `GET /api/v1/dashboard/summary` | Resumen de espacios monitoreados y lecturas de las últimas 24 horas. |
 | `POST /api/v1/occupancy/estimate?spaceId=AULA-301` | Solicita una estimación al servicio Python mediante el puerto `OccupancyEstimator`. |
 | `POST /api/v1/climate/recommendations?spaceId=AULA-301` | Calcula y audita recomendaciones de HVAC, ventilación e iluminación. |
+| `GET /api/v1/climate/recommendations?spaceId=AULA-301&limit=20` | Consulta las recomendaciones recientes, opcionalmente filtradas por espacio. |
 | `GET /actuator/health` | Estado de salud del backend. |
+
+El resumen cuenta los espacios que registraron telemetría en las últimas 24 horas, no todo el catálogo. Los detalles de solicitudes, respuestas, límites y ejemplos están en [`docs/api.md`](docs/api.md).
 
 Ejemplo de telemetría (el timestamp es opcional y usa UTC si se omite):
 
@@ -113,8 +116,11 @@ Las variables principales se documentan en [`.env.example`](.env.example). Sprin
 | `SERVER_PORT` | `8080` |
 | `CORS_ALLOWED_ORIGIN` | `http://localhost:5173` |
 | `AI_SERVICE_URL` | `http://localhost:8001` |
+| `AI_CONNECT_TIMEOUT` / `AI_READ_TIMEOUT` | `2s` / `5s` |
+| `CO2_ALERT_THRESHOLD_PPM` | `1000` |
+| `EMPTY_SPACE_POWER_THRESHOLD_KW` | `0.15` |
 
-No guardes credenciales reales en Git. `.env` está excluido por `.gitignore`; usa secretos del gestor de despliegue para entornos compartidos.
+No guardes credenciales reales en Git. `.env` está excluido por `.gitignore`; usa secretos del gestor de despliegue para entornos compartidos. Las alertas se pueden ajustar a través de configuración externa; sus valores iniciales son parámetros para demostración, no políticas aprobadas por la universidad.
 
 ## Privacidad y límites del prototipo
 
