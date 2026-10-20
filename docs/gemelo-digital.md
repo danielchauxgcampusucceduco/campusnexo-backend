@@ -43,7 +43,7 @@ Cada evento genera una `ArchitectureTrace` con los pasos `INBOUND_ADAPTER → IN
 
 | Método | Ruta | Uso |
 |---|---|---|
-| `GET` | `/api/v1/twin/spaces` | Gemelo de los 50 salones: estado, estado general, luces, equipos, pupitres, Kalman y MPC |
+| `GET` | `/api/v1/twin/spaces` | Gemelo de los 107 espacios: estado, estado general, luces, equipos, pupitres, Kalman y MPC |
 | `GET` | `/api/v1/twin/spaces/{salón}` | Un salón |
 | `GET` | `/api/v1/twin/savings` | Ahorro estimado por salón |
 | `GET` | `/api/v1/twin/traces?limit=20` | Últimas trazas de la arquitectura |
@@ -75,7 +75,7 @@ Tópico: `ucc/pasto/bloque_b/piso_2/{space_id}/camara` (suscripción `ucc/+/+/+/
 ```
 
 - `bbox` usa el formato `xyxyn` de YOLO (normalizado de 0 a 1). Las clases aceptadas son `person`, `laptop`, `backpack` y `book`; las demás se ignoran.
-- Son obligatorios `sensors.co2_ppm`, `sensors.temperature_c` y `sensors.humidity_pct`. Si falta `timestamp`, se usa la hora de llegada; si falta `outdoor_temperature_c`, el promedio de la sede.
+- Son obligatorios `sensors.co2_ppm`, `sensors.temperature_c` y `sensors.humidity_pct`. Si falta `timestamp`, se usa la hora de llegada; si falta `outdoor_temperature_c`, el promedio del campus.
 - **No se publican imágenes**: solo cajas y conteos agregados (minimización de datos, Ley 1581 de 2012). El desenfoque en el dashboard es una representación visual de ese principio.
 
 ### Arduino del salón
@@ -119,7 +119,7 @@ El firmware del ESP32 es responsable de los enclavamientos eléctricos; el backe
 
 Si la cámara cae, el filtro sigue estimando con las otras dos señales y la varianza aumenta.
 
-**MPC térmico.** Modelo RC de primer orden, `T(k+1) = Tₑₓₜ + (T(k) − Tₑₓₜ)·e^(−Δt/τ) + g·n·(50/A)·Δt/60`, con τ = 120 min y paso de 5 min. En cada frame simula la trayectoria sin climatizar y elige la estrategia más barata que mantiene la banda de confort de la sede:
+**MPC térmico.** Modelo RC de primer orden, `T(k+1) = Tₑₓₜ + (T(k) − Tₑₓₜ)·e^(−Δt/τ) + g·n·(50/A)·Δt/60`, con τ = 120 min y paso de 5 min. En cada frame simula la trayectoria sin climatizar y elige la estrategia más barata que mantiene la banda de confort del campus:
 
 - `CORTE_INERCIA_TERMICA` si la trayectoria se mantiene en la banda hasta que termina la clase;
 - `PRE_ENFRIAMIENTO_IA` si una clase próxima empezaría fuera de la banda;
@@ -130,7 +130,7 @@ Si la cámara cae, el filtro sigue estimando con las otras dos señales y la var
 
 **Puestos.** El algoritmo de ray casting (regla par-impar) asigna cada objeto a su puesto según el centro de su caja. Una persona en el puesto lo deja `OCUPADO_VERIFICADO`. Pertenencias sin persona lo pasan a `ALERTA_ACAPARAMIENTO` y arranca el cronómetro; a los 15 minutos el puesto queda `LIBERADO_POR_ABANDONO`.
 
-**Ahorro.** Se compara contra una línea base de climatización al 100 % entre las 07:00 y las 21:00 (hora de Bogotá), con potencia nominal de 0,12 kW/m². Fuera de ese horario, encender el equipo cuenta como consumo adicional. Las conversiones usan la tarifa de cada sede (COP/kWh) y un factor de emisión configurable (`EMISSION_FACTOR_KG_CO2_PER_KWH`).
+**Ahorro.** Se compara contra una línea base de climatización al 100 % entre las 07:00 y las 21:00 (hora de Bogotá), con potencia nominal de 0,12 kW/m². Fuera de ese horario, encender el equipo cuenta como consumo adicional. Las conversiones usan la tarifa del campus (COP/kWh) y un factor de emisión configurable (`EMISSION_FACTOR_KG_CO2_PER_KWH`).
 
 Todos los parámetros están en `app.twin.*` y son **ilustrativos**: no son mediciones calibradas.
 

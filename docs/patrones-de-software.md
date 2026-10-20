@@ -6,7 +6,7 @@ Cada patrón se justifica por un problema concreto del caso, con participantes r
 
 | # | Categoría | Patrón | Problema del caso que resuelve | Participantes | Prueba automatizada |
 |---|---|---|---|---|---|
-| 1 | Creacional | **Abstract Factory** | Cada sede necesita una familia coherente de algoritmos de clima: en Pasto se calienta, en Barranquilla se enfría, se deshumidifica y se controla la radiación solar, en Medellín se prefiere la ventilación natural. | `ClimatePolicyFactory` (fábrica abstracta); `AndeanClimatePolicyFactory`, `TropicalClimatePolicyFactory`, `MildClimatePolicyFactory` (fábricas concretas); `ThermalPolicy`, `VentilationPolicy`, `LightingPolicy` (productos abstractos); cliente `ClimateRecommendationService`. | `ClimatePolicyFactoryTest`, `ClimateRecommendationServiceTest` |
+| 1 | Creacional | **Abstract Factory** | Cada sede de la universidad necesita una familia coherente de algoritmos de clima: en Pasto se calienta, en Barranquilla se enfría, se deshumidifica y se controla la radiación solar, en Medellín se prefiere la ventilación natural. | `ClimatePolicyFactory` (fábrica abstracta); `AndeanClimatePolicyFactory`, `TropicalClimatePolicyFactory`, `MildClimatePolicyFactory` (fábricas concretas); `ThermalPolicy`, `VentilationPolicy`, `LightingPolicy` (productos abstractos); cliente `ClimateRecommendationService`. | `ClimatePolicyFactoryTest`, `ClimateRecommendationServiceTest` |
 | 2 | Creacional | **Builder** | Una recomendación auditable se arma por partes (tres decisiones que salen de estrategias distintas y datos de procedencia opcionales: fuente de la ocupación, instante de la telemetría, entradas usadas). | `ClimateRecommendation.Builder`, producto inmutable `ClimateRecommendation`, director `ClimateRecommendationService`. | `ClimateRecommendationTest` |
 | 3 | Estructural | **Adapter** | El servicio de IA en Python habla HTTP/JSON `snake_case` y tiene sus propios errores; el núcleo Java solo conoce `OccupancyEstimator`. | Target `OccupancyEstimator`; Adapter `HttpOccupancyEstimatorAdapter`; Adaptee: API FastAPI `/v1/occupancy/estimate` (a través de `RestClient`). | `CampusNexoApiIntegrationTest` (IA caída) |
 | 4 | Estructural | **Decorator** | Si la IA falla, el campus debe seguir operando; reintentar y tener un respaldo son responsabilidades que se agregan sin modificar el adaptador. | Componente `OccupancyEstimator`; decoradores `RetryingOccupancyEstimator`, `FallbackOccupancyEstimator`; componente concreto de respaldo `LocalHeuristicOccupancyEstimator`. Segundo uso: `MinimumCycleThermalPolicy` agrega la protección del compresor a cualquier `ThermalPolicy`. | `OccupancyDecoratorsTest`, `MinimumCycleThermalPolicyTest` |
@@ -72,17 +72,19 @@ Después de guardar una lectura, `TelemetryService` publica `TelemetryRecorded`.
 
 ## Guion de demostración (aprox. 10 minutos)
 
-1. `GET /api/v1/spaces`: mostrar las tres sedes y sus perfiles.
-2. Enviar al salón `421-A` una lectura fría con 40 personas y 1600 ppm de CO₂ (con `X-API-Key`). Consultar `GET /api/v1/alerts`: aparecen `CO2_ALTO` y `SOBRECUPO` (**Observer**).
-3. `POST /api/v1/spaces/421-A/evaluations` con el servicio de IA apagado: la ocupación sale con `source = RESPALDO_LOCAL` (**Decorator** sobre el **Adapter**) y la recomendación es `CALEFACCION` (**Facade**, **Abstract Factory**, **Strategy**, **Builder**).
-4. Repetir la evaluación con IA encendida: `source = SERVICIO_IA`.
-5. Enviar la misma lectura a `AULA-MAGNA-204` (tropical) con 82 % de humedad: `DESHUMIDIFICACION`. Comparar las explicaciones entre familias.
-6. Crear una reserva en `AULA-ADM-101`, enviar lecturas vacías después de 15 minutos y mostrar `RESERVA_SIN_USO`.
+La base de datos carga un solo campus, UCC Pasto (familia andina). Las familias tropical y templada siguen en el código porque la UCC tiene sedes en otros climas; se demuestran con sus pruebas.
+
+1. `GET /api/v1/spaces`: mostrar el campus, sus bloques A y B y los 107 espacios del plano.
+2. Enviar al salón `424-A` (18 pupitres) una lectura fría con 25 personas y 1600 ppm de CO₂ (con `X-API-Key`). Consultar `GET /api/v1/alerts?spaceId=424-A`: aparecen `CO2_ALTO` y `SOBRECUPO` (**Observer**).
+3. `POST /api/v1/spaces/424-A/evaluations` con el servicio de IA apagado: la ocupación sale con `source = RESPALDO_LOCAL` (**Decorator** sobre el **Adapter**) y la recomendación es `CALEFACCION` (**Facade**, **Abstract Factory**, **Strategy**, **Builder**).
+4. Repetir la evaluación con la IA encendida: `source = SERVICIO_IA`.
+5. Ejecutar `ClimatePolicyFactoryTest` y `ThermalPolicyTest`: el mismo ambiente (17 °C, 60 % HR) produce calefacción en la familia andina, climatización apagada en la tropical y enfriamiento libre en la templada.
+6. Crear una reserva en `402-B`, enviar lecturas vacías después de 15 minutos y mostrar `RESERVA_SIN_USO` (o ejecutar el escenario `NO_SHOW`).
 7. `GET /api/v1/occupancy/live?type=BIBLIOTECA` y `GET /api/v1/dashboard/summary`.
 8. Mostrar en el código las pruebas de cada patrón (tabla de arriba) y el reporte de cobertura de la CI.
 
 ## Límites que se deben decir en la defensa
 
 - Los umbrales, setpoints y la heurística de respaldo son valores de referencia; no están calibrados con instrumentos del campus.
-- El estado del HVAC se **infiere** de la última recomendación porque el prototipo no lee ni acciona equipos.
+- En el flujo de evaluación (`/evaluations`) el estado del HVAC se **infiere** de la última recomendación. El gemelo digital sí publica órdenes al ESP32 y al Arduino por MQTT, pero no se ha probado con equipos reales.
 - El backend recibe conteos agregados; no recibe ni guarda imágenes.
