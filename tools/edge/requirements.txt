@@ -1,0 +1,3 @@
+paho-mqtt>=2.1,<3
+# Optional, only for --source (real camera or video):
+# ultralytics>=8.3

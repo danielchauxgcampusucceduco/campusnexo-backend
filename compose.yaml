@@ -16,6 +16,14 @@ services:
       timeout: 3s
       retries: 10
 
+  mqtt:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
   backend:
     build: .
     restart: unless-stopped
@@ -30,11 +38,15 @@ services:
       INGEST_API_KEY: ${INGEST_API_KEY:-}
       AI_SERVICE_URL: ${AI_SERVICE_URL:-http://host.docker.internal:8001}
       AI_FALLBACK_ENABLED: ${AI_FALLBACK_ENABLED:-true}
+      MQTT_ENABLED: ${MQTT_ENABLED:-true}
+      MQTT_BROKER_URL: ${MQTT_BROKER_URL:-tcp://mqtt:1883}
     ports:
       - "8080:8080"
     depends_on:
       database:
         condition: service_healthy
+      mqtt:
+        condition: service_started
 
 volumes:
   campusnexo-postgres:
