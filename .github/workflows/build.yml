@@ -23,3 +23,5 @@ jobs:
           cache: maven
       - name: Compile and package
         run: mvn --batch-mode --no-transfer-progress -DskipTests package
+      - name: Build container image
+        run: docker build --tag campusnexo-backend:${{ github.sha }} .

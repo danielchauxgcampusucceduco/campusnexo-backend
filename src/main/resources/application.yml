@@ -11,15 +11,27 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
 server:
   port: ${SERVER_PORT:8080}
+  shutdown: graceful
 management:
   endpoints:
     web:
       exposure:
         include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
 app:
   cors:
     allowed-origin: ${CORS_ALLOWED_ORIGIN:http://localhost:5173}
   ai:
     base-url: ${AI_SERVICE_URL:http://localhost:8001}
+    connect-timeout: ${AI_CONNECT_TIMEOUT:2s}
+    read-timeout: ${AI_READ_TIMEOUT:5s}
+  alerts:
+    co2-threshold-ppm: ${CO2_ALERT_THRESHOLD_PPM:1000}
+    empty-space-power-threshold-kw: ${EMPTY_SPACE_POWER_THRESHOLD_KW:0.15}
