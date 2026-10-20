@@ -1,6 +1,6 @@
 services:
   database:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-campusnexo}
@@ -26,8 +26,10 @@ services:
       DATABASE_USER: ${DATABASE_USER:-campusnexo}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Copia .env.example a .env y define DATABASE_PASSWORD}
       SERVER_PORT: 8080
-      CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:-http://localhost:5173}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      INGEST_API_KEY: ${INGEST_API_KEY:-}
       AI_SERVICE_URL: ${AI_SERVICE_URL:-http://host.docker.internal:8001}
+      AI_FALLBACK_ENABLED: ${AI_FALLBACK_ENABLED:-true}
     ports:
       - "8080:8080"
     depends_on:

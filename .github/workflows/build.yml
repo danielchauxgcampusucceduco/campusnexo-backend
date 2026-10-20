@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  compile:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -21,7 +21,16 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - name: Compile and package
-        run: mvn --batch-mode --no-transfer-progress -DskipTests package
+      - name: Unit and integration tests (Testcontainers PostgreSQL)
+        run: mvn --batch-mode --no-transfer-progress verify
+      - name: Upload test reports and coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            target/surefire-reports
+            target/site/jacoco
+          if-no-files-found: ignore
       - name: Build container image
         run: docker build --tag campusnexo-backend:${{ github.sha }} .
