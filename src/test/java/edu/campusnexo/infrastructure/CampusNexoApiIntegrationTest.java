@@ -182,4 +182,58 @@ class CampusNexoApiIntegrationTest {
         ResponseEntity<Map<String, Object>> noTelemetry = post("/api/v1/spaces/BIB-PISO-2/evaluations", Map.of(), false);
         assertEquals(409, noTelemetry.getStatusCode().value());
     }
+
+    @Test
+    @DisplayName("Gemelo digital: frame edge por HTTP con el mismo JSON que MQTT")
+    void edgeFrameOverHttp() {
+        Map<String, Object> person = Map.of("track_id", 1, "class", "person", "confidence", 0.92,
+                "bbox", List.of(0.10, 0.10, 0.15, 0.20));
+        Map<String, Object> umbrella = Map.of("track_id", 2, "class", "umbrella", "confidence", 0.60,
+                "bbox", List.of(0.30, 0.30, 0.35, 0.40));
+        Map<String, Object> frame = Map.of("space_id", "LAB-IA-102", "camera_online", true,
+                "detections", List.of(person, umbrella),
+                "sensors", Map.of("co2_ppm", 520, "temperature_c", 22.0, "humidity_pct", 55, "illuminance_lux", 300,
+                        "wifi_devices", 1, "active_power_kw", 1.1));
+
+        assertEquals(401, post("/api/v1/twin/telemetry", frame, false).getStatusCode().value());
+        ResponseEntity<Map<String, Object>> response = post("/api/v1/twin/telemetry", frame, true);
+        assertEquals(200, response.getStatusCode().value());
+        assertEquals("OCUPADO_OPTIMO", response.getBody().get("status"));
+        assertNotNull(response.getBody().get("kalman"));
+        assertNotNull(response.getBody().get("thermal"));
+    }
+
+    @Test
+    @DisplayName("Escenarios de sustentación, gemelo, ahorro y trazas por REST")
+    void simulationScenarios() {
+        List<Map<String, Object>> scenarios = client.get().uri("/api/v1/simulation/scenarios").retrieve().body(LIST);
+        assertNotNull(scenarios);
+        assertEquals(12, scenarios.size());
+
+        ResponseEntity<Map<String, Object>> noShow = post("/api/v1/simulation/no_show", Map.of(), false);
+        assertEquals(200, noShow.getStatusCode().value());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> magna = (Map<String, Object>) ((List<Map<String, Object>>) noShow.getBody().get("spaces")).get(0).get("state");
+        assertEquals("LIBERADO_POR_NO_SHOW", magna.get("status"));
+        assertEquals("BLOQUEO_AHORRO_VACIO", magna.get("hvacState"));
+
+        ResponseEntity<Map<String, Object>> library = post("/api/v1/simulation/ACAPARAMIENTO_BIBLIOTECA", Map.of(), false);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> libraryState = (Map<String, Object>) ((List<Map<String, Object>>) library.getBody().get("spaces")).get(0).get("state");
+        assertEquals(8, ((List<?>) libraryState.get("desks")).size());
+
+        List<Map<String, Object>> twins = client.get().uri("/api/v1/twin/spaces").retrieve().body(LIST);
+        assertNotNull(twins);
+        assertEquals(5, twins.size());
+
+        Map<String, Object> savings = client.get().uri("/api/v1/twin/savings").retrieve().body(OBJECT);
+        assertNotNull(savings);
+        assertNotNull(savings.get("totalKwh"));
+
+        List<Map<String, Object>> traces = client.get().uri("/api/v1/twin/traces?limit=5").retrieve().body(LIST);
+        assertNotNull(traces);
+        assertFalse(traces.isEmpty());
+
+        assertEquals(400, post("/api/v1/simulation/NO_EXISTE", Map.of(), false).getStatusCode().value());
+    }
 }

@@ -34,4 +34,15 @@ public final class InMemoryReservationRepository implements ReservationRepositor
     public Optional<Reservation> findActiveAt(String spaceId, Instant instant) {
         return rows.stream().filter(row -> row.spaceId().equals(spaceId) && row.isActiveAt(instant)).findFirst();
     }
+
+    @Override
+    public Optional<Reservation> findNextStartingAfter(String spaceId, Instant instant) {
+        return rows.stream().filter(row -> row.spaceId().equals(spaceId) && row.startsAt().isAfter(instant))
+                .min(Comparator.comparing(Reservation::startsAt));
+    }
+
+    @Override
+    public void delete(UUID reservationId) {
+        rows.removeIf(row -> row.reservationId().equals(reservationId));
+    }
 }

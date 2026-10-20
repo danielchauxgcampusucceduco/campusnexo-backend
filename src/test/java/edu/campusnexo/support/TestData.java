@@ -36,6 +36,11 @@ public final class TestData {
                 "Biblioteca Central", "SEDE-ANDINA", "Sede Andina", "Pasto", ClimateProfile.SEDE_ANDINA, 14.5, 865);
     }
 
+    public static CampusSpace lab() {
+        return new CampusSpace("LAB-IA-102", "Laboratorio IA 102", SpaceType.LABORATORIO, 24, 54, "BLQ-ING-SUR",
+                "Bloque C", "SEDE-ANDINA", "Sede Andina", "Pasto", ClimateProfile.SEDE_ANDINA, 14.5, 865);
+    }
+
     public static Telemetry reading(String spaceId, Instant at, int people, double co2, double powerKw) {
         return new Telemetry(spaceId, at, people, 0, people, co2, 22, 55, 300, powerKw);
     }
