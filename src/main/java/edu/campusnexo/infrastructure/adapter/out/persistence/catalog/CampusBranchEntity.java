@@ -1,4 +1,4 @@
-package edu.campusnexo.infrastructure.persistence.catalog;
+package edu.campusnexo.infrastructure.adapter.out.persistence.catalog;
 
 import edu.campusnexo.domain.catalog.ClimateProfile;
 import jakarta.persistence.Column;

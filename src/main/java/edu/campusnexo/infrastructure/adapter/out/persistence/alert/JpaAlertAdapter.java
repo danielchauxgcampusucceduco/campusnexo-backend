@@ -1,4 +1,4 @@
-package edu.campusnexo.infrastructure.persistence.alert;
+package edu.campusnexo.infrastructure.adapter.out.persistence.alert;
 
 import edu.campusnexo.domain.alert.Alert;
 import edu.campusnexo.domain.alert.AlertType;

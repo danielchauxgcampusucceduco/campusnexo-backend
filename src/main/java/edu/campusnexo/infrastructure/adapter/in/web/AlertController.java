@@ -1,9 +1,9 @@
-package edu.campusnexo.infrastructure.web;
+package edu.campusnexo.infrastructure.adapter.in.web;
 
 import edu.campusnexo.application.port.in.AlertQueryUseCase;
 import edu.campusnexo.domain.alert.AlertType;
 import edu.campusnexo.domain.shared.ResultLimit;
-import edu.campusnexo.infrastructure.web.dto.AlertResponse;
+import edu.campusnexo.infrastructure.adapter.in.web.dto.AlertResponse;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;

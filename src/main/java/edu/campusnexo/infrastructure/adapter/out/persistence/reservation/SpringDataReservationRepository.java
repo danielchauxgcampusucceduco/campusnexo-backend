@@ -1,4 +1,4 @@
-package edu.campusnexo.infrastructure.persistence.reservation;
+package edu.campusnexo.infrastructure.adapter.out.persistence.reservation;
 
 import java.time.Instant;
 import java.util.List;
@@ -19,4 +19,6 @@ interface SpringDataReservationRepository extends JpaRepository<ReservationEntit
 
     Optional<ReservationEntity> findFirstBySpaceIdAndStartsAtLessThanEqualAndEndsAtGreaterThanOrderByStartsAtDesc(
             String spaceId, Instant startsAtOrBefore, Instant endsAfter);
+
+    Optional<ReservationEntity> findFirstBySpaceIdAndStartsAtGreaterThanOrderByStartsAtAsc(String spaceId, Instant after);
 }

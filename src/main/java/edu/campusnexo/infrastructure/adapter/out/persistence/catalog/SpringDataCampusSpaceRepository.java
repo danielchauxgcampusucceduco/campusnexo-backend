@@ -1,4 +1,4 @@
-package edu.campusnexo.infrastructure.persistence.catalog;
+package edu.campusnexo.infrastructure.adapter.out.persistence.catalog;
 
 import java.util.List;
 import java.util.Optional;

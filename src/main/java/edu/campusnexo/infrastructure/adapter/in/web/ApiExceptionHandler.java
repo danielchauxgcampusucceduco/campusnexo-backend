@@ -1,4 +1,4 @@
-package edu.campusnexo.infrastructure.web;
+package edu.campusnexo.infrastructure.adapter.in.web;
 
 import edu.campusnexo.application.exception.ConflictException;
 import edu.campusnexo.application.exception.ResourceNotFoundException;

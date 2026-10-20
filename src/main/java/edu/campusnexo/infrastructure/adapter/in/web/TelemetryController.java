@@ -1,10 +1,10 @@
-package edu.campusnexo.infrastructure.web;
+package edu.campusnexo.infrastructure.adapter.in.web;
 
 import edu.campusnexo.application.port.in.TelemetryUseCase;
 import edu.campusnexo.application.port.in.TelemetryUseCase.IngestResult;
 import edu.campusnexo.domain.shared.ResultLimit;
-import edu.campusnexo.infrastructure.web.dto.TelemetryRequest;
-import edu.campusnexo.infrastructure.web.dto.TelemetryResponse;
+import edu.campusnexo.infrastructure.adapter.in.web.dto.TelemetryRequest;
+import edu.campusnexo.infrastructure.adapter.in.web.dto.TelemetryResponse;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;

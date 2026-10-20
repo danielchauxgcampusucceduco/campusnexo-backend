@@ -1,4 +1,4 @@
-package edu.campusnexo.infrastructure.persistence.climate;
+package edu.campusnexo.infrastructure.adapter.out.persistence.climate;
 
 import edu.campusnexo.domain.climate.ClimateRecommendation;
 import edu.campusnexo.domain.port.ClimateRecommendationRepository;

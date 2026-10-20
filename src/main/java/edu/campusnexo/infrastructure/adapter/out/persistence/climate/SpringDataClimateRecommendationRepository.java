@@ -1,4 +1,4 @@
-package edu.campusnexo.infrastructure.persistence.climate;
+package edu.campusnexo.infrastructure.adapter.out.persistence.climate;
 
 import java.util.List;
 import java.util.UUID;

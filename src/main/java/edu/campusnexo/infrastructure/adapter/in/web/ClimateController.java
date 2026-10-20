@@ -1,10 +1,10 @@
-package edu.campusnexo.infrastructure.web;
+package edu.campusnexo.infrastructure.adapter.in.web;
 
 import edu.campusnexo.application.port.in.ClimateRecommendationUseCase;
 import edu.campusnexo.domain.climate.ClimateRecommendation;
 import edu.campusnexo.domain.shared.ResultLimit;
-import edu.campusnexo.infrastructure.web.dto.ClimateRecommendationRequest;
-import edu.campusnexo.infrastructure.web.dto.ClimateRecommendationResponse;
+import edu.campusnexo.infrastructure.adapter.in.web.dto.ClimateRecommendationRequest;
+import edu.campusnexo.infrastructure.adapter.in.web.dto.ClimateRecommendationResponse;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;

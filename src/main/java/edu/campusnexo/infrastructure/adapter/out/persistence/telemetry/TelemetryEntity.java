@@ -1,4 +1,4 @@
-package edu.campusnexo.infrastructure.persistence.telemetry;
+package edu.campusnexo.infrastructure.adapter.out.persistence.telemetry;
 
 import edu.campusnexo.domain.telemetry.Telemetry;
 import jakarta.persistence.Column;

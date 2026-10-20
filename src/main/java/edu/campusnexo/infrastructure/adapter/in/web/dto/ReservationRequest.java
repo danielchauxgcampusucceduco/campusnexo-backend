@@ -1,4 +1,4 @@
-package edu.campusnexo.infrastructure.web.dto;
+package edu.campusnexo.infrastructure.adapter.in.web.dto;
 
 import edu.campusnexo.application.port.in.CreateReservationCommand;
 import jakarta.validation.constraints.NotBlank;

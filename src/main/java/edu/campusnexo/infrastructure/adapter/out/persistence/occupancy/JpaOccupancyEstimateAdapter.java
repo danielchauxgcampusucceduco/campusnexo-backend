@@ -1,4 +1,4 @@
-package edu.campusnexo.infrastructure.persistence.occupancy;
+package edu.campusnexo.infrastructure.adapter.out.persistence.occupancy;
 
 import edu.campusnexo.domain.occupancy.OccupancyRecord;
 import edu.campusnexo.domain.port.OccupancyEstimateRepository;

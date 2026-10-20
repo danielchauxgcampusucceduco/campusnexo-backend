@@ -1,4 +1,4 @@
-package edu.campusnexo.infrastructure.persistence.telemetry;
+package edu.campusnexo.infrastructure.adapter.out.persistence.telemetry;
 
 import java.time.Instant;
 import java.util.List;

@@ -1,15 +1,16 @@
-package edu.campusnexo.infrastructure.web;
+package edu.campusnexo.infrastructure.adapter.in.web;
 
 import edu.campusnexo.application.port.in.ReservationUseCase;
 import edu.campusnexo.domain.reservation.Reservation;
-import edu.campusnexo.infrastructure.web.dto.ReservationRequest;
-import edu.campusnexo.infrastructure.web.dto.ReservationResponse;
+import edu.campusnexo.infrastructure.adapter.in.web.dto.ReservationRequest;
+import edu.campusnexo.infrastructure.adapter.in.web.dto.ReservationResponse;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -45,5 +46,11 @@ class ReservationController {
     @GetMapping("/reservations/{reservationId}")
     ReservationResponse get(@PathVariable UUID reservationId) {
         return ReservationResponse.from(reservations.get(reservationId));
+    }
+
+    @DeleteMapping("/reservations/{reservationId}")
+    ResponseEntity<Void> cancel(@PathVariable UUID reservationId) {
+        reservations.cancel(reservationId);
+        return ResponseEntity.noContent().build();
     }
 }

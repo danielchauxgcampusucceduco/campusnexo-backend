@@ -1,8 +1,8 @@
-package edu.campusnexo.infrastructure.web;
+package edu.campusnexo.infrastructure.adapter.in.web;
 
 import edu.campusnexo.application.port.in.CampusCatalogUseCase;
 import edu.campusnexo.domain.catalog.SpaceType;
-import edu.campusnexo.infrastructure.web.dto.SpaceResponse;
+import edu.campusnexo.infrastructure.adapter.in.web.dto.SpaceResponse;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

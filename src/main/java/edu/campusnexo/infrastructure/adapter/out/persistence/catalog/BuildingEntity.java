@@ -1,4 +1,4 @@
-package edu.campusnexo.infrastructure.persistence.catalog;
+package edu.campusnexo.infrastructure.adapter.out.persistence.catalog;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

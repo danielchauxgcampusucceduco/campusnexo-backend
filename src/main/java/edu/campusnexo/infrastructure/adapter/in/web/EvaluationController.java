@@ -1,7 +1,7 @@
-package edu.campusnexo.infrastructure.web;
+package edu.campusnexo.infrastructure.adapter.in.web;
 
 import edu.campusnexo.application.port.in.SpaceEvaluationUseCase;
-import edu.campusnexo.infrastructure.web.dto.SpaceEvaluationResponse;
+import edu.campusnexo.infrastructure.adapter.in.web.dto.SpaceEvaluationResponse;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;

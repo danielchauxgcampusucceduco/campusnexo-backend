@@ -1,4 +1,4 @@
-package edu.campusnexo.infrastructure.ai;
+package edu.campusnexo.infrastructure.adapter.out.ai;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import edu.campusnexo.domain.occupancy.OccupancyEstimate;

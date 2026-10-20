@@ -51,6 +51,52 @@ app:
     stale-after: ${OCCUPANCY_STALE_AFTER:30m}
   dashboard:
     max-reading-interval: ${DASHBOARD_MAX_READING_INTERVAL:15m}
+  simulation:
+    # Live demonstration scenarios (POST /api/v1/simulation/{scenario}).
+    enabled: ${SIMULATION_ENABLED:true}
+  mqtt:
+    enabled: ${MQTT_ENABLED:false}
+    broker-url: ${MQTT_BROKER_URL:tcp://localhost:1883}
+    client-id-prefix: ${MQTT_CLIENT_ID_PREFIX:campusnexo-backend}
+    username: ${MQTT_USERNAME:}
+    password: ${MQTT_PASSWORD:}
+    qos: ${MQTT_QOS:1}
+    # universidad/{sede}/{bloque}/{piso}/{space_id}/telemetria
+    telemetry-topic-filter: ${MQTT_TELEMETRY_TOPIC_FILTER:universidad/+/+/+/+/telemetria}
+    hvac-command-topic-template: ${MQTT_HVAC_TOPIC_TEMPLATE:universidad/sede_principal/bloque_b/piso_2/{space_id}/hvac/comando}
+  twin:
+    # Illustrative parameters: calibrate with campus measurements before real use.
+    trace-history: 50
+    kalman:
+      process-noise-per-minute: 0.8
+      camera-variance: 0.64
+      co2-relative-error: 0.35
+      wifi-relative-error: 0.30
+      people-per-device: 0.8
+      outdoor-co2-ppm: ${OUTDOOR_CO2_PPM:420}
+      co2-ppm-per-person-sqm: 1000
+    thermal:
+      time-constant-minutes: 120
+      occupant-gain-c-per-hour: 0.06
+      hvac-rate-c-per-minute: 0.08
+      step-minutes: 5
+      default-occupied-minutes: 45
+      pre-conditioning-lead-minutes: 30
+      eco-setback-window-minutes: 60
+      eco-setback-offset-c: 2.0
+      co2-ventilation-ppm: ${CO2_ALERT_THRESHOLD_PPM:1000}
+    status:
+      no-show-grace: ${NO_SHOW_GRACE:15m}
+      underuse-ratio: 0.3
+      desk-abandon-threshold: ${DESK_ABANDON_THRESHOLD:15m}
+    energy:
+      rated-kw-per-sqm: 0.12
+      max-reading-interval: 15m
+      schedule-start-hour: 7
+      schedule-end-hour: 21
+      time-zone: America/Bogota
+      # kg CO2 per kWh of the grid; illustrative default, set the official factor of the year.
+      emission-factor-kg-co2-per-kwh: ${EMISSION_FACTOR_KG_CO2_PER_KWH:0.126}
   alerts:
     # Demo thresholds: calibrate with the campus baseline before real use.
     co2-threshold-ppm: ${CO2_ALERT_THRESHOLD_PPM:1000}

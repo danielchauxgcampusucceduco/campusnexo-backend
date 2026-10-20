@@ -1,4 +1,4 @@
-package edu.campusnexo.infrastructure.persistence.reservation;
+package edu.campusnexo.infrastructure.adapter.out.persistence.reservation;
 
 import edu.campusnexo.domain.reservation.Reservation;
 import jakarta.persistence.Column;

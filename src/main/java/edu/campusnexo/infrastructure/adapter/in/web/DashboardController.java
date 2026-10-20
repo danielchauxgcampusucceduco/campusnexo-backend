@@ -1,7 +1,7 @@
-package edu.campusnexo.infrastructure.web;
+package edu.campusnexo.infrastructure.adapter.in.web;
 
 import edu.campusnexo.application.port.in.DashboardQueryUseCase;
-import edu.campusnexo.infrastructure.web.dto.DashboardSummaryResponse;
+import edu.campusnexo.infrastructure.adapter.in.web.dto.DashboardSummaryResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;

@@ -1,4 +1,4 @@
-package edu.campusnexo.infrastructure.persistence.occupancy;
+package edu.campusnexo.infrastructure.adapter.out.persistence.occupancy;
 
 import java.util.List;
 import java.util.UUID;

@@ -1,4 +1,4 @@
-package edu.campusnexo.infrastructure.persistence.reservation;
+package edu.campusnexo.infrastructure.adapter.out.persistence.reservation;
 
 import edu.campusnexo.domain.port.ReservationRepository;
 import edu.campusnexo.domain.reservation.Reservation;
@@ -40,5 +40,18 @@ class JpaReservationAdapter implements ReservationRepository {
     public Optional<Reservation> findActiveAt(String spaceId, Instant instant) {
         return data.findFirstBySpaceIdAndStartsAtLessThanEqualAndEndsAtGreaterThanOrderByStartsAtDesc(
                 spaceId, instant, instant).map(ReservationEntity::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Reservation> findNextStartingAfter(String spaceId, Instant instant) {
+        return data.findFirstBySpaceIdAndStartsAtGreaterThanOrderByStartsAtAsc(spaceId, instant)
+                .map(ReservationEntity::toDomain);
+    }
+
+    @Override
+    @Transactional
+    public void delete(UUID reservationId) {
+        data.deleteById(reservationId);
     }
 }

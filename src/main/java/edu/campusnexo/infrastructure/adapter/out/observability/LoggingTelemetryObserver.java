@@ -1,4 +1,4 @@
-package edu.campusnexo.infrastructure.observability;
+package edu.campusnexo.infrastructure.adapter.out.observability;
 
 import edu.campusnexo.application.telemetry.TelemetryObserver;
 import edu.campusnexo.domain.telemetry.TelemetryRecorded;

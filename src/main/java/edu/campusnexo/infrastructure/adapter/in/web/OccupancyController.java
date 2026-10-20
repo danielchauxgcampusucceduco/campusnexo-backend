@@ -1,13 +1,13 @@
-package edu.campusnexo.infrastructure.web;
+package edu.campusnexo.infrastructure.adapter.in.web;
 
 import edu.campusnexo.application.port.in.LiveOccupancyUseCase;
 import edu.campusnexo.application.port.in.OccupancyEstimationUseCase;
 import edu.campusnexo.domain.catalog.SpaceType;
 import edu.campusnexo.domain.occupancy.OccupancyRecord;
 import edu.campusnexo.domain.shared.ResultLimit;
-import edu.campusnexo.infrastructure.web.dto.OccupancyEstimateRequest;
-import edu.campusnexo.infrastructure.web.dto.OccupancyEstimateResponse;
-import edu.campusnexo.infrastructure.web.dto.SpaceOccupancyResponse;
+import edu.campusnexo.infrastructure.adapter.in.web.dto.OccupancyEstimateRequest;
+import edu.campusnexo.infrastructure.adapter.in.web.dto.OccupancyEstimateResponse;
+import edu.campusnexo.infrastructure.adapter.in.web.dto.SpaceOccupancyResponse;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;

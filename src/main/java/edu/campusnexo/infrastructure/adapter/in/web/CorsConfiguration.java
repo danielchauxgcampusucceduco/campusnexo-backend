@@ -1,4 +1,4 @@
-package edu.campusnexo.infrastructure.web;
+package edu.campusnexo.infrastructure.adapter.in.web;
 
 import java.util.Arrays;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,7 +19,7 @@ class CorsConfiguration implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
                 .allowedOrigins(allowedOrigins)
-                .allowedMethods("GET", "POST", "OPTIONS")
+                .allowedMethods("GET", "POST", "DELETE", "OPTIONS")
                 .allowedHeaders("Content-Type", ApiKeyAuthenticationFilter.HEADER)
                 .exposedHeaders("Location");
     }

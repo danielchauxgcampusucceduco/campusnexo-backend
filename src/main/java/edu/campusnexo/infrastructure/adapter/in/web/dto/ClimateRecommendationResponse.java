@@ -1,4 +1,4 @@
-package edu.campusnexo.infrastructure.web.dto;
+package edu.campusnexo.infrastructure.adapter.in.web.dto;
 
 import edu.campusnexo.domain.catalog.ClimateProfile;
 import edu.campusnexo.domain.climate.ClimateContext;

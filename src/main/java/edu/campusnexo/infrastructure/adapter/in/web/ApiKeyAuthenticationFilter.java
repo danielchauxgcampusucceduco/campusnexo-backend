@@ -1,4 +1,4 @@
-package edu.campusnexo.infrastructure.web;
+package edu.campusnexo.infrastructure.adapter.in.web;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Locale;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,9 +16,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Protects the write endpoints used by sensors and administrators (telemetry ingestion and
- * reservations) with a shared API key in the {@code X-API-Key} header. Read endpoints and the
- * dashboard's estimate/evaluation calls stay open. This is a prototype control, not user
+ * Protects the write endpoints used by sensors and staff (telemetry ingestion, edge frames, reservations
+ * and manual twin controls) with a shared API key in the {@code X-API-Key} header. Read endpoints, the
+ * dashboard's estimate/evaluation calls and the demonstration scenarios stay open. This is a prototype control, not user
  * authentication: it does not identify people or roles.
  */
 @Component
@@ -25,7 +26,8 @@ class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     static final String HEADER = "X-API-Key";
     private static final Logger log = LoggerFactory.getLogger(ApiKeyAuthenticationFilter.class);
     private static final Pattern PROTECTED_POST = Pattern.compile(
-            "^/api/v1/(telemetry|spaces/[^/]+/reservations)/?$");
+            "^/api/v1/(telemetry|twin/telemetry|spaces/[^/]+/reservations|twin/spaces/[^/]+/(override|popup|maintenance))/?$");
+    private static final Pattern PROTECTED_DELETE = Pattern.compile("^/api/v1/reservations/[^/]+/?$");
 
     private final byte[] expectedKey;
 
@@ -44,11 +46,15 @@ class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        if (expectedKey == null || !"POST".equalsIgnoreCase(request.getMethod())) {
+        if (expectedKey == null) {
             return true;
         }
         String path = request.getRequestURI().substring(request.getContextPath().length());
-        return !PROTECTED_POST.matcher(path).matches();
+        return switch (request.getMethod().toUpperCase(Locale.ROOT)) {
+            case "POST" -> !PROTECTED_POST.matcher(path).matches();
+            case "DELETE" -> !PROTECTED_DELETE.matcher(path).matches();
+            default -> true;
+        };
     }
 
     @Override
