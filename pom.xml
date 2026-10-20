@@ -21,7 +21,7 @@
         <java.version>21</java.version>
         <jacoco.version>0.8.13</jacoco.version>
         <paho.version>1.2.5</paho.version>
-        <archunit.version>1.4.1</archunit.version>
+        <archunit.version>1.5.1</archunit.version>
     </properties>
 
     <dependencies>
