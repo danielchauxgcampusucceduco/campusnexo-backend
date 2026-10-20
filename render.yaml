@@ -1,0 +1,45 @@
+# Render Blueprint (https://render.com/docs/blueprint-spec): backend + managed PostgreSQL.
+# Review plans and limits in your Render account before applying; free databases expire.
+databases:
+  - name: campusnexo-db
+    databaseName: campusnexo
+    user: campusnexo
+    plan: free
+    postgresMajorVersion: "17"
+
+services:
+  - type: web
+    name: campusnexo-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: DB_HOST
+        fromDatabase:
+          name: campusnexo-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: campusnexo-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: campusnexo-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: campusnexo-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: campusnexo-db
+          property: password
+      - key: INGEST_API_KEY
+        generateValue: true
+      - key: AI_SERVICE_URL
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
