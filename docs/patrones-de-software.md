@@ -1,64 +1,88 @@
 # Patrones de software en CampusNexo Backend
 
-Esta selección aplica las categorías estudiadas en el curso y se limita a patrones que tienen participantes concretos y una colaboración visible en el flujo del backend. La arquitectura hexagonal no se suma al conteo de patrones GoF. Los adaptadores HTTP consumen contratos de `application/port/in`; los casos de uso usan puertos de salida internos para persistencia e IA.
+Cada patrón se justifica por un problema concreto del caso, con participantes reales y una colaboración que se puede ejecutar y probar. La arquitectura hexagonal organiza las dependencias, pero **no se cuenta** como patrón GoF.
 
 ## Resumen
 
-| Categoría | Patrón | Necesidad en el caso | Participantes del código |
+| # | Categoría | Patrón | Problema del caso que resuelve | Participantes | Prueba automatizada |
+|---|---|---|---|---|---|
+| 1 | Creacional | **Abstract Factory** | Cada sede necesita una familia coherente de algoritmos de clima: en Pasto se calienta, en Barranquilla se enfría, se deshumidifica y se controla la radiación solar, en Medellín se prefiere la ventilación natural. | `ClimatePolicyFactory` (fábrica abstracta); `AndeanClimatePolicyFactory`, `TropicalClimatePolicyFactory`, `MildClimatePolicyFactory` (fábricas concretas); `ThermalPolicy`, `VentilationPolicy`, `LightingPolicy` (productos abstractos); cliente `ClimateRecommendationService`. | `ClimatePolicyFactoryTest`, `ClimateRecommendationServiceTest` |
+| 2 | Creacional | **Builder** | Una recomendación auditable se arma por partes (tres decisiones que salen de estrategias distintas y datos de procedencia opcionales: fuente de la ocupación, instante de la telemetría, entradas usadas). | `ClimateRecommendation.Builder`, producto inmutable `ClimateRecommendation`, director `ClimateRecommendationService`. | `ClimateRecommendationTest` |
+| 3 | Estructural | **Adapter** | El servicio de IA en Python habla HTTP/JSON `snake_case` y tiene sus propios errores; el núcleo Java solo conoce `OccupancyEstimator`. | Target `OccupancyEstimator`; Adapter `HttpOccupancyEstimatorAdapter`; Adaptee: API FastAPI `/v1/occupancy/estimate` (a través de `RestClient`). | `CampusNexoApiIntegrationTest` (IA caída) |
+| 4 | Estructural | **Decorator** | Si la IA falla, el campus debe seguir operando; reintentar y tener un respaldo son responsabilidades que se agregan sin modificar el adaptador. | Componente `OccupancyEstimator`; decoradores `RetryingOccupancyEstimator`, `FallbackOccupancyEstimator`; componente concreto de respaldo `LocalHeuristicOccupancyEstimator`. Segundo uso: `MinimumCycleThermalPolicy` agrega la protección del compresor a cualquier `ThermalPolicy`. | `OccupancyDecoratorsTest`, `MinimumCycleThermalPolicyTest` |
+| 5 | Estructural | **Facade** | Evaluar un espacio exige coordinar catálogo, telemetría, IA, clima, reservas y alertas en un orden preciso. | Fachada `CampusOperationsFacade` (`SpaceEvaluationUseCase`); subsistemas: los casos de uso de catálogo, telemetría, ocupación, clima, reservas y alertas. | `CampusOperationsFacadeTest` |
+| 6 | Comportamiento | **Strategy** | Los algoritmos de decisión térmica, de ventilación y de iluminación son intercambiables. | Estrategias `ThermalPolicy` (3 implementaciones), `VentilationPolicy` (2), `LightingPolicy` (2); contexto `ClimateRecommendationService`. | `ThermalPolicyTest`, `VentilationAndLightingPolicyTest` |
+| 7 | Comportamiento | **Observer** | Una lectura de sensor debe disparar varias reacciones independientes (CO₂, sobrecupo, consumo en vacío, reserva sin uso). | Sujeto `TelemetryEventPublisher`; observador `TelemetryObserver`; observadores concretos en `application/alert` y `LoggingTelemetryObserver`; evento `TelemetryRecorded`. | `AlertObserversTest`, `TelemetryEventPublisherTest` |
+
+Los **cinco patrones vistos en clase** (Abstract Factory, Builder, Adapter, Decorator y Facade) son la selección principal. Strategy y Observer son patrones investigados adicionalmente, como pide el requisito "investigar más patrones".
+
+## 1. Abstract Factory
+
+`ClimateRecommendationService` obtiene el perfil climático de la sede y pide a su fábrica las tres estrategias. Las familias **no se diferencian solo por números**: cada una combina algoritmos distintos que tienen sentido juntos.
+
+| Familia | Térmica | Ventilación | Iluminación |
 |---|---|---|---|
-| Creacional | Abstract Factory | Mantener juntas las políticas compatibles con el perfil climático de cada sede. | `ClimatePolicyFactory`; `AndeanClimatePolicyFactory`, `TropicalClimatePolicyFactory`, `MildClimatePolicyFactory`; productos `ThermalPolicy`, `VentilationPolicy`, `LightingPolicy`. |
-| Creacional | Builder | Crear una recomendación inmutable sin permitir que falten decisiones obligatorias. | `ClimateRecommendation.Builder` y `ClimateRecommendation`. |
-| Estructural | Adapter | Integrar el contrato Java con el endpoint HTTP/Pydantic del microservicio Python. | Puerto `OccupancyEstimator` y adaptador `HttpOccupancyEstimatorAdapter`. |
-| De comportamiento | Observer | Reaccionar a una lectura persistida con alertas independientes y extensibles. | `TelemetryEventPublisher`, evento `TelemetryRecorded` y `TelemetryObserver`; observadores `AirQualityAlertObserver`, `CapacityAlertObserver`, `EnergyWasteAlertObserver`. |
-| De comportamiento | Strategy | Cambiar algoritmos de decisión climática mediante contratos comunes. | `ThermalPolicy`, `VentilationPolicy`, `LightingPolicy`; implementaciones de políticas y familias elegidas por perfil. |
+| Andina (Pasto, 14,5 °C promedio) | `HeatingFirstThermalPolicy`: calefacción bajo 19 °C | `Co2ThresholdVentilationPolicy`: mecánica con ventanas cerradas | `DaylightHarvestingPolicy` |
+| Tropical (Barranquilla, 31,8 °C) | `CoolingWithDehumidificationPolicy`: enfría y deshumidifica | `Co2ThresholdVentilationPolicy` (900 ppm, edificio cerrado por aire acondicionado) | `GlareControlLightingPolicy`: cierra persianas para reducir la carga térmica |
+| Templada (Medellín, 22,8 °C) | `ComfortBandThermalPolicy`: banda amplia, prefiere el enfriamiento libre | `NaturalVentilationPolicy`: abre ventanas si el exterior es apto | `DaylightHarvestingPolicy` |
 
-## Abstract Factory y Strategy
-
-`ClimateRecommendationService` obtiene el perfil de la sede del catálogo. Busca la fábrica correspondiente y solicita tres estrategias relacionadas. Así, la sede andina, tropical o templada selecciona una familia coherente de algoritmos sin llenar el caso de uso de condiciones por cada decisión. El catálogo de demostración incluye las tres familias para probar esa selección desde la API.
-
-Cada interfaz de política también representa el contrato de una Strategy: el caso de uso ejecuta la política por interfaz y no necesita conocer cómo se calcula. La fábrica crea la familia; la estrategia encapsula el algoritmo de una decisión.
-
-Flujo principal:
+Mezclar familias sería incoherente (por ejemplo, abrir ventanas en Barranquilla mientras opera el aire acondicionado). Al iniciar, el servicio verifica que exista una fábrica por cada perfil.
 
 ```text
-POST /climate/recommendations
+POST /api/v1/spaces/{id}/climate-recommendations
   → ClimateRecommendationService
-  → consulta de espacio y perfil
-  → ClimatePolicyFactory del perfil
-  → ThermalPolicy + VentilationPolicy + LightingPolicy
-  → ClimateRecommendation.Builder
+  → ClimatePolicyFactory del perfil de la sede        (Abstract Factory)
+  → ThermalPolicy / VentilationPolicy / LightingPolicy (Strategy)
+       ThermalPolicy envuelta en MinimumCycleThermalPolicy (Decorator)
+  → ClimateRecommendation.Builder                     (Builder)
   → ClimateRecommendationRepository
 ```
 
-Los setpoints, umbrales de CO₂ y niveles de luz son parámetros ilustrativos para el prototipo; deben validarse y calibrarse con datos reales y especialistas antes de una operación real.
+## 2. Builder
 
-## Builder
+El constructor canónico del `record` es el único lugar donde se valida. El `Builder` permite que el servicio arme la recomendación a medida que obtiene cada parte, genera el identificador y aplica los valores por defecto a las partes opcionales (`occupancySource = MANUAL`, sin snapshot de entradas). No se usa Builder "por usarlo": la recomendación tiene diez componentes, cuatro de ellos opcionales.
 
-`ClimateRecommendation.Builder` permite completar el contexto gradualmente. `build()` rechaza una recomendación si falta el espacio, el perfil, el instante o alguna decisión requerida. El objeto final es un `record` inmutable.
+Diferencia con el Builder GoF clásico: no hay un Builder abstracto con varias representaciones; es la variante con interfaz fluida para objetos inmutables. El papel de director lo cumple `ClimateRecommendationService`. Conviene explicarlo así en la sustentación.
 
-## Adapter
+## 3. Adapter
 
-`OccupancyEstimationService` depende del puerto de dominio `OccupancyEstimator`. `HttpOccupancyEstimatorAdapter` traduce los valores a las propiedades `snake_case` del servicio Python y su respuesta al modelo Java. Si el endpoint no está disponible, el adaptador transforma el error de transporte en `AiServiceUnavailableException`; el dominio y el caso de uso no importan clases HTTP.
+`HttpOccupancyEstimatorAdapter` convierte `OccupancyQuery` en el JSON `snake_case` que espera FastAPI y la respuesta en `OccupancyEstimate`. También traduce los errores: un fallo de transporte o un 5xx produce `OccupancyEstimatorUnavailableException` (HTTP 503); una respuesta incompleta, con datos fuera de rango o de otro espacio produce `OccupancyEstimatorInvalidResponseException` (HTTP 502). El dominio no importa clases HTTP.
 
-La interfaz entre servicios transmite conteos agregados. No se transfieren ni almacenan imágenes en este backend.
+## 4. Decorator
 
-## Observer
+```text
+FallbackOccupancyEstimator            ← si todo falla, responde la heurística local
+  └─ RetryingOccupancyEstimator       ← reintenta si la IA no está disponible
+       └─ HttpOccupancyEstimatorAdapter (Adapter)
+```
 
-Después de guardar telemetría, `TelemetryService` publica `TelemetryRecorded`. `TelemetryEventPublisher` recorre los consumidores registrados como `TelemetryObserver`. En el prototipo, los observadores reportan condiciones de aire, capacidad y consumo con logs; no operan equipos. Un fallo de observación se registra sin convertir una lectura ya guardada en una respuesta HTTP fallida.
+La composición se arma en `ApplicationConfiguration` y se activa o desactiva por configuración (`AI_MAX_ATTEMPTS`, `AI_FALLBACK_ENABLED`). Cada resultado indica su fuente real (`SERVICIO_IA` o `RESPALDO_LOCAL`), que también queda en la recomendación. La heurística local es ilustrativa y reporta una confianza baja a propósito.
 
-El umbral de energía residual de `EnergyWasteAlertObserver` es un valor de demostración, no una regla institucional validada.
+## 5. Facade
 
-## Guion de demostración del patrón
+`POST /api/v1/spaces/{id}/evaluations` ejecuta el flujo completo del caso: toma la última lectura del sensor, estima la ocupación con IA (con respaldo), deriva el estado actual del HVAC desde el historial, genera y guarda la recomendación y devuelve también la reserva activa y las alertas recientes. Antes, el cliente tenía que copiar valores de una respuesta a la siguiente petición.
 
-1. Consultar `/api/v1/spaces` y seleccionar un espacio de cada perfil climático disponible.
-2. Enviar recomendaciones con valores que activen y desactiven HVAC, ventilación e iluminación; comparar las explicaciones.
-3. Enviar una lectura de telemetría que exceda capacidad y umbral de CO₂; revisar los logs y consultar la medición guardada.
-4. Consultar una estimación con el microservicio Python disponible y volver a intentar con el servicio desconectado para observar el `503` traducido por el Adapter.
-5. Explicar los contratos, responsabilidades y razón de cada patrón; no presentar el nombre de una clase como evidencia suficiente por sí sola.
+## 6. Strategy
 
-## Límites para la defensa académica
+El cliente (`ClimateRecommendationService`) solo conoce las interfaces. Hay varias implementaciones por interfaz, que se intercambian según la familia. Las pruebas muestran que un mismo ambiente (17 °C, 60 % HR) produce calefacción en la sede andina y climatización apagada en la tropical.
 
-- El endpoint de cámara no existe en este backend: recibe el conteo ya agregado por IA.
-- Las reglas de climatización y los umbrales no están calibrados.
-- El Observer actual alerta por logging, sin correo, cola de eventos ni actuadores.
-- Los cinco patrones tienen implementación; la demostración en vivo y la explicación conceptual todavía deben prepararse para la sustentación.
+## 7. Observer
+
+Después de guardar una lectura, `TelemetryService` publica `TelemetryRecorded`. Cada observador evalúa una regla y **persiste** la alerta (`GET /api/v1/alerts`), con un periodo de enfriamiento para no repetir la misma alerta en cada lectura. El fallo de un observador se reporta y no afecta a los demás ni a la lectura guardada. Agregar un observador no exige modificar el publicador: `LoggingTelemetryObserver` se registra solo, como componente de Spring.
+
+## Guion de demostración (aprox. 10 minutos)
+
+1. `GET /api/v1/spaces`: mostrar las tres sedes y sus perfiles.
+2. Enviar a `AULA-301` (andina) una lectura fría con 40 personas y 1600 ppm de CO₂ (con `X-API-Key`). Consultar `GET /api/v1/alerts`: aparecen `CO2_ALTO` y `SOBRECUPO` (**Observer**).
+3. `POST /api/v1/spaces/AULA-301/evaluations` con el servicio de IA apagado: la ocupación sale con `source = RESPALDO_LOCAL` (**Decorator** sobre el **Adapter**) y la recomendación es `CALEFACCION` (**Facade**, **Abstract Factory**, **Strategy**, **Builder**).
+4. Repetir la evaluación con IA encendida: `source = SERVICIO_IA`.
+5. Enviar la misma lectura a `AULA-MAGNA-204` (tropical) con 82 % de humedad: `DESHUMIDIFICACION`. Comparar las explicaciones entre familias.
+6. Crear una reserva en `AULA-ADM-101`, enviar lecturas vacías después de 15 minutos y mostrar `RESERVA_SIN_USO`.
+7. `GET /api/v1/occupancy/live?type=BIBLIOTECA` y `GET /api/v1/dashboard/summary`.
+8. Mostrar en el código las pruebas de cada patrón (tabla de arriba) y el reporte de cobertura de la CI.
+
+## Límites que se deben decir en la defensa
+
+- Los umbrales, setpoints y la heurística de respaldo son valores de referencia; no están calibrados con instrumentos del campus.
+- El estado del HVAC se **infiere** de la última recomendación porque el prototipo no lee ni acciona equipos.
+- El backend recibe conteos agregados; no recibe ni guarda imágenes.

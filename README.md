@@ -1,133 +1,107 @@
 # CampusNexo Backend
 
-API REST del campus universitario inteligente, implementada con Java 21, Spring Boot 4.1 y PostgreSQL. El backend recibe mediciones agregadas, mantiene el catálogo de sedes y espacios, solicita estimaciones de ocupación al servicio Python y genera recomendaciones ambientales auditables.
+API REST del campus universitario inteligente (proyecto de grado de Patrones de Software). Está hecha con Java 21, Spring Boot 4.1 y PostgreSQL. Recibe mediciones agregadas de los espacios, estima la ocupación con el servicio de IA (con respaldo local si la IA falla), genera recomendaciones auditables de climatización, ventilación e iluminación según el clima de cada sede, detecta alertas, gestiona reservas y muestra en vivo los puestos libres de la biblioteca.
+
+## Qué problema del caso resuelve cada parte
+
+| Problema del caso | Funcionalidad |
+|---|---|
+| Salones reservados pero vacíos o sobreocupados | Reservas con control de aforo y de solapamiento; alertas `RESERVA_SIN_USO` y `SOBRECUPO`. |
+| Consumo de energía en espacios vacíos | Alerta `CONSUMO_ESPACIO_VACIO`, recomendaciones de HVAC e iluminación por sede y estimación en kWh y COP en el dashboard. |
+| Biblioteca saturada sin información de puestos libres | `GET /api/v1/occupancy/live?type=BIBLIOTECA`: puestos libres, % de ocupación y estado `LIBRE`, `MODERADO` o `SATURADO`. |
 
 ## Arquitectura
 
-El núcleo de dominio y los casos de uso no dependen de Spring, JPA, HTTP ni del servicio Python. Los puertos de entrada (`application/port/in`) describen las operaciones que ofrecen los casos de uso; los puertos de salida (`domain/port`) expresan sus dependencias externas. Los adaptadores de infraestructura implementan los puertos de salida. La composición de dependencias se hace en `infrastructure/config/ApplicationConfiguration`.
+El núcleo (`domain` y `application`) **no depende de Spring, JPA ni HTTP**; se puede compilar con `javac` sin dependencias. Los adaptadores de `infrastructure` implementan los puertos y `ApplicationConfiguration` es la raíz de composición.
 
 ```mermaid
 flowchart LR
-    http[Adaptador HTTP / REST] --> usecases[Casos de uso]
-    usecases --> domain[Dominio y políticas]
-    usecases --> ports[Puertos de salida]
-    ports --> jpa[Adaptadores PostgreSQL / JPA]
-    ports --> ai[Adaptador HTTP hacia IA Python]
+    web[web: controladores y DTO] --> in[application/port/in: casos de uso]
+    in --> app[application: servicios, fachada, decoradores, observadores]
+    app --> domain[domain: modelos, políticas, puertos de salida]
+    jpa[persistence: adaptadores JPA] -.implementa.-> domain
+    ai[ai: adaptador HTTP a FastAPI] -.implementa.-> domain
 ```
-
-Los paquetes siguen esta dirección:
 
 ```text
-domain/           modelos, eventos, reglas e interfaces de puertos
-application/      casos de uso, puertos de entrada y coordinación de reglas
-infrastructure/   HTTP, JPA, configuración y adaptadores externos
+edu.campusnexo
+├── domain/                     reglas puras, sin frameworks
+│   ├── shared/                 DomainValidationException, DomainChecks, ResultLimit
+│   ├── catalog/ telemetry/ occupancy/ alert/ reservation/
+│   ├── climate/                decisiones, contexto, recomendación (Builder)
+│   │   └── policy/             Abstract Factory + Strategy + Decorator térmico
+│   └── port/                   puertos de salida (repositorios, OccupancyEstimator)
+├── application/                casos de uso, uno por subpaquete
+│   ├── port/in/                contratos de entrada, comandos y resultados
+│   ├── exception/              errores de aplicación con código estable
+│   ├── catalog/ telemetry/ occupancy/ climate/ alert/ reservation/ dashboard/
+│   └── operations/             CampusOperationsFacade (Facade)
+└── infrastructure/
+    ├── config/                 composición de dependencias y reloj
+    ├── web/                    controladores por recurso, DTO, errores, CORS, API key
+    ├── persistence/            un subpaquete por agregado (entidades + adaptadores)
+    ├── ai/                     HttpOccupancyEstimatorAdapter (Adapter)
+    └── observability/          logs de observadores
 ```
 
-La arquitectura hexagonal estructura las dependencias; no se cuenta como uno de los patrones GoF de la asignatura. La justificación de los patrones implementados está en [`docs/patrones-de-software.md`](docs/patrones-de-software.md).
+Los patrones, sus participantes y el guion de demostración están en [`docs/patrones-de-software.md`](docs/patrones-de-software.md).
 
 ## Inicio local con Docker Compose
 
-Requisitos: Docker Engine o Docker Desktop con Compose.
-
 ```sh
-cp .env.example .env
-# Edita las contraseñas locales antes de arrancar.
+cp .env.example .env      # define contraseñas locales
 docker compose up --build -d
-docker compose logs -f backend
-```
-
-Verifica el backend:
-
-```sh
 curl http://localhost:8080/actuator/health
 curl http://localhost:8080/api/v1/spaces
 ```
 
-Compose inicia PostgreSQL y el backend. El servicio de IA se configura por medio de `AI_SERVICE_URL`; si no está levantado, telemetría y catálogo siguen disponibles, pero `POST /api/v1/occupancy/estimate` responde `503 Service Unavailable`.
+Si el servicio de IA no está levantado, la estimación de ocupación responde igual, con `source = RESPALDO_LOCAL` (se puede desactivar con `AI_FALLBACK_ENABLED=false`, y entonces responde `503`).
 
-Para detener los servicios conservando los datos, ejecuta `docker compose down`. Para borrar también el volumen local de PostgreSQL, ejecuta `docker compose down -v`.
+## Ejecución y pruebas con Maven
 
-## Ejecución desde Maven
-
-Requisitos: Java 21, Maven 3.9+ y PostgreSQL 15+. Configura `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD` y, opcionalmente, `AI_SERVICE_URL`; luego:
+Requisitos: Java 21, Maven 3.9+ y Docker (para las pruebas de integración con Testcontainers).
 
 ```sh
-mvn spring-boot:run
+mvn verify                # pruebas unitarias + integración con PostgreSQL 17 + cobertura JaCoCo
+mvn spring-boot:run       # requiere un PostgreSQL local (ver DATABASE_URL)
 ```
 
-Flyway administra el esquema y carga un catálogo ilustrativo de tres sedes, edificios y espacios. Las ciudades y valores ambientales de ejemplo no son datos oficiales de una universidad. Hibernate valida el esquema, pero no lo modifica (`ddl-auto: validate`).
+El reporte de cobertura queda en `target/site/jacoco/index.html`, y la CI lo publica como artefacto `test-reports`.
 
-## API v1
+| Suite | Qué demuestra |
+|---|---|
+| `domain/**` | Familias del Abstract Factory, estrategias, decorador de ciclo mínimo, Builder, validaciones. |
+| `application/**` | Idempotencia y validación de la ingesta, Observer con fallos aislados, decoradores de IA, fachada de punta a punta, reservas, ocupación en vivo, energía. |
+| `CampusNexoApiIntegrationTest` | Arranque real con Flyway V1–V9 y validación JPA, API key, alertas, evaluación con la IA caída, rutas antiguas, `ProblemDetail`. |
+
+## API v1 (resumen)
 
 | Método y ruta | Propósito |
 |---|---|
-| `GET /api/v1/spaces` | Lista sedes, edificios y espacios registrados. |
-| `POST /api/v1/telemetry` | Valida y persiste una lectura; publica el evento a observadores. |
-| `GET /api/v1/telemetry?spaceId=AULA-301&limit=20` | Consulta las lecturas recientes; `limit` acepta de 1 a 100. |
-| `GET /api/v1/dashboard/summary` | Resumen de espacios monitoreados y lecturas de las últimas 24 horas. |
-| `POST /api/v1/occupancy/estimate?spaceId=AULA-301` | Solicita una estimación al servicio Python mediante el puerto `OccupancyEstimator`. |
-| `POST /api/v1/climate/recommendations?spaceId=AULA-301` | Calcula y audita recomendaciones de HVAC, ventilación e iluminación. |
-| `GET /api/v1/climate/recommendations?spaceId=AULA-301&limit=20` | Consulta las recomendaciones recientes, opcionalmente filtradas por espacio. |
-| `GET /actuator/health` | Estado de salud del backend. |
+| `GET /api/v1/spaces[?type=]`, `GET /api/v1/spaces/{id}` | Catálogo. |
+| `POST /api/v1/telemetry` 🔑 | Registra una lectura (idempotente) y dispara los observadores. |
+| `GET /api/v1/telemetry[?spaceId=&limit=]`, `GET /api/v1/spaces/{id}/telemetry` | Lecturas recientes. |
+| `POST /api/v1/spaces/{id}/evaluations` | **Flujo completo**: última lectura → IA → recomendación. |
+| `POST /api/v1/spaces/{id}/occupancy-estimates`, `GET …/occupancy-estimates` | Estimación de ocupación persistida. |
+| `GET /api/v1/occupancy/live[?type=BIBLIOTECA]` | Ocupación y puestos libres en vivo. |
+| `POST /api/v1/spaces/{id}/climate-recommendations`, `GET …` | Recomendación manual e historial. |
+| `GET /api/v1/alerts[?spaceId=&type=&limit=]` | Alertas detectadas por los observadores. |
+| `POST /api/v1/spaces/{id}/reservations` 🔑, `GET …/reservations` | Reservas. |
+| `GET /api/v1/dashboard/summary` | Indicadores de las últimas 24 horas. |
 
-El resumen cuenta los espacios que registraron telemetría en las últimas 24 horas, no todo el catálogo. Los detalles de solicitudes, respuestas, límites y ejemplos están en [`docs/api.md`](docs/api.md).
-
-Ejemplo de telemetría (el timestamp es opcional y usa UTC si se omite):
-
-```json
-{
-  "spaceId": "AULA-301",
-  "peopleCount": 18,
-  "objectCount": 0,
-  "wifiDevices": 21,
-  "co2Ppm": 820,
-  "temperatureC": 23.1,
-  "humidityPct": 58,
-  "illuminanceLux": 410,
-  "activePowerKw": 2.4
-}
-```
-
-Ejemplo de recomendación climática:
-
-```json
-{
-  "occupancy": 18,
-  "co2Ppm": 820,
-  "indoorTemperatureC": 27.1,
-  "illuminanceLux": 380,
-  "hvacOn": false,
-  "minutesInCurrentHvacState": 12
-}
-```
-
-El campo `outsideTemperatureC` es opcional; si falta, se usa la temperatura promedio de referencia de la sede. Cada recomendación devuelve su identificador, perfil climático, decisiones y explicaciones, y queda almacenada en `climate_recommendations`.
-
-Los errores devuelven códigos HTTP coherentes: `400` para validación, `404` para espacios desconocidos y `503` si la IA no está disponible.
+🔑 = requiere la cabecera `X-API-Key` cuando `INGEST_API_KEY` está definida (obligatoria en producción). El detalle está en [`docs/api.md`](docs/api.md).
 
 ## Configuración
 
-Las variables principales se documentan en [`.env.example`](.env.example). Spring también permite configurar directamente:
+Todas las variables están documentadas en [`.env.example`](.env.example) y [`application.yml`](src/main/resources/application.yml). El perfil `prod` (`SPRING_PROFILES_ACTIVE=prod`) elimina las credenciales por defecto y exige `INGEST_API_KEY`.
 
-| Variable | Valor por defecto |
-|---|---|
-| `DATABASE_URL` | `jdbc:postgresql://localhost:5432/campusnexo` |
-| `DATABASE_USER` / `DATABASE_PASSWORD` | `campusnexo` / `campusnexo` |
-| `SERVER_PORT` | `8080` |
-| `CORS_ALLOWED_ORIGIN` | `http://localhost:5173` |
-| `AI_SERVICE_URL` | `http://localhost:8001` |
-| `AI_CONNECT_TIMEOUT` / `AI_READ_TIMEOUT` | `2s` / `5s` |
-| `CO2_ALERT_THRESHOLD_PPM` | `1000` |
-| `EMPTY_SPACE_POWER_THRESHOLD_KW` | `0.15` |
+## Despliegue
 
-No guardes credenciales reales en Git. `.env` está excluido por `.gitignore`; usa secretos del gestor de despliegue para entornos compartidos. Las alertas se pueden ajustar a través de configuración externa; sus valores iniciales son parámetros para demostración, no políticas aprobadas por la universidad.
+La guía para desplegar en Render con PostgreSQL administrado (incluye `render.yaml`) está en [`docs/despliegue.md`](docs/despliegue.md).
 
-## Privacidad y límites del prototipo
+## Límites del prototipo
 
-El contrato Java con IA transporta conteos agregados; no persiste imágenes, nombres ni identificadores de seguimiento. Las recomendaciones ambientales aplican umbrales de referencia, se guardan para auditoría y no accionan hardware. Antes de un uso real se requieren calibración con datos del campus, revisión de seguridad, autenticación/autorización, política de retención, TLS y validación de las reglas con responsables de infraestructura y bienestar.
-
-El backend no integra directamente cámaras, sensores ni actuadores. La cámara está representada solo por el conteo agregado que puede enviar el servicio de IA.
-
-## Compilación
-
-La compilación automática de GitHub Actions usa Java 21 y ejecuta `mvn -DskipTests package`. En el equipo local puedes compilar con `mvn -DskipTests package`. La compilación confirma estructura y dependencias; los escenarios funcionales y pruebas automatizadas aún deben implementarse antes de una liberación.
+- Los umbrales, setpoints y la heurística de respaldo son valores ilustrativos y no están calibrados. No se deben presentar como ahorro ni precisión medidos.
+- El backend no acciona HVAC, luces ni relés; el estado del HVAC se infiere de la última recomendación.
+- La API key protege la ingesta, pero no identifica personas ni roles. Un uso institucional necesita autenticación de usuarios, TLS, retención de datos y evaluación de privacidad de la cámara.
+- Las migraciones `V2` y `V5` siembran un catálogo de demostración (ya aplicadas; no se pueden editar sin romper las bases existentes). Los nombres son ilustrativos.
