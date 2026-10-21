@@ -2,13 +2,32 @@
 
 Base local: `http://localhost:8080`. JSON en `camelCase`; instantes en ISO-8601 UTC (`2026-10-20T15:00:00Z`). Todas las respuestas de error usan `ProblemDetail` con un `code` estable.
 
-🔑 = requiere la cabecera `X-API-Key` cuando `INGEST_API_KEY` está definida (siempre en producción).
+## Autenticación y roles
+
+Salvo `GET /actuator/health`, `POST /api/v1/auth/login` y `GET /api/v1/auth/session`, toda ruta exige credenciales:
+
+- **Personas**: `POST /api/v1/auth/login` con `{ "username": "jurado", "password": "…" }` responde `{ "token", "tokenType": "Bearer", "username", "role", "expiresAt" }`. Se envía como `Authorization: Bearer <token>`. Credenciales malas → `401 invalid_credentials`; demasiados intentos desde la misma IP → `429 rate_limited`.
+- **Sensores** (cámaras y Arduino por HTTP): `X-API-Key: <clave>` (`APP_SENSOR_KEYS`). Una clave de sensor solo puede enviar lecturas.
+- `GET /api/v1/auth/session` dice el modo (`enforced`/`development`) y, si el token es válido, quién es y su rol.
+
+| Rol | Rutas |
+|---|---|
+| VIEWER | todos los `GET /api/**` y el canal STOMP |
+| OPERATOR | además: `POST /spaces/{id}/reservations\|evaluations\|occupancy-estimates\|climate-recommendations`, `DELETE /reservations/{id}`, `POST /twin/spaces/{id}/override\|popup\|maintenance` y las rutas anteriores de ocupación y clima |
+| ADMIN | todo, incluido `POST /simulation/{escenario}` |
+| SENSOR | `POST /telemetry`, `POST /twin/telemetry`, `POST /twin/environment` |
+
+Cualquier ruta nueva que no esté en la tabla exige VIEWER para leer y ADMIN para el resto. En este documento, 🔑 marca las rutas de escritura.
+
+## Paginación
+
+`GET /api/v1/telemetry`, `GET /api/v1/spaces/{id}/telemetry` y `GET /api/v1/alerts` devuelven un arreglo JSON, del más reciente al más antiguo. Si la página está llena, la cabecera `X-Next-Cursor` trae el cursor de la siguiente: `?limit=20&cursor=<X-Next-Cursor>`. Es paginación por llave (instante + desempate), así que no se repiten ni se saltan filas aunque lleguen lecturas nuevas entre páginas. Un cursor mal formado → `400 invalid_request`.
 
 ## Catálogo
 
 | Ruta | Descripción |
 |---|---|
-| `GET /api/v1/spaces?type=BIBLIOTECA` | Lista los espacios (filtro opcional por `AULA`, `BIBLIOTECA`, `LABORATORIO`, `AUDITORIO`, `ZONA_COMUN`). Incluye edificio, sede, perfil climático, temperatura exterior promedio y tarifa de energía (COP/kWh). |
+| `GET /api/v1/spaces?type=BIBLIOTECA` | Lista los espacios (filtro opcional por `AULA`, `SALA_ESTUDIO`, `AUDITORIO`, `ADMINISTRATIVA`, `LOGISTICA`, `BIBLIOTECA`, `CAFETERIA`, `LABORATORIO`, `SALA_COMPUTO` o `ZONA_COMUN`). Incluye edificio, sede, perfil climático, temperatura exterior promedio y tarifa de energía (COP/kWh). |
 | `GET /api/v1/spaces/{spaceId}` | Un espacio. `404 space_not_found` si no existe. |
 
 Espacios: los 107 salones del campus Pasto tomados del plano institucional, por ejemplo `421-A`, `402-B` o `BIBLIOTECA-2B` (ver `docs/gemelo-digital.md`).
@@ -121,7 +140,7 @@ Consultas:
 
 ## Alertas
 
-`GET /api/v1/alerts?spaceId=&type=&limit=`: tipos `CO2_ALTO`, `SOBRECUPO`, `CONSUMO_ESPACIO_VACIO` y `RESERVA_SIN_USO`; severidad `ADVERTENCIA` o `CRITICA`. La misma alerta no se repite para un espacio durante `ALERT_COOLDOWN` (15 min). `RESERVA_SIN_USO` se emite una vez por reserva, cuando el espacio sigue vacío `RESERVATION_GRACE` (15 min) después de iniciar.
+`GET /api/v1/alerts?spaceId=&type=&limit=`: tipos `CO2_ALTO`, `SOBRECUPO`, `CONSUMO_ESPACIO_VACIO` y `RESERVA_SIN_USO`; severidad `ADVERTENCIA` o `CRITICA`. La misma alerta no se repite para un espacio durante `ALERT_COOLDOWN` (15 min). `RESERVA_SIN_USO` se emite una vez por reserva, cuando el espacio sigue vacío `RESERVATION_GRACE` (15 min) después de iniciar. Las alertas se calculan fuera del hilo de la petición (observadores asíncronos con hasta 3 intentos): pueden aparecer unos milisegundos después de que `POST /telemetry` responde.
 
 ## Reservas
 
@@ -131,7 +150,7 @@ Consultas:
 { "startsAt": "2026-10-21T13:00:00Z", "endsAt": "2026-10-21T15:00:00Z", "expectedAttendees": 25, "reference": "IS-701" }
 ```
 
-`reference` es un código de curso o grupo, sin datos personales. Las reglas son: duración máxima de 12 h, `expectedAttendees` ≤ aforo y sin solapamiento (`409 reservation_conflict`). Responde `201` con `Location: /api/v1/reservations/{id}`.
+`reference` es un código de curso o grupo, sin datos personales. Las reglas son: duración máxima de 12 h, `expectedAttendees` ≤ aforo y sin solapamiento (`409 reservation_conflict`). El solapamiento lo garantiza PostgreSQL con una restricción de exclusión sobre `tstzrange(starts_at, ends_at)` por espacio (V13): si dos peticiones simultáneas pasan la comprobación previa, la base confirma una y la otra recibe `409`. Responde `201` con `Location: /api/v1/reservations/{id}`.
 
 Consultas:
 
@@ -162,13 +181,16 @@ La energía en espacios vacíos se **estima** integrando la potencia de las lect
 
 | HTTP | `code` | Significado |
 |---|---|---|
-| 400 | `validation_failed` | Faltan campos (incluye `errors[]` con campo y mensaje). |
+| 400 | `validation_failed` | Faltan campos o un valor está fuera de su rango físico (incluye `errors[]` con campo y mensaje; los rangos son los mismos `MeasurementLimits` del dominio). |
 | 400 | `invalid_request` | Valor fuera de rango o regla del dominio violada (mensaje con el campo). |
 | 400 | `malformed_request` | JSON inválido, tipo incorrecto o parámetro requerido ausente. |
-| 401 | `api_key_required` | Falta `X-API-Key` o no es válida. |
+| 401 | `authentication_required` | Faltan credenciales, el token venció o la clave de sensor no es válida. |
+| 401 | `invalid_credentials` | Usuario o contraseña incorrectos en `/auth/login`. |
+| 403 | `forbidden` | El rol no permite la operación (el mensaje dice cuál se necesita). |
+| 429 | `rate_limited` | Demasiados intentos de inicio de sesión o escrituras por minuto (`Retry-After: 60`). |
 | 404 | `space_not_found`, `recommendation_not_found`, `occupancy_estimate_not_found`, `reservation_not_found`, `route_not_found` | No existe. |
 | 405 / 415 | `method_not_allowed` / `unsupported_media_type` | Método o tipo de contenido no soportado. |
-| 409 | `telemetry_not_available`, `reservation_conflict` | Conflicto con el estado actual. |
+| 409 | `telemetry_not_available`, `reservation_conflict`, `twin_concurrent_update` | Conflicto con el estado actual (`twin_concurrent_update`: el salón cambió en otra instancia tres veces seguidas mientras se decidía; se puede reintentar). |
 | 500 | `internal_error` | Error inesperado (el detalle solo queda en los logs). |
 | 502 | `ai_service_invalid_response` | La IA respondió datos inválidos. |
 | 503 | `ai_service_unavailable` | La IA no respondió y el respaldo está desactivado. |

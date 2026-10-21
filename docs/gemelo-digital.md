@@ -17,21 +17,26 @@ Cámara + YOLO/ByteTrack (tools/edge)         Arduino del salón (tools/arduino)
    │ MQTT ucc/pasto/{bloque}/{piso}/{salón}/camara   │ MQTT ucc/pasto/{bloque}/{piso}/{salón}/ambiente
    ▼                                          ▼
 YoloMqttTelemetryInboundAdapter        ArduinoMqttEnvironmentInboundAdapter
-POST /api/v1/twin/telemetry            POST /api/v1/twin/environment
-   └──► ProcessSpaceTelemetryUseCase     └──► ProcessEnvironmentReadingUseCase
-                          ▼
-ProcessSpaceTelemetryService
-   ├─ OccupancyKalmanDomainService      cámara + CO2 + Wi-Fi → ocupación (x, P)
-   ├─ StudyZoneRoi.evaluateDeskGhosting ray casting por pupitre/puesto + cronómetro de abandono
+POST /api/v1/twin/telemetry (SENSOR)   POST /api/v1/twin/environment (SENSOR)
+   └──► ProcessSpaceTelemetryUseCase     └──► ProcessEnvironmentReadingUseCase     ◄── SpaceReevaluationUseCase
+        ProcessCameraFrameService             ProcessEnvironmentReadingService         SpaceReevaluationService
+          ├─ OccupancyKalmanDomainService     cámara + CO2 + Wi-Fi → ocupación (x, P)    (tras un control manual)
+          └─ StudyZoneRoi.evaluateDeskGhosting ray casting por pupitre + cronómetro de abandono
+                          ▼ (los tres casos de uso comparten)
+TwinWriter         lee → decide → guarda con revisión; serializa por salón y repite si otra instancia escribió antes
+TwinDecisionEngine
    ├─ SpaceStatusPolicy                 aforo, reserva, no-show, pop-up, mantenimiento
    ├─ ThermalInertiaMpcDomainService    modelo RC + horizonte → estrategia de clima
    ├─ RoomConditionPolicy               personas + luces + equipos → estado general del salón
-   ├─ TelemetryUseCase.ingest           lectura agregada → observadores de alertas
-   ├─ SpaceRepositoryPort               PostgresSpaceRepositoryAdapter
+   └─ IdleEquipmentShutdownPolicy       vacío > 5 min con energía encendida → orden al Arduino
+TelemetryUseCase.ingest                 lectura agregada → observadores de alertas (asíncronos, con reintentos)
+TwinPublisher
    ├─ HvacActuatorCommandPort           Esp32HvacActuatorAdapter (MQTT) o LoggingHvacActuatorAdapter
    ├─ RoomEquipmentCommandPort          ArduinoEquipmentCommandAdapter (MQTT) o LoggingEquipmentCommandAdapter
    └─ RealtimeDashboardNotifierPort     StompRealtimeDashboardNotifierAdapter (/topic/twin, /topic/traces)
 ```
+
+Las órdenes llegan a los equipos reales solo con `MQTT_ENABLED=true` **y** `ACTUATORS_MODE=mqtt`; por defecto (`log`) van al log y al dashboard. Las decisiones de un mismo salón nunca se pisan: dentro de una instancia esperan su turno y entre instancias la columna `revision` de `space_twin_states` rechaza una escritura basada en un estado viejo, y la decisión se recalcula con el estado nuevo.
 
 **Estado general del salón** (`RoomConditionPolicy`): `OCUPADO` o `SOBRECUPO` si hay personas; si está vacío, `LIBRE`, `LUCES_SIN_OCUPACION`, `EQUIPOS_SIN_USO` o `LUCES_Y_EQUIPOS_SIN_USO`; `MANTENIMIENTO` tiene prioridad. Si un salón lleva más de `EQUIPMENT_IDLE_SHUTDOWN` (5 min) vacío con luces o equipos encendidos, se envía una orden de apagado al Arduino una sola vez por periodo; el gemelo la da por cumplida hasta que la siguiente lectura del Arduino la confirma o la corrige.
 
@@ -41,16 +46,18 @@ Cada evento genera una `ArchitectureTrace` con los pasos `INBOUND_ADAPTER → IN
 
 ## Rutas REST
 
+Todas exigen sesión (👁 VIEWER para leer); 📡 = clave de sensor, 🛠 = OPERATOR, 🔐 = ADMIN.
+
 | Método | Ruta | Uso |
 |---|---|---|
 | `GET` | `/api/v1/twin/spaces` | Gemelo de los 107 espacios: estado, estado general, luces, equipos, pupitres, Kalman y MPC |
 | `GET` | `/api/v1/twin/spaces/{salón}` | Un salón |
 | `GET` | `/api/v1/twin/savings` | Ahorro estimado por salón |
 | `GET` | `/api/v1/twin/traces?limit=20` | Últimas trazas de la arquitectura |
-| `POST` 🔑 | `/api/v1/twin/telemetry` | Frame de cámara por HTTP (mismo JSON que MQTT) |
-| `POST` 🔑 | `/api/v1/twin/environment` | Lectura del Arduino por HTTP (mismo JSON que MQTT) |
-| `POST` 🔑 | `/api/v1/twin/spaces/{salón}/override`, `/popup`, `/maintenance` | Controles manuales |
-| `GET` / `POST` | `/api/v1/simulation/scenarios`, `/api/v1/simulation/{escenario}` | Escenarios de sustentación |
+| `POST` 📡 | `/api/v1/twin/telemetry` | Frame de cámara por HTTP (mismo JSON que MQTT) |
+| `POST` 📡 | `/api/v1/twin/environment` | Lectura del Arduino por HTTP (mismo JSON que MQTT) |
+| `POST` 🛠 | `/api/v1/twin/spaces/{salón}/override`, `/popup`, `/maintenance` | Controles manuales |
+| `GET` / `POST` 🔐 | `/api/v1/simulation/scenarios`, `/api/v1/simulation/{escenario}` | Escenarios de sustentación (ejecutarlos: solo ADMIN) |
 
 ## Contrato MQTT de entrada
 
@@ -136,7 +143,7 @@ Todos los parámetros están en `app.twin.*` y son **ilustrativos**: no son medi
 
 ## Escenarios de sustentación
 
-`GET /api/v1/simulation/scenarios` lista los escenarios y `POST /api/v1/simulation/{escenario}` ejecuta uno. Cada escenario prepara sus precondiciones (reservas `SIM-…`, controles, temporizadores) y envía frames sintéticos por el **mismo** caso de uso que la telemetría real.
+`GET /api/v1/simulation/scenarios` lista los escenarios y `POST /api/v1/simulation/{escenario}` ejecuta uno. Están **apagados por defecto** (`SIMULATION_ENABLED=false`), solo un ADMIN puede ejecutarlos y la aplicación no arranca si están encendidos junto con actuadores reales (`ACTUATORS_MODE=mqtt`): una demostración nunca enciende ni apaga equipos de verdad. Cada escenario prepara sus precondiciones (reservas `SIM-…`, controles, temporizadores) y envía frames sintéticos por el **mismo** caso de uso que la telemetría real.
 
 | Escenario | Salón | Resultado esperado |
 |---|---|---|
@@ -154,12 +161,12 @@ Todos los parámetros están en `app.twin.*` y son **ilustrativos**: no son medi
 | `ACAPARAMIENTO_BIBLIOTECA` | BIBLIOTECA-2B | Mesa 1 liberada, mesa 2 en alerta, mesas 3–5 verificadas |
 | `REINICIAR` | todos | Estado inicial y reservas de simulación eliminadas |
 
-Para la nube se pueden desactivar con `SIMULATION_ENABLED=false`.
+El perfil `prod` los deja apagados; para la sustentación un administrador los enciende a propósito con `SIMULATION_ENABLED=true`.
 
 ## Probar con MQTT local
 
 ```sh
-docker compose up --build -d          # PostgreSQL, Mosquitto y backend con MQTT_ENABLED=true
+docker compose up --build -d          # PostgreSQL, Mosquitto y backend (MQTT, escenarios y SECURITY_MODE=development)
 pip install -r tools/edge/requirements.txt
 python tools/edge/yolo_edge_publisher.py --space-id BIBLIOTECA-2B --synthetic --people 12
 # con cámara real: pip install ultralytics && python tools/edge/yolo_edge_publisher.py --space-id BIBLIOTECA-2B --source 0

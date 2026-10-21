@@ -68,23 +68,47 @@ El cliente (`ClimateRecommendationService`) solo conoce las interfaces. Hay vari
 
 ## 7. Observer
 
-Después de guardar una lectura, `TelemetryService` publica `TelemetryRecorded`. Cada observador evalúa una regla y **persiste** la alerta (`GET /api/v1/alerts`), con un periodo de enfriamiento para no repetir la misma alerta en cada lectura. El fallo de un observador se reporta y no afecta a los demás ni a la lectura guardada. Agregar un observador no exige modificar el publicador: `LoggingTelemetryObserver` se registra solo, como componente de Spring.
+Después de guardar una lectura, `TelemetryService` publica `TelemetryRecorded`. Cada observador evalúa una regla y **persiste** la alerta (`GET /api/v1/alerts`), con un periodo de enfriamiento para no repetir la misma alerta en cada lectura. Agregar un observador no exige modificar el publicador: `LoggingTelemetryObserver` se registra solo, como componente de Spring.
+
+La entrega es **asíncrona** (un grupo pequeño de hilos, fuera de la petición) y cada entrega fallida se **reintenta** hasta 3 veces con espera creciente; si sigue fallando se reporta, sin afectar a los demás observadores ni a la lectura guardada. Si la cola se llena, la ingesta hace la entrega ella misma (se frena en vez de perder reacciones). Lo que no garantiza: si el proceso se reinicia con entregas pendientes, se pierden (están en memoria). Para alertas que se recalculan con la siguiente lectura es aceptable; si algún observador tuviera que ejecutarse exactamente una vez, el paso siguiente sería una tabla *outbox* en la base de datos.
 
 ## Guion de demostración (aprox. 10 minutos)
 
 La base de datos carga un solo campus, UCC Pasto (familia andina). Las familias tropical y templada siguen en el código porque la UCC tiene sedes en otros climas; se demuestran con sus pruebas.
 
 1. `GET /api/v1/spaces`: mostrar el campus, sus bloques A y B y los 107 espacios del plano.
-2. Enviar al salón `424-A` (18 pupitres) una lectura fría con 25 personas y 1600 ppm de CO₂ (con `X-API-Key`). Consultar `GET /api/v1/alerts?spaceId=424-A`: aparecen `CO2_ALTO` y `SOBRECUPO` (**Observer**).
-3. `POST /api/v1/spaces/424-A/evaluations` con el servicio de IA apagado: la ocupación sale con `source = RESPALDO_LOCAL` (**Decorator** sobre el **Adapter**) y la recomendación es `CALEFACCION` (**Facade**, **Abstract Factory**, **Strategy**, **Builder**).
+2. Iniciar sesión (`POST /api/v1/auth/login`) y enviar al salón `424-A` (18 pupitres) una lectura fría con 25 personas y 1600 ppm de CO₂ con la clave de sensor (`X-API-Key`). Consultar `GET /api/v1/alerts?spaceId=424-A`: aparecen `CO2_ALTO` y `SOBRECUPO` (**Observer**).
+3. `POST /api/v1/spaces/424-A/evaluations` con un token de OPERATOR y el servicio de IA apagado: la ocupación sale con `source = RESPALDO_LOCAL` (**Decorator** sobre el **Adapter**) y la recomendación es `CALEFACCION` (**Facade**, **Abstract Factory**, **Strategy**, **Builder**).
 4. Repetir la evaluación con la IA encendida: `source = SERVICIO_IA`.
 5. Ejecutar `ClimatePolicyFactoryTest` y `ThermalPolicyTest`: el mismo ambiente (17 °C, 60 % HR) produce calefacción en la familia andina, climatización apagada en la tropical y enfriamiento libre en la templada.
 6. Crear una reserva en `402-B`, enviar lecturas vacías después de 15 minutos y mostrar `RESERVA_SIN_USO` (o ejecutar el escenario `NO_SHOW`).
 7. `GET /api/v1/occupancy/live?type=BIBLIOTECA` y `GET /api/v1/dashboard/summary`.
 8. Mostrar en el código las pruebas de cada patrón (tabla de arriba) y el reporte de cobertura de la CI.
 
+## Lo que **no** se cuenta como patrón
+
+- **`HvacCommand` y `EquipmentCommand` no son el patrón Command.** Son objetos de datos que describen una orden para el ESP32 o el Arduino; no encapsulan una operación ejecutable, no hay invocador ni historial para deshacer. Se nombran así porque son "comandos" en el sentido de mensajes MQTT.
+- **Spring crea los beans una sola vez, pero eso no es Singleton GoF.** No hay una clase que controle su propia instancia; es el ciclo de vida del contenedor.
+- **La arquitectura hexagonal, REST, JPA, Docker y la separación en repositorios** son decisiones de arquitectura y tecnología, no patrones GoF.
+- **`TwinWriter`** (leer → decidir → guardar con revisión, repetir si hay conflicto) es control de concurrencia optimista, no un patrón GoF.
+- **La fusión heurística del servicio Python** no se presenta como Strategy: el Strategy contabilizado está en las políticas Java.
+
+## Preguntas difíciles y respuestas honestas
+
+| Pregunta | Respuesta, con la evidencia |
+|---|---|
+| ¿Un anónimo puede ejecutar escenarios en producción? | No. Los escenarios están apagados por defecto y en `prod`; encendidos, exigen rol ADMIN (`AccessPolicy`) y la aplicación no arranca si conviven con actuadores reales (`OperationalSafetyCheck`). Evidencia: `CampusNexoApiIntegrationTest.simulationScenarios` (401 sin sesión, 403 para OPERATOR y VIEWER). |
+| ¿Quién puede ver la ocupación? | Solo personas con sesión (VIEWER o superior), también en el WebSocket (`liveFeedRequiresSignIn`). Las rutas nuevas fallan cerrado. |
+| ¿Qué impide dos reservas cruzadas enviadas a la vez? | La restricción de exclusión de PostgreSQL (V13), no solo la consulta previa. Evidencia: `concurrentReservationsCannotOverlap` lanza 6 reservas idénticas en paralelo: 1 → 201, 5 → 409. |
+| ¿Qué significa `confidence_pct = 90`? | Es la estabilidad interna del filtro (derivada de su varianza), no la probabilidad de acertar. No hay datos etiquetados todavía; `campusnexo-ai-service/eval/evaluate.py` mide MAE, RMSE, sesgo y calibración cuando los haya. |
+| ¿Cuál es la IA real? | YOLO (preentrenado, sin reentrenar) cuenta personas y objetos en el borde; un filtro de Kalman fusiona cámara, CO₂ y Wi-Fi (en Java para el gemelo y, con pesos fijos, en el servicio Python para el flujo de evaluación); un controlador predictivo elige el clima. Ninguno es un modelo entrenado con datos del campus. |
+| Si el backend cae, ¿el operador lo nota? | Sí. En producción el dashboard no cambia solo a la simulación: muestra "Sin conexión con el servidor" y solo usa datos simulados si la persona lo elige; una franja fija avisa cuando los datos son simulados o están desactualizados. |
+| ¿Dos lecturas simultáneas del mismo salón se pisan? | No. `TwinWriter` serializa las escrituras de un salón y la columna `revision` rechaza una escritura basada en un estado viejo; la decisión se recalcula. Evidencia: `TwinPipelineTest.concurrentWriteIsRecomputed` y `parallelStreamsOfOneRoomTakeTurns`. |
+| ¿Por qué Builder y no un constructor? | La recomendación se arma por partes que salen de tres estrategias distintas, con cuatro datos opcionales de procedencia; el Builder concentra los valores por defecto y la validación final. Es la variante fluida para objetos inmutables, no el Builder GoF con varias representaciones. |
+
 ## Límites que se deben decir en la defensa
 
 - Los umbrales, setpoints y la heurística de respaldo son valores de referencia; no están calibrados con instrumentos del campus.
+- No hay mediciones de error de la ocupación ni de ahorro: los modelos están documentados y hay herramienta para medirlos, pero no resultados.
 - En el flujo de evaluación (`/evaluations`) el estado del HVAC se **infiere** de la última recomendación. El gemelo digital sí publica órdenes al ESP32 y al Arduino por MQTT, pero no se ha probado con equipos reales.
 - El backend recibe conteos agregados; no recibe ni guarda imágenes.

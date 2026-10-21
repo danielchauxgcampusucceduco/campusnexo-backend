@@ -1,5 +1,10 @@
-# Render Blueprint (https://render.com/docs/blueprint-spec): backend + managed PostgreSQL.
-# Review plans and limits in your Render account before applying; free databases expire.
+# Render Blueprint (https://render.com/docs/blueprint-spec): the whole system in one place.
+#   campusnexo-db        PostgreSQL 17
+#   campusnexo-backend   this repository (Docker), Spring profile prod: sign-in enforced, scenarios off
+#   campusnexo-ai        repository campusnexo-ai-service (Docker, without the optional YOLO extra)
+#   campusnexo-dashboard repository campusnexo-frontend (static site, built with the backend URL)
+# Free plans sleep when idle and free databases expire: create them with margin before the defense.
+# After the first deploy, fill the `sync: false` variables (docs/despliegue.md, step 3) and redeploy.
 databases:
   - name: campusnexo-db
     databaseName: campusnexo
@@ -37,9 +42,51 @@ services:
         fromDatabase:
           name: campusnexo-db
           property: password
-      - key: INGEST_API_KEY
+      # Signs the session tokens; generated once by Render and never committed.
+      - key: APP_TOKEN_SECRET
         generateValue: true
+      # name:ROLE:hash entries from tools/auth/hash_password.py (at least one ADMIN).
+      - key: APP_USERS
+        sync: false
+      # Keys for the edge cameras and room boards (X-API-Key).
+      - key: APP_SENSOR_KEYS
+        generateValue: true
+      # Public URL of campusnexo-ai, e.g. https://campusnexo-ai.onrender.com
       - key: AI_SERVICE_URL
         sync: false
+      # Public URL of campusnexo-dashboard, e.g. https://campusnexo-dashboard.onrender.com
       - key: CORS_ALLOWED_ORIGINS
         sync: false
+      # Defense scenarios: off in production. Set to "true" only while presenting (ADMIN only, orders go
+      # to the log because ACTUATORS_MODE stays "log"; there are no real devices in the cloud).
+      - key: SIMULATION_ENABLED
+        value: "false"
+      - key: ACTUATORS_MODE
+        value: log
+      - key: FORWARD_HEADERS_STRATEGY
+        value: framework
+
+  - type: web
+    name: campusnexo-ai
+    runtime: docker
+    plan: free
+    repo: https://github.com/danielchauxgcampusucceduco/campusnexo-ai-service
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+
+  - type: web
+    name: campusnexo-dashboard
+    runtime: static
+    repo: https://github.com/danielchauxgcampusucceduco/campusnexo-frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      # Public URLs of campusnexo-backend, e.g. https://campusnexo-backend.onrender.com/api/v1 and
+      # wss://campusnexo-backend.onrender.com/ws (they are baked into the bundle at build time).
+      - key: VITE_API_URL
+        sync: false
+      - key: VITE_WS_URL
+        sync: false
+      # Production: real data or an explicit error, never a silent switch to the simulation.
+      - key: VITE_DATA_SOURCE
+        value: backend

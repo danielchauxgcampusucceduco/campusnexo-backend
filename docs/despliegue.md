@@ -1,44 +1,74 @@
 # Despliegue en la nube
 
-El requisito del curso exige el proyecto desplegado en producción. Esta guía usa **Render**, que construye el `Dockerfile` y ofrece PostgreSQL administrado. El archivo [`render.yaml`](../render.yaml) describe ambos recursos.
+El requisito del curso exige el proyecto desplegado en producción. El archivo [`render.yaml`](../render.yaml) describe **todo el sistema** en Render: base de datos, backend, servicio de IA y dashboard. Esta guía lo despliega y lo verifica paso a paso.
 
-## 1. Backend y base de datos (Render Blueprint)
+| Recurso | Origen | Tipo | Comprobación |
+|---|---|---|---|
+| `campusnexo-db` | — | PostgreSQL 17 | El backend arranca (Flyway aplica V1–V13) |
+| `campusnexo-backend` | este repositorio | Docker, perfil `prod` | `GET /actuator/health` → `UP` |
+| `campusnexo-ai` | `campusnexo-ai-service` | Docker | `GET /health` → `ok` |
+| `campusnexo-dashboard` | `campusnexo-frontend` | sitio estático | La página pide iniciar sesión |
 
-1. En Render: **New → Blueprint**, conecta este repositorio y acepta `render.yaml`.
-2. Render crea `campusnexo-db` (PostgreSQL 17) y `campusnexo-backend` (Docker), con `SPRING_PROFILES_ACTIVE=prod` y las variables `DB_*` enlazadas a la base.
-3. Completa las variables marcadas `sync: false`:
-   - `AI_SERVICE_URL`: URL pública del servicio FastAPI (paso 2).
-   - `CORS_ALLOWED_ORIGINS`: URL pública del frontend (paso 3), por ejemplo `https://campusnexo.onrender.com`.
-4. `INGEST_API_KEY` se genera sola. Cópiala desde el panel para el simulador de sensores; no la subas a Git.
-5. Verifica:
+## 1. Antes de empezar
+
+1. Los tres repositorios deben existir en GitHub y Render debe tener acceso a ellos: `campusnexo-backend`, `campusnexo-frontend` y `campusnexo-ai-service`.
+2. Genera las cuentas de las personas (cada contraseña de 10+ caracteres):
+
    ```sh
-   curl https://<backend>.onrender.com/actuator/health
-   curl https://<backend>.onrender.com/api/v1/spaces
+   python3 tools/auth/hash_password.py     # una vez por persona; copia el hash
    ```
 
-Flyway aplica las migraciones al primer arranque.
+   Arma `APP_USERS` con `nombre:ROL:hash` separados por comas, por ejemplo
+   `daniel:ADMIN:<hash>,jurado:VIEWER:<hash>,personal:OPERATOR:<hash>`. Guarda las contraseñas fuera del repositorio.
 
-> **Revisa antes de la entrega**: en el plan gratuito, los servicios se suspenden por inactividad (el primer request tarda) y las bases de datos gratuitas tienen fecha de expiración. Confirma las condiciones vigentes en tu cuenta y crea la base con margen suficiente antes del 20 o el 27 de noviembre, o usa un plan pago durante la semana de sustentación.
+## 2. Crear los recursos
 
-## 2. Servicio de IA (FastAPI)
+En Render: **New → Blueprint**, elige el repositorio `campusnexo-backend` y acepta `render.yaml`. Render crea los cuatro recursos y genera `APP_TOKEN_SECRET` y `APP_SENSOR_KEYS`.
 
-Despliégalo como otro *Web Service* de Render desde la carpeta `ai-service` (tiene su propio Dockerfile). Pon su URL en `AI_SERVICE_URL` del backend. Si no está disponible, el backend sigue funcionando con `source = RESPALDO_LOCAL`.
+## 3. Completar las variables (`sync: false`)
 
-## 3. Frontend (React/Vite)
+| Servicio | Variable | Valor |
+|---|---|---|
+| backend | `APP_USERS` | la lista del paso 1 |
+| backend | `AI_SERVICE_URL` | URL pública de `campusnexo-ai` (p. ej. `https://campusnexo-ai.onrender.com`) |
+| backend | `CORS_ALLOWED_ORIGINS` | URL pública de `campusnexo-dashboard` |
+| dashboard | `VITE_API_URL` | `https://<backend>.onrender.com/api/v1` |
+| dashboard | `VITE_WS_URL` | `wss://<backend>.onrender.com/ws` |
 
-Despliégalo como *Static Site* con `VITE_API_URL=https://<backend>.onrender.com/api/v1` en tiempo de build, y agrega su URL a `CORS_ALLOWED_ORIGINS` del backend.
+Después de guardarlas, **redespliega** el backend y el dashboard (las variables del dashboard se incrustan al compilar).
+
+## 4. Verificar (y guardar la evidencia)
+
+```sh
+B=https://<backend>.onrender.com
+curl -s $B/actuator/health                                   # {"status":"UP"}
+curl -s -o /dev/null -w '%{http_code}\n' $B/api/v1/spaces    # 401: sin sesión no hay datos
+curl -s -o /dev/null -w '%{http_code}\n' -X POST $B/api/v1/simulation/REINICIAR   # 401
+TOKEN=$(curl -s -X POST $B/api/v1/auth/login -H 'Content-Type: application/json' \
+  -d '{"username":"jurado","password":"<contraseña>"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+curl -s -H "Authorization: Bearer $TOKEN" $B/api/v1/spaces | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))'  # 107
+curl -s -o /dev/null -w '%{http_code}\n' -X POST -H "Authorization: Bearer $TOKEN" $B/api/v1/simulation/REINICIAR  # 403 (viewer)
+curl -s https://<ai>.onrender.com/health                     # {"status":"ok",...}
+```
+
+Abre el dashboard, inicia sesión y comprueba que la barra superior dice **Servidor real** y **En vivo**. Anota en el documento de entrega las tres URL, la fecha y el resultado de estos comandos.
+
+## 5. Durante la sustentación
+
+- Para usar los escenarios, pon `SIMULATION_ENABLED=true` en el backend y redespliega; solo un **ADMIN** puede ejecutarlos y las órdenes van al log (`ACTUATORS_MODE=log`). Vuelve a `false` al terminar.
+- El backend se niega a arrancar si alguien pone `SIMULATION_ENABLED=true` junto con `ACTUATORS_MODE=mqtt`.
+- En el plan gratuito los servicios se duermen: abre las tres URL unos minutos antes. La base de datos gratuita tiene fecha de expiración: créala con margen antes del 20 o el 27 de noviembre.
 
 ## Alternativas
 
-Cualquier plataforma que ejecute contenedores sirve (Railway, Fly.io, Azure Container Apps, Google Cloud Run). Variables mínimas:
+Cualquier plataforma que ejecute contenedores sirve (Railway, Fly.io, Azure Container Apps, Google Cloud Run). Variables mínimas del backend:
 
 | Variable | Valor |
 |---|---|
 | `SPRING_PROFILES_ACTIVE` | `prod` |
-| `DATABASE_URL` (JDBC) **o** `DB_HOST`, `DB_PORT`, `DB_NAME` | Conexión a PostgreSQL 15+ |
+| `DATABASE_URL` (JDBC) **o** `DB_HOST`, `DB_PORT`, `DB_NAME` | PostgreSQL 15+ con la extensión `btree_gist` disponible (V13) |
 | `DATABASE_USER`/`DATABASE_PASSWORD` **o** `DB_USER`/`DB_PASSWORD` | Credenciales |
-| `INGEST_API_KEY` | Secreto compartido con los sensores |
+| `APP_USERS`, `APP_TOKEN_SECRET`, `APP_SENSOR_KEYS` | Personas, secreto de tokens (32+), claves de sensores |
 | `AI_SERVICE_URL`, `CORS_ALLOWED_ORIGINS` | URLs públicas |
+| `FORWARD_HEADERS_STRATEGY` | `framework` detrás de un proxy |
 | `PORT` | Lo inyecta la plataforma (por defecto, 8080) |
-
-El *health check* está en `/actuator/health`.
