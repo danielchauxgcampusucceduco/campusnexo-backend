@@ -2,10 +2,13 @@ package edu.campusnexo.infrastructure.adapter.out.persistence.reservation;
 
 import edu.campusnexo.domain.port.ReservationRepository;
 import edu.campusnexo.domain.reservation.Reservation;
+import edu.campusnexo.domain.reservation.ReservationOverlapException;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,7 +23,24 @@ class JpaReservationAdapter implements ReservationRepository {
     @Override
     @Transactional
     public Reservation save(Reservation reservation) {
-        return data.save(new ReservationEntity(reservation)).toDomain();
+        try {
+            return data.saveAndFlush(new ReservationEntity(reservation)).toDomain();
+        } catch (DataIntegrityViolationException violation) {
+            if (isExclusionViolation(violation)) {
+                throw new ReservationOverlapException(reservation.spaceId());
+            }
+            throw violation;
+        }
+    }
+
+    /** SQLSTATE 23P01: the {@code reservations_no_overlap} exclusion constraint of V13. */
+    private static boolean isExclusionViolation(Throwable failure) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sql && "23P01".equals(sql.getSQLState())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

@@ -7,6 +7,12 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface ReservationRepository {
+    /**
+     * Stores a new reservation. Implementations must guarantee atomically that no other reservation of
+     * the same space overlaps it (PostgreSQL: exclusion constraint over a time range).
+     *
+     * @throws edu.campusnexo.domain.reservation.ReservationOverlapException if one does
+     */
     Reservation save(Reservation reservation);
 
     Optional<Reservation> findById(UUID reservationId);

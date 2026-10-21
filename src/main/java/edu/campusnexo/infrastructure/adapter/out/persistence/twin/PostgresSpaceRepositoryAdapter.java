@@ -1,10 +1,13 @@
 package edu.campusnexo.infrastructure.adapter.out.persistence.twin;
 
 import edu.campusnexo.domain.port.SpaceRepositoryPort;
+import edu.campusnexo.domain.twin.ConcurrentTwinUpdateException;
 import edu.campusnexo.domain.twin.SpaceTwinState;
 import edu.campusnexo.domain.vision.StudyZoneRoi;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
@@ -25,8 +28,8 @@ class PostgresSpaceRepositoryAdapter implements SpaceRepositoryPort {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<SpaceTwinState> findTwin(String spaceId) {
-        return states.findById(spaceId).map(this::read);
+    public Optional<StoredTwin> findStoredTwin(String spaceId) {
+        return states.findById(spaceId).map(entity -> new StoredTwin(read(entity), entity.getRevision()));
     }
 
     @Override
@@ -37,10 +40,28 @@ class PostgresSpaceRepositoryAdapter implements SpaceRepositoryPort {
 
     @Override
     @Transactional
-    public SpaceTwinState saveTwin(SpaceTwinState state) {
+    public StoredTwin saveTwin(SpaceTwinState state, long expectedRevision) {
+        String spaceId = state.spaceId();
         String document = json.writeValueAsString(TwinDocument.from(state));
-        states.save(new SpaceTwinStateEntity(state.spaceId(), state.status(), state.hvacState(), state.updatedAt(), document));
-        return state;
+        try {
+            SpaceTwinStateEntity entity;
+            if (expectedRevision == StoredTwin.NEW) {
+                if (states.existsById(spaceId)) {
+                    throw new ConcurrentTwinUpdateException(spaceId);
+                }
+                entity = new SpaceTwinStateEntity(spaceId, state.status(), state.hvacState(), state.updatedAt(), document);
+            } else {
+                entity = states.findById(spaceId).orElseThrow(() -> new ConcurrentTwinUpdateException(spaceId));
+                if (entity.getRevision() != expectedRevision) {
+                    throw new ConcurrentTwinUpdateException(spaceId);
+                }
+                entity.update(state.status(), state.hvacState(), state.updatedAt(), document);
+            }
+            return new StoredTwin(state, states.saveAndFlush(entity).getRevision());
+        } catch (OptimisticLockingFailureException | DataIntegrityViolationException raced) {
+            // Another instance updated (or created) the same row between our check and the flush.
+            throw new ConcurrentTwinUpdateException(spaceId);
+        }
     }
 
     @Override

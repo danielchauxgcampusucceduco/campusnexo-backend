@@ -1,6 +1,7 @@
 package edu.campusnexo.infrastructure.adapter.out.persistence.telemetry;
 
 import edu.campusnexo.domain.port.TelemetryRepository;
+import edu.campusnexo.domain.shared.PageCursor;
 import edu.campusnexo.domain.shared.ResultLimit;
 import edu.campusnexo.domain.telemetry.Telemetry;
 import java.time.Instant;
@@ -26,11 +27,16 @@ class JpaTelemetryAdapter implements TelemetryRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Telemetry> findRecent(String spaceId, ResultLimit limit) {
+    public List<Telemetry> findRecent(String spaceId, ResultLimit limit, PageCursor before) {
         Limit rows = Limit.of(limit.value());
-        List<TelemetryEntity> entities = spaceId == null
-                ? data.findAllByOrderByRecordedAtDesc(rows)
-                : data.findBySpaceIdOrderByRecordedAtDesc(spaceId, rows);
+        List<TelemetryEntity> entities;
+        if (before == null) {
+            entities = spaceId == null
+                    ? data.findAllByOrderByRecordedAtDesc(rows)
+                    : data.findBySpaceIdOrderByRecordedAtDesc(spaceId, rows);
+        } else {
+            entities = data.findPage(spaceId == null, spaceId == null ? "" : spaceId, before.at(), before.key(), rows);
+        }
         return entities.stream().map(TelemetryEntity::toDomain).toList();
     }
 

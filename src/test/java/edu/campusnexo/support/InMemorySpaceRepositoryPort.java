@@ -1,6 +1,7 @@
 package edu.campusnexo.support;
 
 import edu.campusnexo.domain.port.SpaceRepositoryPort;
+import edu.campusnexo.domain.twin.ConcurrentTwinUpdateException;
 import edu.campusnexo.domain.twin.SpaceTwinState;
 import edu.campusnexo.domain.vision.NormalizedPoint;
 import edu.campusnexo.domain.vision.StudyZoneRoi;
@@ -11,7 +12,9 @@ import java.util.Map;
 import java.util.Optional;
 
 public final class InMemorySpaceRepositoryPort implements SpaceRepositoryPort {
-    private final Map<String, SpaceTwinState> twins = new LinkedHashMap<>();
+    private final Map<String, StoredTwin> twins = new LinkedHashMap<>();
+    /** Number of writes rejected because the caller saw an old revision. */
+    public int conflicts;
     private final Map<String, List<StudyZoneRoi>> rois = new LinkedHashMap<>();
 
     /** Same 4 × 2 desk layout seeded by Flyway V10 for BIB-PISO-2. */
@@ -42,19 +45,32 @@ public final class InMemorySpaceRepositoryPort implements SpaceRepositoryPort {
     }
 
     @Override
-    public Optional<SpaceTwinState> findTwin(String spaceId) {
+    public synchronized Optional<StoredTwin> findStoredTwin(String spaceId) {
         return Optional.ofNullable(twins.get(spaceId));
     }
 
     @Override
-    public List<SpaceTwinState> findAllTwins() {
-        return List.copyOf(twins.values());
+    public synchronized List<SpaceTwinState> findAllTwins() {
+        return twins.values().stream().map(StoredTwin::state).toList();
     }
 
     @Override
-    public SpaceTwinState saveTwin(SpaceTwinState state) {
-        twins.put(state.spaceId(), state);
-        return state;
+    public synchronized StoredTwin saveTwin(SpaceTwinState state, long expectedRevision) {
+        StoredTwin current = twins.get(state.spaceId());
+        long currentRevision = current == null ? StoredTwin.NEW : current.revision();
+        if (currentRevision != expectedRevision) {
+            conflicts++;
+            throw new ConcurrentTwinUpdateException(state.spaceId());
+        }
+        StoredTwin stored = new StoredTwin(state, currentRevision + 1);
+        twins.put(state.spaceId(), stored);
+        return stored;
+    }
+
+    /** Test helper: stores a twin without the optimistic check, as another backend instance would. */
+    public synchronized void overwrite(SpaceTwinState state) {
+        StoredTwin current = twins.get(state.spaceId());
+        twins.put(state.spaceId(), new StoredTwin(state, current == null ? 0 : current.revision() + 1));
     }
 
     @Override

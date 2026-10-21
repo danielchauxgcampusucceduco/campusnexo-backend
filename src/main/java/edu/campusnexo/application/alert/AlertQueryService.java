@@ -5,6 +5,7 @@ import edu.campusnexo.application.port.in.CampusCatalogUseCase;
 import edu.campusnexo.domain.alert.Alert;
 import edu.campusnexo.domain.alert.AlertType;
 import edu.campusnexo.domain.port.AlertRepository;
+import edu.campusnexo.domain.shared.PageCursor;
 import edu.campusnexo.domain.shared.ResultLimit;
 import java.util.List;
 
@@ -18,12 +19,12 @@ public class AlertQueryService implements AlertQueryUseCase {
     }
 
     @Override
-    public List<Alert> recent(String spaceId, AlertType type, int limit) {
+    public List<Alert> recent(String spaceId, AlertType type, int limit, PageCursor before) {
         ResultLimit resultLimit = ResultLimit.of(limit);
         String filter = spaceId == null || spaceId.isBlank() ? null : spaceId;
         if (filter != null) {
             catalog.getRequiredSpace(filter);
         }
-        return repository.findRecent(filter, type, resultLimit);
+        return repository.findRecent(filter, type, resultLimit, before);
     }
 }

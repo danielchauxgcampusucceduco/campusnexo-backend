@@ -25,7 +25,7 @@ import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-class ProcessSpaceTelemetryServiceTest {
+class TwinPipelineTest {
     private final TwinTestFixture fixture = new TwinTestFixture();
 
     private TelemetrySnapshot frame(int people, double co2, double indoorC) {
@@ -106,13 +106,13 @@ class ProcessSpaceTelemetryServiceTest {
     void idleShutdownAfterThreshold() {
         fixture.pipeline.process(emptyRoomFrame(), "MQTT · prueba");
         fixture.clock.advance(Duration.ofMinutes(2));
-        SpaceTwinState wasting = fixture.pipeline.processEnvironment(arduino(true, 24), "MQTT · Arduino");
+        SpaceTwinState wasting = fixture.environment.processEnvironment(arduino(true, 24), "MQTT · Arduino");
         assertEquals(RoomCondition.LUCES_Y_EQUIPOS_SIN_USO, wasting.condition());
         assertEquals(24, wasting.equipment().devicesOn());
         assertTrue(fixture.equipment.commands.isEmpty());
 
         fixture.clock.advance(Duration.ofMinutes(4));
-        SpaceTwinState shutDown = fixture.pipeline.processEnvironment(arduino(true, 24), "MQTT · Arduino");
+        SpaceTwinState shutDown = fixture.environment.processEnvironment(arduino(true, 24), "MQTT · Arduino");
         assertEquals(1, fixture.equipment.commands.size());
         assertTrue(fixture.equipment.commands.get(0).suspendDevices());
         assertFalse(shutDown.equipment().lightsOn());
@@ -121,10 +121,10 @@ class ProcessSpaceTelemetryServiceTest {
 
         // Someone switches the lights on again without staying: no second order until the threshold passes again.
         fixture.clock.advance(Duration.ofMinutes(1));
-        fixture.pipeline.processEnvironment(arduino(true, 0), "MQTT · Arduino");
+        fixture.environment.processEnvironment(arduino(true, 0), "MQTT · Arduino");
         assertEquals(1, fixture.equipment.commands.size());
         fixture.clock.advance(Duration.ofMinutes(5));
-        fixture.pipeline.processEnvironment(arduino(true, 0), "MQTT · Arduino");
+        fixture.environment.processEnvironment(arduino(true, 0), "MQTT · Arduino");
         assertEquals(2, fixture.equipment.commands.size());
         assertFalse(fixture.equipment.commands.get(1).suspendDevices());
     }
@@ -141,5 +141,43 @@ class ProcessSpaceTelemetryServiceTest {
         assertNull(state.emptySince());
         assertTrue(fixture.equipment.commands.isEmpty());
         assertTrue(fixture.notifier.traces.get(0).steps().stream().anyMatch(s -> s.component().equals("RoomConditionPolicy")));
+    }
+
+    @Test
+    @DisplayName("Si otra instancia guarda el salón entre la lectura y la escritura, la decisión se rehace con el estado nuevo")
+    void concurrentWriteIsRecomputed() {
+        fixture.pipeline.process(frame(12, 700, 22), "MQTT · prueba");
+        int[] calls = {0};
+        SpaceTwinState stored = fixture.writer.replace(frame(12, 700, 22).spaceId(), () -> null, previous -> {
+            if (calls[0]++ == 0) {
+                // Another backend instance stores the room after we read it.
+                fixture.twins.overwrite(previous.withControls(previous.overrideUntil(), previous.popUpUntil(), true));
+            }
+            return previous.withControls(previous.overrideUntil(), previous.popUpUntil(), previous.maintenance());
+        });
+        assertEquals(2, calls[0]);
+        assertEquals(1, fixture.twins.conflicts);
+        assertTrue(stored.maintenance());
+    }
+
+    @Test
+    @DisplayName("La cámara y el Arduino del mismo salón en paralelo no se pisan")
+    void parallelStreamsOfOneRoomTakeTurns() throws Exception {
+        Thread camera = new Thread(() -> {
+            for (int i = 0; i < 40; i++) {
+                fixture.pipeline.process(emptyRoomFrame(), "MQTT · cámara");
+            }
+        });
+        Thread board = new Thread(() -> {
+            for (int i = 0; i < 40; i++) {
+                fixture.environment.processEnvironment(arduino(true, 3), "MQTT · Arduino");
+            }
+        });
+        camera.start();
+        board.start();
+        camera.join();
+        board.join();
+        assertEquals(0, fixture.twins.conflicts);
+        assertEquals(80, fixture.notifier.updates.size());
     }
 }

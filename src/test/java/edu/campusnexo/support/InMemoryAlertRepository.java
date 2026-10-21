@@ -3,6 +3,7 @@ package edu.campusnexo.support;
 import edu.campusnexo.domain.alert.Alert;
 import edu.campusnexo.domain.alert.AlertType;
 import edu.campusnexo.domain.port.AlertRepository;
+import edu.campusnexo.domain.shared.PageCursor;
 import edu.campusnexo.domain.shared.ResultLimit;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -25,11 +26,15 @@ public final class InMemoryAlertRepository implements AlertRepository {
     }
 
     @Override
-    public List<Alert> findRecent(String spaceId, AlertType type, ResultLimit limit) {
+    public List<Alert> findRecent(String spaceId, AlertType type, ResultLimit limit, PageCursor before) {
+        Comparator<Alert> newestFirst = Comparator.comparing(Alert::detectedAt)
+                .thenComparing(row -> row.alertId().toString()).reversed();
         return rows.stream()
                 .filter(row -> spaceId == null || row.spaceId().equals(spaceId))
                 .filter(row -> type == null || row.type() == type)
-                .sorted(Comparator.comparing(Alert::detectedAt).reversed()).limit(limit.value()).toList();
+                .filter(row -> before == null || row.detectedAt().isBefore(before.at())
+                        || row.detectedAt().equals(before.at()) && row.alertId().toString().compareTo(before.key()) < 0)
+                .sorted(newestFirst).limit(limit.value()).toList();
     }
 
     @Override

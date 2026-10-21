@@ -46,6 +46,10 @@ import edu.campusnexo.domain.port.TelemetryRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -66,10 +70,39 @@ public class ApplicationConfiguration {
         return new SpaceCatalogService(repository);
     }
 
+    /**
+     * Observers run off the request thread on a small bounded pool. When the queue is full the caller runs
+     * the delivery itself: ingestion slows down instead of dropping reactions.
+     */
+    @Bean
+    ObserverPool telemetryObserverPool(@Value("${app.telemetry.observers.threads}") int threads,
+                                       @Value("${app.telemetry.observers.queue-capacity}") int queueCapacity) {
+        AtomicInteger number = new AtomicInteger();
+        return new ObserverPool(new ThreadPoolExecutor(threads, threads, 0, TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(queueCapacity), runnable -> {
+                    Thread thread = new Thread(runnable, "telemetry-observer-" + number.incrementAndGet());
+                    thread.setDaemon(true);
+                    return thread;
+                }, new ThreadPoolExecutor.CallerRunsPolicy()));
+    }
+
     @Bean
     TelemetryEventPublisher telemetryEventPublisher(List<TelemetryObserver> observers,
-                                                    ObserverFailureReporter failureReporter) {
-        return new TelemetryEventPublisher(observers, failureReporter);
+                                                    ObserverFailureReporter failureReporter, ObserverPool pool,
+                                                    @Value("${app.telemetry.observers.max-attempts}") int maxAttempts,
+                                                    @Value("${app.telemetry.observers.backoff}") Duration backoff) {
+        return new TelemetryEventPublisher(observers, failureReporter, pool.executor(), maxAttempts, backoff);
+    }
+
+    /**
+     * Holder of the observers' thread pool. Deliberately not an {@code Executor} bean, so Spring Boot keeps
+     * its own task executor for MVC and messaging; closed (pool shut down) with the context.
+     */
+    record ObserverPool(ThreadPoolExecutor executor) implements AutoCloseable {
+        @Override
+        public void close() {
+            executor.shutdown();
+        }
     }
 
     @Bean

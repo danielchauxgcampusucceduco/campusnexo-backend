@@ -34,15 +34,19 @@ class TelemetryController {
         return ResponseEntity.status(status).body(TelemetryResponse.from(result.telemetry()));
     }
 
+    /** Newest first; follow {@code X-Next-Cursor} with {@code ?cursor=} for older pages. */
     @GetMapping("/telemetry")
-    List<TelemetryResponse> recent(@RequestParam(required = false) String spaceId,
-                                   @RequestParam(defaultValue = "" + ResultLimit.DEFAULT) int limit) {
-        return telemetry.recent(spaceId, limit).stream().map(TelemetryResponse::from).toList();
+    ResponseEntity<List<TelemetryResponse>> recent(@RequestParam(required = false) String spaceId,
+                                                   @RequestParam(defaultValue = "" + ResultLimit.DEFAULT) int limit,
+                                                   @RequestParam(required = false) String cursor) {
+        return PageCursors.page(telemetry.recent(spaceId, limit, PageCursors.decode(cursor)), limit,
+                TelemetryUseCase::cursorAfter, TelemetryResponse::from);
     }
 
     @GetMapping("/spaces/{spaceId}/telemetry")
-    List<TelemetryResponse> recentForSpace(@PathVariable String spaceId,
-                                           @RequestParam(defaultValue = "" + ResultLimit.DEFAULT) int limit) {
-        return telemetry.recent(spaceId, limit).stream().map(TelemetryResponse::from).toList();
+    ResponseEntity<List<TelemetryResponse>> recentForSpace(@PathVariable String spaceId,
+                                                           @RequestParam(defaultValue = "" + ResultLimit.DEFAULT) int limit,
+                                                           @RequestParam(required = false) String cursor) {
+        return recent(spaceId, limit, cursor);
     }
 }

@@ -41,4 +41,20 @@ class ReservationServiceTest {
     void rejectsOverCapacity() {
         assertThrows(DomainValidationException.class, () -> service.create(command(start, Duration.ofHours(1), 40)));
     }
+
+    @Test
+    @DisplayName("Si otra petición guardó primero, el rechazo del repositorio también se responde como conflicto")
+    void storeRejectionIsAConflict() {
+        InMemoryReservationRepository rows = new InMemoryReservationRepository() {
+            @Override
+            public java.util.List<edu.campusnexo.domain.reservation.Reservation> findOverlapping(String spaceId,
+                    Instant from, Instant to) {
+                return java.util.List.of(); // both requests read "no overlap" before either one saves
+            }
+        };
+        ReservationService racing = new ReservationService(new MutableClock(TestData.NOW), rows,
+                new SpaceCatalogService(new InMemorySpaceCatalogRepository(TestData.andeanClassroom())));
+        racing.create(command(start, Duration.ofHours(2), 25));
+        assertThrows(ReservationConflictException.class, () -> racing.create(command(start, Duration.ofHours(2), 25)));
+    }
 }

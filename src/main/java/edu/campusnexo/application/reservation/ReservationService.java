@@ -8,6 +8,7 @@ import edu.campusnexo.application.port.in.ReservationUseCase;
 import edu.campusnexo.domain.catalog.CampusSpace;
 import edu.campusnexo.domain.port.ReservationRepository;
 import edu.campusnexo.domain.reservation.Reservation;
+import edu.campusnexo.domain.reservation.ReservationOverlapException;
 import edu.campusnexo.domain.shared.DomainValidationException;
 import java.time.Clock;
 import java.time.Duration;
@@ -17,8 +18,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Keeps bookings consistent with capacity and free of overlaps. The overlap check is done by the
- * application; concurrent requests could still collide (acceptable for the prototype).
+ * Keeps bookings consistent with capacity and free of overlaps. The overlap query gives a fast, friendly
+ * answer; the guarantee is the repository's, which rejects atomically a reservation that overlaps another
+ * one stored by a concurrent request (both answer {@code 409 reservation_conflict}).
  */
 public class ReservationService implements ReservationUseCase {
     static final Duration MAX_QUERY_WINDOW = Duration.ofDays(31);
@@ -47,7 +49,11 @@ public class ReservationService implements ReservationUseCase {
         if (!repository.findOverlapping(space.spaceId(), reservation.startsAt(), reservation.endsAt()).isEmpty()) {
             throw new ReservationConflictException(space.spaceId());
         }
-        return repository.save(reservation);
+        try {
+            return repository.save(reservation);
+        } catch (ReservationOverlapException concurrent) {
+            throw new ReservationConflictException(space.spaceId());
+        }
     }
 
     @Override

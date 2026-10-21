@@ -1,4 +1,4 @@
-# Production profile: no default credentials and the ingestion API key is mandatory.
+# Production profile: no default credentials, sign-in always enforced and the demo scenarios off by default.
 # Either DATABASE_URL (JDBC) or DB_HOST/DB_PORT/DB_NAME must be provided.
 spring:
   datasource:
@@ -11,6 +11,14 @@ management:
     health:
       show-details: never
 
+server:
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:framework}
+
 app:
   security:
-    require-ingest-api-key: true
+    # Not overridable: production always requires sign-in, a token secret and at least one ADMIN.
+    mode: enforced
+  simulation:
+    # Off in production. For the defense, an administrator may set SIMULATION_ENABLED=true on purpose;
+    # actuators stay in log mode either way unless ACTUATORS_MODE=mqtt (which then refuses the scenarios).
+    enabled: ${SIMULATION_ENABLED:false}

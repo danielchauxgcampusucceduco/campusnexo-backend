@@ -1,6 +1,7 @@
 package edu.campusnexo.support;
 
 import edu.campusnexo.domain.port.TelemetryRepository;
+import edu.campusnexo.domain.shared.PageCursor;
 import edu.campusnexo.domain.shared.ResultLimit;
 import edu.campusnexo.domain.telemetry.Telemetry;
 import java.time.Instant;
@@ -25,9 +26,13 @@ public final class InMemoryTelemetryRepository implements TelemetryRepository {
     }
 
     @Override
-    public List<Telemetry> findRecent(String spaceId, ResultLimit limit) {
+    public List<Telemetry> findRecent(String spaceId, ResultLimit limit, PageCursor before) {
+        Comparator<Telemetry> newestFirst = Comparator.comparing(Telemetry::recordedAt)
+                .thenComparing(Telemetry::spaceId).reversed();
         return rows.stream().filter(row -> spaceId == null || row.spaceId().equals(spaceId))
-                .sorted(Comparator.comparing(Telemetry::recordedAt).reversed()).limit(limit.value()).toList();
+                .filter(row -> before == null || row.recordedAt().isBefore(before.at())
+                        || row.recordedAt().equals(before.at()) && row.spaceId().compareTo(before.key()) < 0)
+                .sorted(newestFirst).limit(limit.value()).toList();
     }
 
     @Override

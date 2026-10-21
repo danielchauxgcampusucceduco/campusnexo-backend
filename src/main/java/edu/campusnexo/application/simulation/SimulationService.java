@@ -11,6 +11,7 @@ import edu.campusnexo.application.port.in.SimulationUseCase;
 import edu.campusnexo.application.port.in.TwinControlUseCase;
 import edu.campusnexo.application.port.in.TwinQueryUseCase;
 import edu.campusnexo.application.twin.SeatRegions;
+import edu.campusnexo.application.twin.TwinWriter;
 import edu.campusnexo.domain.catalog.CampusSpace;
 import edu.campusnexo.domain.port.SpaceRepositoryPort;
 import edu.campusnexo.domain.reservation.Reservation;
@@ -53,12 +54,13 @@ public class SimulationService implements SimulationUseCase {
     private final ReservationUseCase reservations;
     private final CampusCatalogUseCase catalog;
     private final SpaceRepositoryPort twins;
+    private final TwinWriter writer;
     private final TwinQueryUseCase queries;
 
     public SimulationService(Clock clock, ProcessSpaceTelemetryUseCase pipeline,
                              ProcessEnvironmentReadingUseCase environment, TwinControlUseCase controls,
                              ReservationUseCase reservations, CampusCatalogUseCase catalog, SpaceRepositoryPort twins,
-                             TwinQueryUseCase queries) {
+                             TwinWriter writer, TwinQueryUseCase queries) {
         this.clock = clock;
         this.pipeline = pipeline;
         this.environment = environment;
@@ -66,6 +68,7 @@ public class SimulationService implements SimulationUseCase {
         this.reservations = reservations;
         this.catalog = catalog;
         this.twins = twins;
+        this.writer = writer;
         this.queries = queries;
     }
 
@@ -126,7 +129,8 @@ public class SimulationService implements SimulationUseCase {
      */
     private void idleRoom(String spaceId, Instant now, Duration idle, boolean lightsOn, int devicesOn) {
         send(seatedFrame(spaceId, now, 0, 430, 18.9, 52, lightsOn ? 380 : 40, 0, devicesOn * 0.08));
-        twins.findTwin(spaceId).ifPresent(twin -> twins.saveTwin(twin.withEmptySince(now.minus(idle))));
+        CampusSpace space = catalog.getRequiredSpace(spaceId);
+        writer.replace(spaceId, () -> SpaceTwinState.initial(space, now), twin -> twin.withEmptySince(now.minus(idle)));
         arduino(spaceId, now, 18.9, 52, 430.0, lightsOn ? 380 : 40, lightsOn, devicesOn);
     }
 
@@ -140,8 +144,7 @@ public class SimulationService implements SimulationUseCase {
         if (desks.size() < 5) {
             throw new IllegalStateException("La biblioteca necesita al menos 5 puestos con ROI para la simulación");
         }
-        SpaceTwinState twin = twins.findTwin(spaceId).orElseGet(() -> SpaceTwinState.initial(space, now));
-        twins.saveTwin(twin.withDesks(List.of(
+        writer.replace(spaceId, () -> SpaceTwinState.initial(space, now), twin -> twin.withDesks(List.of(
                 new DeskObservation(desks.get(0).zoneId(), ZoneDeskState.ALERTA_ACAPARAMIENTO, 0, 2, now.minus(minutes(16)), now),
                 new DeskObservation(desks.get(1).zoneId(), ZoneDeskState.ALERTA_ACAPARAMIENTO, 0, 1, now.minus(minutes(6)), now))));
 

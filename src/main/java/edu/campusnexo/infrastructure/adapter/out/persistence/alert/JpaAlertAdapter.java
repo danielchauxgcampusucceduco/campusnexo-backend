@@ -3,11 +3,15 @@ package edu.campusnexo.infrastructure.adapter.out.persistence.alert;
 import edu.campusnexo.domain.alert.Alert;
 import edu.campusnexo.domain.alert.AlertType;
 import edu.campusnexo.domain.port.AlertRepository;
+import edu.campusnexo.domain.shared.DomainValidationException;
+import edu.campusnexo.domain.shared.PageCursor;
 import edu.campusnexo.domain.shared.ResultLimit;
 import java.time.Instant;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,10 +32,19 @@ class JpaAlertAdapter implements AlertRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Alert> findRecent(String spaceId, AlertType type, ResultLimit limit) {
+    public List<Alert> findRecent(String spaceId, AlertType type, ResultLimit limit, PageCursor before) {
         Limit rows = Limit.of(limit.value());
         List<AlertEntity> entities;
-        if (spaceId == null && type == null) {
+        if (before != null) {
+            UUID tieId;
+            try {
+                tieId = UUID.fromString(before.key());
+            } catch (IllegalArgumentException malformed) {
+                throw new DomainValidationException("cursor no válido");
+            }
+            entities = data.findPage(spaceId == null, spaceId == null ? "" : spaceId,
+                    type == null ? EnumSet.allOf(AlertType.class) : EnumSet.of(type), before.at(), tieId, rows);
+        } else if (spaceId == null && type == null) {
             entities = data.findAllByOrderByDetectedAtDesc(rows);
         } else if (type == null) {
             entities = data.findBySpaceIdOrderByDetectedAtDesc(spaceId, rows);

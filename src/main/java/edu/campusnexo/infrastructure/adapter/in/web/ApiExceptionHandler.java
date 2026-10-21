@@ -5,6 +5,7 @@ import edu.campusnexo.application.exception.ResourceNotFoundException;
 import edu.campusnexo.domain.occupancy.OccupancyEstimatorInvalidResponseException;
 import edu.campusnexo.domain.occupancy.OccupancyEstimatorUnavailableException;
 import edu.campusnexo.domain.shared.DomainValidationException;
+import edu.campusnexo.domain.twin.ConcurrentTwinUpdateException;
 import jakarta.validation.ConstraintViolationException;
 import java.util.Comparator;
 import java.util.List;
@@ -45,6 +46,12 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(ConflictException.class)
     ProblemDetail conflict(ConflictException exception) {
         return problem(HttpStatus.CONFLICT, "Conflicto con el estado actual", exception.getMessage(), exception.code());
+    }
+
+    @ExceptionHandler(ConcurrentTwinUpdateException.class)
+    ProblemDetail concurrentTwinUpdate(ConcurrentTwinUpdateException exception) {
+        return problem(HttpStatus.CONFLICT, "Conflicto con el estado actual", exception.getMessage(),
+                "twin_concurrent_update");
     }
 
     @ExceptionHandler(OccupancyEstimatorUnavailableException.class)

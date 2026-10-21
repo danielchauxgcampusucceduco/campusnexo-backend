@@ -72,4 +72,23 @@ class TelemetryServiceTest {
         assertThrows(DomainValidationException.class, () -> service.recent(null, 0));
         assertThrows(DomainValidationException.class, () -> service.recent(null, 101));
     }
+
+    @Test
+    @DisplayName("La paginación por cursor no salta ni repite lecturas aunque varias compartan el mismo instante")
+    void keysetPagination() {
+        for (int minute = 0; minute < 3; minute++) {
+            for (String space : java.util.List.of("AULA-301", "BIB-PISO-2")) {
+                repository.save(TestData.reading(space, TestData.NOW.minus(java.time.Duration.ofMinutes(minute)), 5, 600, 1));
+            }
+        }
+        java.util.List<edu.campusnexo.domain.telemetry.Telemetry> first = service.recent(null, 4);
+        java.util.List<edu.campusnexo.domain.telemetry.Telemetry> second = service.recent(null, 4,
+                edu.campusnexo.application.port.in.TelemetryUseCase.cursorAfter(first.get(first.size() - 1)));
+        assertEquals(4, first.size());
+        assertEquals(2, second.size());
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        first.forEach(row -> seen.add(row.spaceId() + row.recordedAt()));
+        second.forEach(row -> seen.add(row.spaceId() + row.recordedAt()));
+        assertEquals(6, seen.size());
+    }
 }

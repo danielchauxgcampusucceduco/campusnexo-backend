@@ -2,6 +2,7 @@ package edu.campusnexo.support;
 
 import edu.campusnexo.domain.port.ReservationRepository;
 import edu.campusnexo.domain.reservation.Reservation;
+import edu.campusnexo.domain.reservation.ReservationOverlapException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -9,11 +10,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public final class InMemoryReservationRepository implements ReservationRepository {
+public class InMemoryReservationRepository implements ReservationRepository {
     private final List<Reservation> rows = new ArrayList<>();
 
     @Override
-    public Reservation save(Reservation reservation) {
+    public synchronized Reservation save(Reservation reservation) {
+        if (!overlapping(reservation.spaceId(), reservation.startsAt(), reservation.endsAt()).isEmpty()) {
+            throw new ReservationOverlapException(reservation.spaceId());
+        }
         rows.add(reservation);
         return reservation;
     }
@@ -24,7 +28,12 @@ public final class InMemoryReservationRepository implements ReservationRepositor
     }
 
     @Override
-    public List<Reservation> findOverlapping(String spaceId, Instant from, Instant to) {
+    public synchronized List<Reservation> findOverlapping(String spaceId, Instant from, Instant to) {
+        return overlapping(spaceId, from, to);
+    }
+
+    /** What the database exclusion constraint checks, independent of what callers query first. */
+    private List<Reservation> overlapping(String spaceId, Instant from, Instant to) {
         return rows.stream().filter(row -> row.spaceId().equals(spaceId))
                 .filter(row -> row.startsAt().isBefore(to) && row.endsAt().isAfter(from))
                 .sorted(Comparator.comparing(Reservation::startsAt)).toList();

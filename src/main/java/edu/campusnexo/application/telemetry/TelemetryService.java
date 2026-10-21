@@ -6,6 +6,7 @@ import edu.campusnexo.application.port.in.TelemetryUseCase;
 import edu.campusnexo.domain.catalog.CampusSpace;
 import edu.campusnexo.domain.port.TelemetryRepository;
 import edu.campusnexo.domain.shared.DomainValidationException;
+import edu.campusnexo.domain.shared.PageCursor;
 import edu.campusnexo.domain.shared.ResultLimit;
 import edu.campusnexo.domain.telemetry.Telemetry;
 import edu.campusnexo.domain.telemetry.TelemetryRecorded;
@@ -58,13 +59,13 @@ public class TelemetryService implements TelemetryUseCase {
     }
 
     @Override
-    public List<Telemetry> recent(String spaceId, int limit) {
+    public List<Telemetry> recent(String spaceId, int limit, PageCursor before) {
         ResultLimit resultLimit = ResultLimit.of(limit);
         String filter = normalize(spaceId);
         if (filter != null) {
             catalog.getRequiredSpace(filter);
         }
-        return repository.findRecent(filter, resultLimit);
+        return repository.findRecent(filter, resultLimit, before);
     }
 
     @Override
