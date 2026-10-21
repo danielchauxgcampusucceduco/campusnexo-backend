@@ -69,6 +69,7 @@ class CampusNexoApiIntegrationTest {
         registry.add("app.security.sensor-keys", () -> SENSOR_KEY);
         registry.add("app.security.token-secret", () -> "secreto-de-pruebas-con-mas-de-32-caracteres");
         registry.add("app.security.writes-per-minute", () -> "10000");
+        registry.add("app.security.login-attempts-per-minute", () -> "100");
         registry.add("app.simulation.enabled", () -> "true");
         registry.add("app.actuators.mode", () -> "log");
     }
@@ -77,9 +78,10 @@ class CampusNexoApiIntegrationTest {
     private Environment environment;
 
     private RestClient client;
-    private String admin;
-    private String operator;
-    private String viewer;
+    /** Signed in once for the whole class (login is rate limited per client IP). */
+    private static String admin;
+    private static String operator;
+    private static String viewer;
 
     /** How a request authenticates: nothing, a session token or a sensor key. */
     private record Credentials(String header, String value) {
@@ -98,9 +100,11 @@ class CampusNexoApiIntegrationTest {
                 .baseUrl("http://localhost:" + environment.getProperty("local.server.port"))
                 .defaultStatusHandler(status -> true, (request, response) -> { })
                 .build();
-        admin = login("daniel");
-        operator = login("operador");
-        viewer = login("jurado");
+        if (admin == null) {
+            admin = login("daniel");
+            operator = login("operador");
+            viewer = login("jurado");
+        }
     }
 
     private String login(String username) {
