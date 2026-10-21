@@ -399,4 +399,35 @@ class CampusNexoApiIntegrationTest {
         assertFalse(first.getBody().get(2).get("recordedAt").equals(second.getBody().get(0).get("recordedAt")));
         assertEquals(400, get("/api/v1/telemetry?cursor=no-es-un-cursor", viewer, OBJECT).getStatusCode().value());
     }
+
+    @Test
+    @DisplayName("El canal en vivo (STOMP) exige sesión: sin token se rechaza, con token de viewer conecta")
+    void liveFeedRequiresSignIn() throws Exception {
+        String url = "ws://localhost:" + environment.getProperty("local.server.port") + "/ws";
+        org.springframework.web.socket.messaging.WebSocketStompClient stomp =
+                new org.springframework.web.socket.messaging.WebSocketStompClient(
+                        new org.springframework.web.socket.client.standard.StandardWebSocketClient());
+        org.springframework.messaging.simp.stomp.StompSessionHandlerAdapter handler =
+                new org.springframework.messaging.simp.stomp.StompSessionHandlerAdapter() { };
+
+        org.springframework.messaging.simp.stomp.StompHeaders anonymous = new org.springframework.messaging.simp.stomp.StompHeaders();
+        boolean rejected;
+        try {
+            stomp.connectAsync(url, new org.springframework.web.socket.WebSocketHttpHeaders(), anonymous, handler)
+                    .get(5, java.util.concurrent.TimeUnit.SECONDS);
+            rejected = false;
+        } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException expected) {
+            rejected = true;
+        }
+        assertTrue(rejected);
+
+        org.springframework.messaging.simp.stomp.StompHeaders signedIn = new org.springframework.messaging.simp.stomp.StompHeaders();
+        signedIn.add("Authorization", "Bearer " + viewer);
+        org.springframework.messaging.simp.stomp.StompSession session = stomp.connectAsync(url,
+                new org.springframework.web.socket.WebSocketHttpHeaders(), signedIn, handler)
+                .get(5, java.util.concurrent.TimeUnit.SECONDS);
+        assertTrue(session.isConnected());
+        session.disconnect();
+        stomp.stop();
+    }
 }
