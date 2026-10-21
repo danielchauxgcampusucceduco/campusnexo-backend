@@ -330,7 +330,7 @@ class CampusNexoApiIntegrationTest {
         Map<String, Object> space = (Map<String, Object>) twin.get("space");
         assertEquals(5, ((Number) space.get("floor")).intValue());
         assertEquals("BLOQUE-A", space.get("buildingId"));
-        assertEquals(30, ((List<?>) twin.get("rois")).size());
+        assertEquals(36, ((List<?>) twin.get("rois")).size());
 
         Map<String, Object> missing = Map.of("space_id", "512-A", "temperature_c", 19.2);
         assertEquals(400, post("/api/v1/twin/environment", missing, SENSOR).getStatusCode().value());

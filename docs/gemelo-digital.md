@@ -8,7 +8,7 @@ Un solo campus: Universidad Cooperativa de Colombia, campus Pasto (Calle 18 # 47
 - Los espacios sin código reciben uno con su piso, bloque y nombre (`4A-SALA-DE-JUNTAS-GALERAS`); la biblioteca, la hemeroteca, la cafetería y el auditorio del bloque A tienen códigos cortos (`BIBLIOTECA-2B`, `HEMEROTECA-3B`, `CAFETERIA-1B`, `AUDITORIO-0A`).
 - **Bloque A**: salones con pupitres, salas de estudio, auditorio, oficinas y logística. **Bloque B**: biblioteca, cafetería, laboratorios, salas de cómputo y el auditorio Urcunina. Los espacios sin letra en el plano se asignan a un bloque según ese criterio.
 
-El aforo, la cuadrícula de puestos y los computadores de cada salón se **estiman** a partir de su tipo y su área (1,6 m² por pupitre en un salón, 2 m² por equipo en una sala de cómputo…): son valores ilustrativos, no el inventario oficial. Reemplázalos por los reales en la tabla `spaces` antes de usar el sistema en el campus.
+**Salones de clase**: todos tienen **36 pupitres** (6 filas × 6), dato confirmado del campus (migración `V14`). Para los demás espacios, el aforo, la cuadrícula y los computadores se **estiman** a partir de su tipo y su área (2 m² por equipo en una sala de cómputo…): son valores ilustrativos, no el inventario oficial. Las salas de informática `308-A` a `312-A` son del bloque A.
 
 ## Flujo
 
@@ -147,7 +147,7 @@ Todos los parámetros están en `app.twin.*` y son **ilustrativos**: no son medi
 
 | Escenario | Salón | Resultado esperado |
 |---|---|---|
-| `CLASE_EN_CURSO` | 421-A | 26 de 30 pupitres ocupados, `OCUPADO_OPTIMO` + `CORTE_INERCIA_TERMICA` |
+| `CLASE_EN_CURSO` | 421-A | 26 de 36 pupitres ocupados, `OCUPADO_OPTIMO` + `CORTE_INERCIA_TERMICA` |
 | `CO2_ALTO` | 422-A | `VENTILACION_CO2_ACTIVA` + alerta `CO2_ALTO` |
 | `FALLO_CAMARA` | 421-A | Kalman con 2 mediciones, cámara caída |
 | `SOBRECUPO` | Laboratorio de Bioprocesos | 15 puestos ocupados y 7 personas de pie, `ALERTA_SOBRECUPO` |

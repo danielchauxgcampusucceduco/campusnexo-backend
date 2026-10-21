@@ -310,6 +310,8 @@ def main():
             kind = r['kind']
             capacity = max(2, int(r['area'] / CAPACITY[kind]))
             rows, cols = seats_for(kind, r['area'])
+            if kind == 'AULA':
+                rows, cols = 6, 6  # campus fact (2026-10-21): every classroom has 36 desks
             if code == 'BIBLIOTECA-2B':
                 capacity, rows, cols = 120, None, None  # eight tables drawn over its camera
             elif rows:
