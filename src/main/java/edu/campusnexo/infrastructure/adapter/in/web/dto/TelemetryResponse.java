@@ -14,11 +14,12 @@ public record TelemetryResponse(
         double temperatureC,
         double humidityPct,
         double illuminanceLux,
-        double activePowerKw) {
+        double activePowerKw,
+        Integer cameraPeople) {
 
     public static TelemetryResponse from(Telemetry telemetry) {
         return new TelemetryResponse(telemetry.spaceId(), telemetry.recordedAt(), telemetry.peopleCount(),
                 telemetry.objectCount(), telemetry.wifiDevices(), telemetry.co2Ppm(), telemetry.temperatureC(),
-                telemetry.humidityPct(), telemetry.illuminanceLux(), telemetry.activePowerKw());
+                telemetry.humidityPct(), telemetry.illuminanceLux(), telemetry.activePowerKw(), telemetry.cameraPeople());
     }
 }

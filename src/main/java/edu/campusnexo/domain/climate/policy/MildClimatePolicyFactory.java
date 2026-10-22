@@ -1,17 +1,26 @@
 package edu.campusnexo.domain.climate.policy;
 
 import edu.campusnexo.domain.catalog.ClimateProfile;
+import edu.campusnexo.domain.climate.ComfortBand;
 
 /** Family for mild branches (for example Medellín): wide comfort band and natural ventilation. */
 public final class MildClimatePolicyFactory implements ClimatePolicyFactory {
+    private static final ComfortBand BAND = new ComfortBand(20.0, 25.0);
+
     @Override
     public ClimateProfile climateProfile() {
         return ClimateProfile.SEDE_TEMPLADA;
     }
 
     @Override
-    public ThermalPolicy createThermalPolicy() {
-        return new MinimumCycleThermalPolicy(new ComfortBandThermalPolicy(20.0, 25.0, 2.0), 10, 5);
+    public ComfortBand comfortBand() {
+        return BAND;
+    }
+
+    /** HVAC only outside the band, preferring free cooling when the outside air is 2 °C cooler. */
+    @Override
+    public ThermalPolicy createThermalStrategy() {
+        return new ComfortBandThermalPolicy(BAND.lowC(), BAND.highC(), 2.0);
     }
 
     @Override

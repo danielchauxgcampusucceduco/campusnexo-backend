@@ -64,6 +64,10 @@ class SecurityRulesTest {
     @DisplayName("Tabla de acceso: lecturas para viewer, operaciones para operator, escenarios para admin, ingesta para sensores")
     void accessTable() {
         assertEquals(Access.PUBLIC, AccessPolicy.required("GET", "/actuator/health"));
+        assertEquals(Access.PUBLIC, AccessPolicy.required("GET", "/ws"));
+        assertEquals(Access.ADMIN, AccessPolicy.required("GET", "/actuator/prometheus"));
+        assertEquals(Access.ADMIN, AccessPolicy.required("GET", "/actuator/env"));
+        assertEquals(Access.ADMIN, AccessPolicy.required("GET", "/cualquier-otra-ruta"));
         assertEquals(Access.PUBLIC, AccessPolicy.required("POST", "/api/v1/auth/login"));
         assertEquals(Access.VIEWER, AccessPolicy.required("GET", "/api/v1/twin/spaces"));
         assertEquals(Access.VIEWER, AccessPolicy.required("GET", "/api/v1/simulation/scenarios"));

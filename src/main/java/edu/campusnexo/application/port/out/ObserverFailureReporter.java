@@ -1,4 +1,4 @@
-package edu.campusnexo.application.telemetry;
+package edu.campusnexo.application.port.out;
 
 import edu.campusnexo.domain.telemetry.TelemetryRecorded;
 

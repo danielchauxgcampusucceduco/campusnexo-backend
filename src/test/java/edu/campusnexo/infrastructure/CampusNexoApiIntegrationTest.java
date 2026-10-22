@@ -65,7 +65,8 @@ class CampusNexoApiIntegrationTest {
         registry.add("app.ai.connect-timeout", () -> "300ms");
         registry.add("app.ai.read-timeout", () -> "300ms");
         registry.add("app.security.mode", () -> "enforced");
-        registry.add("app.security.users", () -> "daniel:ADMIN:" + HASH + ",operador:OPERATOR:" + HASH + ",jurado:VIEWER:" + HASH);
+        registry.add("app.security.users", () -> "daniel:ADMIN:" + HASH + ",operador:OPERATOR:" + HASH
+                + ",operadora:OPERATOR:" + HASH + ",jurado:VIEWER:" + HASH);
         registry.add("app.security.sensor-keys", () -> SENSOR_KEY);
         registry.add("app.security.token-secret", () -> "secreto-de-pruebas-con-mas-de-32-caracteres");
         registry.add("app.security.writes-per-minute", () -> "10000");
@@ -81,6 +82,7 @@ class CampusNexoApiIntegrationTest {
     /** Signed in once for the whole class (login is rate limited per client IP). */
     private static String admin;
     private static String operator;
+    private static String otherOperator;
     private static String viewer;
 
     /** How a request authenticates: nothing, a session token or a sensor key. */
@@ -103,6 +105,7 @@ class CampusNexoApiIntegrationTest {
         if (admin == null) {
             admin = login("daniel");
             operator = login("operador");
+            otherOperator = login("operadora");
             viewer = login("jurado");
         }
     }
@@ -429,5 +432,77 @@ class CampusNexoApiIntegrationTest {
         assertTrue(session.isConnected());
         session.disconnect();
         stomp.stop();
+    }
+
+    private ResponseEntity<Map<String, Object>> delete(String uri, String token) {
+        return client.delete().uri(uri).header("Authorization", "Bearer " + token).retrieve().toEntity(OBJECT);
+    }
+
+    @Test
+    @DisplayName("Una reserva solo la cancela quien la creó o un administrador; el autor queda registrado")
+    void reservationsAreCancelledOnlyByTheirAuthor() {
+        Instant start = Instant.now().plus(5, ChronoUnit.DAYS).truncatedTo(ChronoUnit.HOURS);
+        Map<String, Object> body = Map.of("startsAt", start.toString(), "endsAt", start.plus(1, ChronoUnit.HOURS).toString(),
+                "expectedAttendees", 12, "reference", "SIM-NO-ES-DEMO");
+        ResponseEntity<Map<String, Object>> created = post("/api/v1/spaces/424-A/reservations", body, operator);
+        assertEquals(201, created.getStatusCode().value());
+        assertEquals("operador", created.getBody().get("createdBy"));
+        assertEquals("USUARIO", created.getBody().get("origin"), "el prefijo SIM- del texto no la vuelve de simulación");
+        String uri = "/api/v1/reservations/" + created.getBody().get("reservationId");
+
+        ResponseEntity<Map<String, Object>> denied = delete(uri, otherOperator);
+        assertEquals(403, denied.getStatusCode().value());
+        assertEquals("reservation_not_owned", denied.getBody().get("code"));
+        assertEquals(204, delete(uri, admin).getStatusCode().value());
+    }
+
+    @Test
+    @DisplayName("Un frame repetido por HTTP no cambia el gemelo ni duplica la lectura, y queda contado en Prometheus")
+    void redeliveredEdgeFrameIsIgnoredAndCounted() {
+        Instant capturedAt = Instant.now().truncatedTo(ChronoUnit.SECONDS).minusSeconds(20);
+        Map<String, Object> frame = Map.of("space_id", "318-B", "timestamp", capturedAt.toString(), "camera_online", true,
+                "detections", List.of(Map.of("track_id", 1, "class", "person", "confidence", 0.9,
+                        "bbox", List.of(0.10, 0.10, 0.15, 0.20))),
+                "sensors", Map.of("co2_ppm", 520, "temperature_c", 21.5, "humidity_pct", 55, "illuminance_lux", 300,
+                        "wifi_devices", 1, "active_power_kw", 1.0));
+
+        ResponseEntity<Map<String, Object>> first = post("/api/v1/twin/telemetry", frame, SENSOR);
+        ResponseEntity<Map<String, Object>> again = post("/api/v1/twin/telemetry", frame, SENSOR);
+
+        assertEquals(200, first.getStatusCode().value());
+        assertEquals(200, again.getStatusCode().value());
+        assertEquals(first.getBody().get("updatedAt"), again.getBody().get("updatedAt"));
+        assertNotNull(first.getBody().get("hvacMode"));
+        List<Map<String, Object>> readings = list("/api/v1/spaces/318-B/telemetry?limit=10");
+        assertEquals(1, readings.size());
+        assertEquals(1, ((Number) readings.get(0).get("cameraPeople")).intValue());
+
+        assertEquals(401, client.get().uri("/actuator/prometheus").retrieve().toEntity(String.class)
+                .getStatusCode().value());
+        assertEquals(403, client.get().uri("/actuator/prometheus").header("Authorization", "Bearer " + viewer)
+                .retrieve().toEntity(String.class).getStatusCode().value());
+        ResponseEntity<String> metrics = client.get().uri("/actuator/prometheus")
+                .header("Authorization", "Bearer " + admin).retrieve().toEntity(String.class);
+        assertEquals(200, metrics.getStatusCode().value());
+        String discarded = metrics.getBody().lines().filter(line -> line.startsWith("campusnexo_readings_discarded_total"))
+                .filter(line -> line.contains("reason=\"duplicada\"") && line.contains("source=\"camara\""))
+                .findFirst().orElse("");
+        assertFalse(discarded.isEmpty(), metrics.getBody());
+    }
+
+    @Test
+    @DisplayName("El reinicio de la demostración no toca un salón real (424-A) puesto en mantenimiento")
+    void simulationLeavesRealRoomsAlone() {
+        ResponseEntity<Map<String, Object>> maintenance = post("/api/v1/twin/spaces/424-A/maintenance?enabled=true",
+                Map.of(), operator);
+        assertEquals(200, maintenance.getStatusCode().value());
+
+        assertEquals(200, post("/api/v1/simulation/REINICIAR", Map.of(), admin).getStatusCode().value());
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> state = (Map<String, Object>) object("/api/v1/twin/spaces/424-A").get("state");
+        assertEquals(true, state.get("maintenance"));
+        assertEquals(200, post("/api/v1/twin/spaces/424-A/maintenance?enabled=false", Map.of(), operator)
+                .getStatusCode().value());
     }
 }

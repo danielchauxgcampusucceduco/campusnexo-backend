@@ -1,6 +1,6 @@
 package edu.campusnexo.application.alert;
 
-import edu.campusnexo.application.telemetry.TelemetryObserver;
+import edu.campusnexo.application.port.out.TelemetryObserver;
 import edu.campusnexo.domain.alert.Alert;
 import edu.campusnexo.domain.alert.AlertSeverity;
 import edu.campusnexo.domain.alert.AlertType;

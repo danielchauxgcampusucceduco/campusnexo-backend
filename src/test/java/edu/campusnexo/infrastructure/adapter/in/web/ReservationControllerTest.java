@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import edu.campusnexo.application.port.in.Requester;
 import edu.campusnexo.application.port.in.ReservationUseCase;
 import edu.campusnexo.domain.reservation.Reservation;
 import edu.campusnexo.infrastructure.adapter.in.web.dto.ReservationRequest;
@@ -24,13 +25,15 @@ class ReservationControllerTest {
         when(useCase.create(any())).thenReturn(saved);
         ReservationController controller = new ReservationController(useCase);
 
-        var created = controller.create("A-301", new ReservationRequest(starts, starts.plusSeconds(3600), 20, "IS-101"));
-        var deleted = controller.cancel(id);
+        Requester operator = Requester.user("operador");
+        var created = controller.create("A-301", new ReservationRequest(starts, starts.plusSeconds(3600), 20, "IS-101"),
+                operator);
+        var deleted = controller.cancel(id, operator);
 
         assertEquals(HttpStatus.CREATED, created.getStatusCode());
         assertEquals("/api/v1/reservations/" + id, created.getHeaders().getLocation().getPath());
         assertEquals(id, created.getBody().reservationId());
         assertEquals(HttpStatus.NO_CONTENT, deleted.getStatusCode());
-        verify(useCase).cancel(id);
+        verify(useCase).cancel(id, operator);
     }
 }

@@ -1,42 +1,29 @@
 package edu.campusnexo.application.climate;
 
-import edu.campusnexo.domain.climate.ClimateRecommendation;
-import edu.campusnexo.domain.climate.HvacMode;
 import edu.campusnexo.domain.climate.HvacState;
-import edu.campusnexo.domain.port.ClimateRecommendationRepository;
-import edu.campusnexo.domain.shared.ResultLimit;
+import edu.campusnexo.domain.port.SpaceRepositoryPort;
+import edu.campusnexo.domain.twin.HvacSetting;
 import java.time.Clock;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.List;
 
 /**
- * The prototype does not read real HVAC equipment, so the current state is assumed to be the
- * last recommended mode, active since the first recommendation of the current run of that mode.
+ * Current HVAC mode of a room and for how long, taken from what the digital twin actually commanded to the
+ * room's unit. The compressor-protection decorator of the recommendation therefore protects the real
+ * compressor, not a history of recommendations that may never have been applied.
  */
 public class HvacStateResolver {
-    private final ClimateRecommendationRepository recommendations;
+    private final SpaceRepositoryPort twins;
     private final Clock clock;
 
-    public HvacStateResolver(ClimateRecommendationRepository recommendations, Clock clock) {
-        this.recommendations = recommendations;
+    public HvacStateResolver(SpaceRepositoryPort twins, Clock clock) {
+        this.twins = twins;
         this.clock = clock;
     }
 
     public HvacState resolve(String spaceId) {
-        List<ClimateRecommendation> history = recommendations.findRecent(spaceId, ResultLimit.of(ResultLimit.MAX));
-        if (history.isEmpty()) {
-            return HvacState.initial();
-        }
-        HvacMode mode = history.get(0).hvac().mode();
-        Instant since = history.get(0).generatedAt();
-        for (ClimateRecommendation previous : history) {
-            if (previous.hvac().mode() != mode) {
-                break;
-            }
-            since = previous.generatedAt();
-        }
-        long minutes = Math.max(0, Duration.between(since, clock.instant()).toMinutes());
-        return new HvacState(mode, (int) Math.min(minutes, HvacState.MAX_MINUTES));
+        return twins.findTwin(spaceId).map(twin -> {
+            HvacSetting hvac = twin.hvac();
+            int minutes = (int) Math.min(hvac.minutesSince(clock.instant()), HvacState.MAX_MINUTES);
+            return new HvacState(hvac.mode(), minutes);
+        }).orElseGet(HvacState::initial);
     }
 }

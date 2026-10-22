@@ -4,8 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import edu.campusnexo.application.port.in.CreateReservationCommand;
+import edu.campusnexo.domain.climate.HvacMode;
+import edu.campusnexo.domain.shared.DomainValidationException;
 import edu.campusnexo.domain.trace.ArchitectureTrace;
 import edu.campusnexo.domain.trace.HexagonalLayer;
 import edu.campusnexo.domain.trace.TraceStep;
@@ -20,6 +24,7 @@ import edu.campusnexo.domain.vision.DetectedObjectClass;
 import edu.campusnexo.domain.vision.TrackedDetection;
 import edu.campusnexo.support.TwinTestFixture;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -97,6 +102,12 @@ class TwinPipelineTest {
                 devicesOn);
     }
 
+    private static TelemetrySnapshot withTime(TelemetrySnapshot frame, Instant at) {
+        return new TelemetrySnapshot(frame.spaceId(), at, frame.cameraOnline(), frame.detections(), frame.co2Ppm(),
+                frame.indoorTemperatureC(), frame.outdoorTemperatureC(), frame.humidityPct(), frame.illuminanceLux(),
+                frame.wifiDevices(), frame.activePowerKw(), frame.lightsOn(), frame.devicesOn());
+    }
+
     private TelemetrySnapshot emptyRoomFrame() {
         return new TelemetrySnapshot("309-A", fixture.clock.instant(), true, List.of(), 430, 19.5, 13.5, 52, 400, 0, 1.0);
     }
@@ -151,9 +162,9 @@ class TwinPipelineTest {
         SpaceTwinState stored = fixture.writer.replace(frame(12, 700, 22).spaceId(), () -> null, previous -> {
             if (calls[0]++ == 0) {
                 // Another backend instance stores the room after we read it.
-                fixture.twins.overwrite(previous.withControls(previous.overrideUntil(), previous.popUpUntil(), true));
+                fixture.twins.overwrite(previous.withControls(previous.controls().withMaintenance(true)));
             }
-            return previous.withControls(previous.overrideUntil(), previous.popUpUntil(), previous.maintenance());
+            return previous.withControls(previous.controls());
         });
         assertEquals(2, calls[0]);
         assertEquals(1, fixture.twins.conflicts);
@@ -163,14 +174,18 @@ class TwinPipelineTest {
     @Test
     @DisplayName("La cámara y el Arduino del mismo salón en paralelo no se pisan")
     void parallelStreamsOfOneRoomTakeTurns() throws Exception {
+        Instant start = fixture.clock.instant().minusSeconds(60);
         Thread camera = new Thread(() -> {
             for (int i = 0; i < 40; i++) {
-                fixture.pipeline.process(emptyRoomFrame(), "MQTT · cámara");
+                fixture.pipeline.process(withTime(emptyRoomFrame(), start.plusMillis(i)), "MQTT · cámara");
             }
         });
         Thread board = new Thread(() -> {
             for (int i = 0; i < 40; i++) {
-                fixture.environment.processEnvironment(arduino(true, 3), "MQTT · Arduino");
+                EnvironmentReading reading = arduino(true, 3);
+                fixture.environment.processEnvironment(new EnvironmentReading(reading.spaceId(), start.plusMillis(i),
+                        reading.temperatureC(), reading.humidityPct(), reading.co2Ppm(), reading.illuminanceLux(),
+                        reading.lightsOn(), reading.devicesOn()), "MQTT · Arduino");
             }
         });
         camera.start();
@@ -179,5 +194,96 @@ class TwinPipelineTest {
         board.join();
         assertEquals(0, fixture.twins.conflicts);
         assertEquals(80, fixture.notifier.updates.size());
+    }
+
+    @Test
+    @DisplayName("Un frame repetido (reentrega MQTT QoS 1) no vuelve a aplicar el Kalman ni guarda otra lectura")
+    void redeliveredFrameIsIgnored() {
+        TelemetrySnapshot frame = frame(12, 700, 22);
+        SpaceTwinState first = fixture.pipeline.process(frame, "MQTT · prueba");
+        int updates = fixture.notifier.updates.size();
+
+        SpaceTwinState again = fixture.pipeline.process(frame, "MQTT · prueba");
+
+        assertEquals(first, again);
+        assertEquals(updates, fixture.notifier.updates.size());
+        assertEquals(1, fixture.telemetryRows.findRecent("LAB-IA-102", edu.campusnexo.domain.shared.ResultLimit.of(10)).size());
+        assertEquals(List.of("camara:duplicada"), fixture.metrics.discarded);
+    }
+
+    @Test
+    @DisplayName("Un frame que llega tarde (más viejo que el último) no retrocede el gemelo")
+    void lateFrameIsIgnored() {
+        fixture.pipeline.process(frame(12, 700, 22), "MQTT · prueba");
+        TelemetrySnapshot late = withTime(frame(30, 1200, 25), fixture.clock.instant().minusSeconds(30));
+
+        SpaceTwinState state = fixture.pipeline.process(late, "MQTT · prueba");
+
+        assertEquals(12, state.occupancy().people());
+        assertEquals(List.of("camara:fuera_de_orden"), fixture.metrics.discarded);
+    }
+
+    @Test
+    @DisplayName("Un frame con fecha imposible se rechaza antes de tocar el gemelo o el historial")
+    void invalidTimestampChangesNothing() {
+        TelemetrySnapshot future = withTime(frame(12, 700, 22), fixture.clock.instant().plus(Duration.ofHours(1)));
+
+        assertThrows(DomainValidationException.class, () -> fixture.pipeline.process(future, "MQTT · prueba"));
+
+        assertTrue(fixture.twins.findTwin("LAB-IA-102").isEmpty());
+        assertTrue(fixture.telemetryRows.findRecent("LAB-IA-102", edu.campusnexo.domain.shared.ResultLimit.of(10)).isEmpty());
+    }
+
+    @Test
+    @DisplayName("El conteo propio de la cámara se guarda aparte de la estimación fusionada")
+    void storesTheRawCameraCountApartFromTheEstimate() {
+        fixture.pipeline.process(frame(12, 700, 22), "MQTT · prueba");
+        var reading = fixture.telemetryRows.findLatest("LAB-IA-102").orElseThrow();
+        assertEquals(12, reading.cameraPeople());
+    }
+
+    @Test
+    @DisplayName("Pasto antes de clase: el salón vacío y frío se pre-calienta y el ESP32 recibe CALEFACCION")
+    void preHeatsAColdRoomBeforeTheClass() {
+        fixture.reservations.create(new CreateReservationCommand("AULA-301", fixture.clock.instant().plus(Duration.ofMinutes(20)),
+                fixture.clock.instant().plus(Duration.ofMinutes(110)), 25, "IS-701"));
+        TelemetrySnapshot coldAndEmpty = new TelemetrySnapshot("AULA-301", fixture.clock.instant(), true, List.of(), 430,
+                18.2, 9.0, 60, 200, 0, 0.1);
+
+        SpaceTwinState state = fixture.pipeline.process(coldAndEmpty, "MQTT · prueba");
+
+        assertEquals(HvacControlState.PRE_CALENTAMIENTO_IA, state.hvacState());
+        assertEquals(HvacMode.CALEFACCION, state.hvacMode());
+        assertEquals(HvacMode.CALEFACCION, fixture.actuator.commands.getLast().mode());
+    }
+
+    @Test
+    @DisplayName("Un espacio sin equipo de clima nunca se climatiza ni acumula ahorro")
+    void roomWithoutUnitIsNeverClimatized() {
+        TelemetrySnapshot frame = new TelemetrySnapshot("BIBLIOTECA-2B", fixture.clock.instant(), true, List.of(), 600,
+                17.0, 9.0, 55, 300, 20, 1.0);
+        SpaceTwinState first = fixture.pipeline.process(frame, "MQTT · prueba");
+        fixture.clock.advance(Duration.ofMinutes(10));
+        SpaceTwinState later = fixture.pipeline.process(withTime(frame, fixture.clock.instant()), "MQTT · prueba");
+
+        assertEquals(HvacControlState.SIN_CLIMATIZACION, first.hvacState());
+        assertEquals(0.0, later.energySavedKwh());
+        assertTrue(fixture.actuator.commands.isEmpty(), "no hay equipo al que mandar órdenes");
+    }
+
+    @Test
+    @DisplayName("La familia tropical deshumidifica un salón ocupado con 82 % de humedad aunque la temperatura esté bien")
+    void tropicalRoomIsDehumidified() {
+        List<TrackedDetection> people = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            people.add(new TrackedDetection(i, DetectedObjectClass.PERSON, 0.9, new BoundingBox(0.1, 0.1, 0.14, 0.17)));
+        }
+        TelemetrySnapshot humid = new TelemetrySnapshot("AULA-MAGNA-204", fixture.clock.instant(), true, people, 700,
+                24.5, 29.0, 82, 300, 20, 2.0);
+
+        SpaceTwinState state = fixture.pipeline.process(humid, "MQTT · prueba");
+
+        assertEquals(HvacMode.DESHUMIDIFICACION, state.hvacMode());
+        assertTrue(state.hvac().reason().contains("Humedad"));
     }
 }

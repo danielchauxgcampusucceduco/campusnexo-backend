@@ -51,8 +51,10 @@ public class CampusOperationsFacade implements SpaceEvaluationUseCase {
         CampusSpace space = catalog.getRequiredSpace(spaceId);
         Telemetry latest = telemetry.latest(space.spaceId()).orElseThrow(() -> new NoTelemetryException(space.spaceId()));
 
+        // The camera's own count, not the twin's fused estimate: the estimator fuses CO2 and Wi-Fi itself,
+        // and feeding it a value that already contains them would count that evidence twice.
         OccupancyRecord estimate = occupancy.estimate(new EstimateOccupancyCommand(space.spaceId(),
-                latest.peopleCount(), latest.co2Ppm(), latest.wifiDevices(), null));
+                latest.cameraPeople(), latest.co2Ppm(), latest.wifiDevices(), null));
         OccupancyEstimate value = estimate.estimate();
 
         ClimateRecommendation recommendation = climate.recommend(new RecommendClimateCommand(space.spaceId(),

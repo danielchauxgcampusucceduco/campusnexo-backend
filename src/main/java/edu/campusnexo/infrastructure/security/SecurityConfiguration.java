@@ -11,6 +11,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.filter.CorsFilter;
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
  * CORS first (so even a 401 reaches the browser readable), then authentication and authorization for
@@ -18,7 +20,13 @@ import org.springframework.web.filter.CorsFilter;
  */
 @Configuration
 @EnableConfigurationProperties(SecurityProperties.class)
-class SecurityConfiguration {
+class SecurityConfiguration implements WebMvcConfigurer {
+
+    /** Controllers receive the caller as an application {@code Requester}. */
+    @Override
+    public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
+        resolvers.add(new RequesterArgumentResolver());
+    }
 
     @Bean
     Authenticator authenticator(SecurityProperties properties, Clock clock) {

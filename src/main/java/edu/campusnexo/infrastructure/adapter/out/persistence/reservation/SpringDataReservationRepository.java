@@ -21,4 +21,7 @@ interface SpringDataReservationRepository extends JpaRepository<ReservationEntit
             String spaceId, Instant startsAtOrBefore, Instant endsAfter);
 
     Optional<ReservationEntity> findFirstBySpaceIdAndStartsAtGreaterThanOrderByStartsAtAsc(String spaceId, Instant after);
+
+    @Query("select r from ReservationEntity r where r.startsAt <= :at and r.endsAt > :at order by r.spaceId, r.startsAt desc")
+    List<ReservationEntity> findActiveAt(@Param("at") Instant at);
 }

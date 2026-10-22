@@ -6,7 +6,9 @@ import edu.campusnexo.domain.reservation.ReservationOverlapException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -42,6 +44,13 @@ public class InMemoryReservationRepository implements ReservationRepository {
     @Override
     public Optional<Reservation> findActiveAt(String spaceId, Instant instant) {
         return rows.stream().filter(row -> row.spaceId().equals(spaceId) && row.isActiveAt(instant)).findFirst();
+    }
+
+    @Override
+    public Map<String, Reservation> findActiveAtForAll(Instant instant) {
+        Map<String, Reservation> active = new LinkedHashMap<>();
+        rows.stream().filter(row -> row.isActiveAt(instant)).forEach(row -> active.putIfAbsent(row.spaceId(), row));
+        return active;
     }
 
     @Override

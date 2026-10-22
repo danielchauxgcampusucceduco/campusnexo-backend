@@ -2,6 +2,7 @@ package edu.campusnexo.application.telemetry;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import edu.campusnexo.application.port.out.TelemetryObserver;
 import edu.campusnexo.domain.telemetry.TelemetryRecorded;
 import edu.campusnexo.support.TestData;
 import java.util.ArrayList;

@@ -7,7 +7,8 @@ import java.util.regex.Pattern;
 
 /**
  * What each route requires, in one table read top to bottom. Anything not listed fails closed: reads
- * under {@code /api} need a viewer and any other method needs an administrator.
+ * under {@code /api} need a viewer, any other method needs an administrator, and every route outside
+ * {@code /api} that is not listed (other actuator endpoints such as Prometheus metrics) needs an administrator.
  */
 final class AccessPolicy {
     private record Rule(String method, Pattern path, Access access) {
@@ -22,6 +23,8 @@ final class AccessPolicy {
             rule("GET", "/actuator/health(/.*)?", Access.PUBLIC),
             rule("GET", "/actuator/info", Access.PUBLIC),
             rule("GET", "/error", Access.PUBLIC),
+            // WebSocket handshake: the STOMP CONNECT frame carries and checks the session token.
+            rule("GET", "/ws(/.*)?", Access.PUBLIC),
             rule("POST", API + "/auth/login", Access.PUBLIC),
             rule("GET", API + "/auth/session", Access.PUBLIC),
             // Cameras and room boards push readings with their own keys.
@@ -47,8 +50,8 @@ final class AccessPolicy {
                 return rule.access();
             }
         }
-        // Outside /api: the WebSocket handshake (authenticated by STOMP CONNECT) and static resources.
-        return Access.PUBLIC;
+        // Not listed, outside /api: operational endpoints (metrics) and anything unexpected.
+        return Access.ADMIN;
     }
 
     private static Rule rule(String method, String path, Access access) {

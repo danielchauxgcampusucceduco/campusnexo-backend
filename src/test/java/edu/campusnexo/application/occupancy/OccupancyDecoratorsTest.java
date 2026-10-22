@@ -64,8 +64,10 @@ class OccupancyDecoratorsTest {
     @DisplayName("La heurística local combina CO2 y Wi-Fi y reporta confianza baja")
     void localHeuristic() {
         OccupancyEstimate result = new LocalHeuristicOccupancyEstimator().estimate(QUERY);
-        // CO2: (820 - 420) * 48 / 1000 = 19.2 ; Wi-Fi: 20 * 0.8 = 16 ; promedio 17.6 -> 18
-        assertEquals(18, result.occupancyEstimate());
-        assertEquals(35.0, result.confidencePct());
+        // Same fusion as the twin. CO2: (820 − 420)·48/1000 = 19.2, σ = 0.35·19.2 + 2 = 8.72;
+        // Wi-Fi: 20·0.8 = 16, σ = 0.30·16 + 2 = 6.8. Inverse-variance mean = 17.2 → 17, σ = 5.36.
+        assertEquals(17, result.occupancyEstimate());
+        assertEquals(83.2, result.confidencePct(), 0.05, "1 − σ/capacidad = 1 − 5.36/32");
+        assertEquals(OccupancySource.RESPALDO_LOCAL, result.source());
     }
 }

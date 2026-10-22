@@ -1,7 +1,7 @@
 package edu.campusnexo.support;
 
+import edu.campusnexo.application.port.out.TwinChangeNotifierPort;
 import edu.campusnexo.domain.port.HvacActuatorCommandPort;
-import edu.campusnexo.domain.port.RealtimeDashboardNotifierPort;
 import edu.campusnexo.domain.port.RoomEquipmentCommandPort;
 import edu.campusnexo.domain.trace.ArchitectureTrace;
 import edu.campusnexo.domain.twin.EquipmentCommand;
@@ -32,7 +32,7 @@ public final class RecordingOutboundAdapters {
         }
     }
 
-    public static final class Notifier implements RealtimeDashboardNotifierPort {
+    public static final class Notifier implements TwinChangeNotifierPort {
         public final List<SpaceTwinState> updates = new ArrayList<>();
         public final List<ArchitectureTrace> traces = new ArrayList<>();
 

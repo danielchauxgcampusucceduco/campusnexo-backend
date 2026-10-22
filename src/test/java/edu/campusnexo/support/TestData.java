@@ -10,6 +10,7 @@ import edu.campusnexo.domain.climate.HvacState;
 import edu.campusnexo.domain.telemetry.Telemetry;
 import java.time.Instant;
 import java.util.List;
+import java.util.stream.Stream;
 
 public final class TestData {
     public static final Instant NOW = Instant.parse("2026-10-20T15:00:00Z");
@@ -53,8 +54,9 @@ public final class TestData {
     }
 
     /** The rooms used by the defense scenarios, with the same layout as Flyway V12. */
+    /** The demonstration rooms, marked as the catalog marks them (V15); the library has no climate unit. */
     public static List<CampusSpace> scenarioRooms() {
-        return List.of(
+        return Stream.of(
                 room("420-A", SpaceType.AULA, 30, 5, 6, 1),
                 room("421-A", SpaceType.AULA, 30, 5, 6, 1),
                 room("422-A", SpaceType.AULA, 30, 5, 6, 1),
@@ -65,7 +67,8 @@ public final class TestData {
                 room("309-A", SpaceType.SALA_COMPUTO, 24, 4, 6, 24),
                 room("3B-DE-BIOPROCESOS-LABORATORIO", SpaceType.LABORATORIO, 15, 3, 5, 3),
                 room("2B-LABORATORIO-MULTIFUNCIONAL", SpaceType.LABORATORIO, 35, 5, 7, 8),
-                room("BIBLIOTECA-2B", SpaceType.BIBLIOTECA, 120, null, null, 15));
+                room("BIBLIOTECA-2B", SpaceType.BIBLIOTECA, 120, null, null, 15).withHvacInstalled(false))
+                .map(space -> space.withSimulationAllowed(true)).toList();
     }
 
     public static Telemetry reading(String spaceId, Instant at, int people, double co2, double powerKw) {

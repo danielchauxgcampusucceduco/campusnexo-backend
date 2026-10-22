@@ -1,21 +1,23 @@
-package edu.campusnexo.domain.twin;
+package edu.campusnexo.domain.climate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import edu.campusnexo.domain.catalog.ClimateProfile;
+import edu.campusnexo.domain.climate.policy.ClimateFamilies;
 import edu.campusnexo.domain.shared.DomainValidationException;
 import org.junit.jupiter.api.Test;
 
 class ComfortBandTest {
 
     @Test
-    void selectsTheReferenceBandForEachClimateProfile() {
-        assertEquals(new ComfortBand(19, 24), ComfortBand.forProfile(ClimateProfile.SEDE_ANDINA));
-        assertEquals(new ComfortBand(23, 26), ComfortBand.forProfile(ClimateProfile.SEDE_TROPICAL));
-        assertEquals(new ComfortBand(20, 25), ComfortBand.forProfile(ClimateProfile.SEDE_TEMPLADA));
+    void eachClimateFamilyDefinesItsOwnBand() {
+        ClimateFamilies families = ClimateFamilies.standard();
+        assertEquals(new ComfortBand(19, 24), families.of(ClimateProfile.SEDE_ANDINA).comfortBand());
+        assertEquals(new ComfortBand(23, 26), families.of(ClimateProfile.SEDE_TROPICAL).comfortBand());
+        assertEquals(new ComfortBand(20, 25), families.of(ClimateProfile.SEDE_TEMPLADA).comfortBand());
     }
 
     @Test

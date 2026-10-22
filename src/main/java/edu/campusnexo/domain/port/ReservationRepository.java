@@ -3,6 +3,7 @@ package edu.campusnexo.domain.port;
 import edu.campusnexo.domain.reservation.Reservation;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -21,6 +22,9 @@ public interface ReservationRepository {
     List<Reservation> findOverlapping(String spaceId, Instant from, Instant to);
 
     Optional<Reservation> findActiveAt(String spaceId, Instant instant);
+
+    /** The reservation in progress at {@code instant} of every space that has one, in one query. */
+    Map<String, Reservation> findActiveAtForAll(Instant instant);
 
     /** First reservation of the space that starts strictly after {@code instant}. */
     Optional<Reservation> findNextStartingAfter(String spaceId, Instant instant);

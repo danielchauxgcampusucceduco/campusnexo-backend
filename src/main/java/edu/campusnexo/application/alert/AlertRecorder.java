@@ -4,7 +4,11 @@ import edu.campusnexo.domain.alert.Alert;
 import edu.campusnexo.domain.port.AlertRepository;
 import java.time.Instant;
 
-/** Stores an alert unless an alert of the same type was already raised for the space since a given instant. */
+/**
+ * Stores an alert unless an alert of the same type was already raised for the space since a given instant.
+ * The repository makes the check and the insert one atomic step, so two observer threads (or two backend
+ * instances) handling readings of the same room cannot both raise it.
+ */
 public class AlertRecorder {
     private final AlertRepository repository;
 
@@ -13,10 +17,6 @@ public class AlertRecorder {
     }
 
     public boolean recordUnlessRaisedSince(Alert alert, Instant since) {
-        if (repository.existsSince(alert.spaceId(), alert.type(), since)) {
-            return false;
-        }
-        repository.save(alert);
-        return true;
+        return repository.saveUnlessRaisedSince(alert, since);
     }
 }

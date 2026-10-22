@@ -2,6 +2,7 @@ package edu.campusnexo.domain.twin;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import edu.campusnexo.domain.climate.ComfortBand;
 import edu.campusnexo.domain.shared.DomainValidationException;
 import org.junit.jupiter.api.Test;
 

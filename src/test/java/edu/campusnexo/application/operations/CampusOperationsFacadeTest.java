@@ -30,6 +30,7 @@ import edu.campusnexo.support.InMemoryClimateRecommendationRepository;
 import edu.campusnexo.support.InMemoryOccupancyEstimateRepository;
 import edu.campusnexo.support.InMemoryReservationRepository;
 import edu.campusnexo.support.InMemorySpaceCatalogRepository;
+import edu.campusnexo.support.InMemorySpaceRepositoryPort;
 import edu.campusnexo.support.InMemoryTelemetryRepository;
 import edu.campusnexo.support.MutableClock;
 import edu.campusnexo.support.TestData;
@@ -54,7 +55,7 @@ class CampusOperationsFacadeTest {
                         Duration.ofMinutes(5), Duration.ofDays(30)),
                 new OccupancyEstimationService(clock, estimator, estimates, catalog, 420),
                 new ClimateRecommendationService(clock, catalog, recommendations,
-                        new HvacStateResolver(recommendations, clock),
+                        new HvacStateResolver(new InMemorySpaceRepositoryPort(), clock),
                         List.of(new AndeanClimatePolicyFactory(), new TropicalClimatePolicyFactory(),
                                 new MildClimatePolicyFactory())),
                 new ReservationService(clock, reservations, catalog),
@@ -64,7 +65,8 @@ class CampusOperationsFacadeTest {
     @Test
     @DisplayName("Evalúa el espacio desde la última lectura: IA (con respaldo) → recomendación trazable")
     void evaluatesFromLatestTelemetry() {
-        telemetryRepository.save(new Telemetry("AULA-301", TestData.NOW.minusSeconds(60), 22, 0, 24, 900, 17.0, 60, 250, 2.1));
+        telemetryRepository.save(new Telemetry("AULA-301", TestData.NOW.minusSeconds(60), 22, 0, 24, 900, 17.0, 60, 250, 2.1,
+                22));
         OccupancyEstimator aiDown = query -> {
             throw new OccupancyEstimatorUnavailableException(new RuntimeException("timeout"));
         };

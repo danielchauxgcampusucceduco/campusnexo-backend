@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import edu.campusnexo.domain.twin.HvacControlState;
 import edu.campusnexo.support.TwinTestFixture;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class TwinQueryServiceTest {
@@ -16,7 +17,8 @@ class TwinQueryServiceTest {
         var views = fixture.queries.spaces();
 
         assertEquals(fixture.catalog.listSpaces(null).size(), views.size());
-        assertTrue(views.stream().allMatch(view -> view.state().hvacState() == HvacControlState.APAGADO));
+        assertTrue(views.stream().allMatch(view -> view.state().hvacState() == (view.space().hvacInstalled()
+                ? HvacControlState.APAGADO : HvacControlState.SIN_CLIMATIZACION)));
         assertTrue(fixture.twins.findAllTwins().isEmpty());
         assertTrue(views.stream().allMatch(view -> view.rois() != null));
     }
@@ -30,9 +32,19 @@ class TwinQueryServiceTest {
 
         var savings = fixture.queries.savings();
 
-        assertEquals(fixture.catalog.listSpaces(null).size(), savings.spaces().size());
+        long withUnit = fixture.catalog.listSpaces(null).stream().filter(space -> space.hvacInstalled()).count();
+        assertEquals(withUnit, savings.spaces().size(), "solo los espacios con equipo pueden ahorrar");
         assertTrue(savings.totalKwh() >= 0);
         assertEquals(1, fixture.queries.recentTraces(1).size());
         assertNotNull(fixture.queries.space("LAB-IA-102").state());
+    }
+
+    @Test
+    @DisplayName("La vista del campus hace una consulta de regiones para todos los salones, no una por salón")
+    void campusViewReadsInBatch() {
+        int before = fixture.twins.roiQueries;
+        var views = fixture.queries.spaces();
+        assertTrue(views.size() > 10);
+        assertEquals(before + 1, fixture.twins.roiQueries);
     }
 }

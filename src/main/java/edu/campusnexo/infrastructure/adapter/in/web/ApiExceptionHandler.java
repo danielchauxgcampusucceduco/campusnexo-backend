@@ -1,6 +1,7 @@
 package edu.campusnexo.infrastructure.adapter.in.web;
 
 import edu.campusnexo.application.exception.ConflictException;
+import edu.campusnexo.application.exception.ForbiddenOperationException;
 import edu.campusnexo.application.exception.ResourceNotFoundException;
 import edu.campusnexo.domain.occupancy.OccupancyEstimatorInvalidResponseException;
 import edu.campusnexo.domain.occupancy.OccupancyEstimatorUnavailableException;
@@ -43,6 +44,11 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return problem(HttpStatus.NOT_FOUND, "Recurso no encontrado", exception.getMessage(), exception.code());
     }
 
+    @ExceptionHandler(ForbiddenOperationException.class)
+    ProblemDetail forbidden(ForbiddenOperationException exception) {
+        return problem(HttpStatus.FORBIDDEN, "Operación no permitida", exception.getMessage(), exception.code());
+    }
+
     @ExceptionHandler(ConflictException.class)
     ProblemDetail conflict(ConflictException exception) {
         return problem(HttpStatus.CONFLICT, "Conflicto con el estado actual", exception.getMessage(), exception.code());
@@ -62,9 +68,10 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(OccupancyEstimatorInvalidResponseException.class)
     ProblemDetail aiInvalidResponse(OccupancyEstimatorInvalidResponseException exception) {
+        // The details may quote the upstream answer: they go to the log, never to the client.
         log.warn("Respuesta no válida del servicio de IA: {}", exception.getMessage());
-        return problem(HttpStatus.BAD_GATEWAY, "Respuesta no válida del servicio de IA", exception.getMessage(),
-                "ai_service_invalid_response");
+        return problem(HttpStatus.BAD_GATEWAY, "Respuesta no válida del servicio de IA",
+                "El servicio de IA respondió algo que no cumple su contrato.", "ai_service_invalid_response");
     }
 
     @ExceptionHandler(ConstraintViolationException.class)

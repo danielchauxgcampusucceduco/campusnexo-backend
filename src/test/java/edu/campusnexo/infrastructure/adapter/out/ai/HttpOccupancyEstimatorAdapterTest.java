@@ -3,25 +3,27 @@ package edu.campusnexo.infrastructure.adapter.out.ai;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-import edu.campusnexo.domain.occupancy.OccupancyQuery;
 import edu.campusnexo.domain.occupancy.OccupancyEstimatorInvalidResponseException;
 import edu.campusnexo.domain.occupancy.OccupancyEstimatorUnavailableException;
+import edu.campusnexo.domain.occupancy.OccupancyQuery;
 import edu.campusnexo.domain.occupancy.OccupancySource;
+import java.io.IOException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
-import java.io.IOException;
 
 class HttpOccupancyEstimatorAdapterTest {
     @Test
@@ -31,7 +33,8 @@ class HttpOccupancyEstimatorAdapterTest {
         server.expect(requestTo("http://ai.test/v1/occupancy/estimate"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(content().json("""
-                        {"space_id":"A-301","yolo_people":12,"co2_ppm":720.0,"wifi_devices":10,"outdoor_co2_ppm":420.0}
+                        {"space_id":"A-301","yolo_people":12,"co2_ppm":720.0,"wifi_devices":10,"outdoor_co2_ppm":420.0,
+                         "area_sqm":48.0,"capacity":32}
                         """))
                 .andRespond(withSuccess("""
                         {"space_id":"A-301","occupancy_estimate":14,"confidence_pct":82.5,
@@ -108,6 +111,40 @@ class HttpOccupancyEstimatorAdapterTest {
 
         org.junit.jupiter.api.Assertions.assertThrows(OccupancyEstimatorUnavailableException.class,
                 () -> adapter.estimate(new OccupancyQuery("A-301", 32, 48, null, 720, 10, 420)));
+        server.verify();
+    }
+
+    @Test
+    void sendsTheServiceKeyOnEveryCall() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://ai.test/v1/occupancy/estimate"))
+                .andExpect(header("X-API-Key", "clave-de-prueba"))
+                .andRespond(withSuccess("""
+                        {"space_id":"A-301","occupancy_estimate":14,"confidence_pct":82.5}
+                        """, MediaType.APPLICATION_JSON));
+        HttpOccupancyEstimatorAdapter adapter = new HttpOccupancyEstimatorAdapter(
+                HttpOccupancyEstimatorAdapter.withApiKey(builder, "clave-de-prueba").baseUrl("http://ai.test").build());
+
+        adapter.estimate(new OccupancyQuery("A-301", 32, 48, null, 720, 10, 420));
+        server.verify();
+    }
+
+    @Test
+    void mapsRateLimitingToUnavailableWithTheRequestedWait() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.RETRY_AFTER, "120");
+        server.expect(requestTo("http://ai.test/v1/occupancy/estimate"))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS).headers(headers));
+        HttpOccupancyEstimatorAdapter adapter = new HttpOccupancyEstimatorAdapter(
+                builder.baseUrl("http://ai.test").build());
+
+        OccupancyEstimatorUnavailableException limited = org.junit.jupiter.api.Assertions.assertThrows(
+                OccupancyEstimatorUnavailableException.class,
+                () -> adapter.estimate(new OccupancyQuery("A-301", 32, 48, null, 720, 10, 420)));
+        assertEquals(java.util.Optional.of(java.time.Duration.ofSeconds(120)), limited.retryAfter());
         server.verify();
     }
 }

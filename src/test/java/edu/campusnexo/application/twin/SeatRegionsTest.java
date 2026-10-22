@@ -19,7 +19,7 @@ class SeatRegionsTest {
                 new NormalizedPoint(0.1, 0.1), new NormalizedPoint(0.8, 0.1), new NormalizedPoint(0.5, 0.8)));
         var repository = new InMemorySpaceRepositoryPort().withRois(room.spaceId(), List.of(drawn));
 
-        List<StudyZoneRoi> result = SeatRegions.of(room, repository);
+        List<StudyZoneRoi> result = new SeatRegions(repository).of(room);
 
         assertEquals(1, result.size());
         assertSame(drawn, result.getFirst());
@@ -29,7 +29,7 @@ class SeatRegionsTest {
     void derivesCameraRegionsWhenNoHandDrawnRoisExist() {
         var room = TestData.room("203-A", SpaceType.AULA, 6, 2, 3, 0);
 
-        var result = SeatRegions.of(room, new InMemorySpaceRepositoryPort());
+        var result = new SeatRegions(new InMemorySpaceRepositoryPort()).of(room);
 
         assertEquals(6, result.size());
         assertEquals("203-A-P01", result.getFirst().zoneId());

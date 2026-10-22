@@ -7,7 +7,10 @@ import static edu.campusnexo.domain.shared.DomainChecks.requireText;
 /**
  * A monitored space with the building and branch data needed by the use cases. {@code seatLayout} is
  * {@code null} for rooms without individual seats (offices, storage); {@code computers} counts the
- * workstations whose power state the room's Arduino reports.
+ * workstations whose power state the room's Arduino reports. {@code hvacInstalled} says whether the room has
+ * a climate unit the twin can command (rooms without one are never climatized and save no energy), and
+ * {@code simulationAllowed} marks the rooms the live demonstration may change; every other room is left
+ * untouched by the scenarios.
  */
 public record CampusSpace(
         String spaceId,
@@ -25,7 +28,9 @@ public record CampusSpace(
         double energyTariffCopPerKwh,
         int floor,
         SeatLayout seatLayout,
-        int computers) {
+        int computers,
+        boolean hvacInstalled,
+        boolean simulationAllowed) {
 
     public CampusSpace {
         requireText(spaceId, "spaceId");
@@ -42,11 +47,32 @@ public record CampusSpace(
         requireRange(computers, 0, 1_000, "computers");
     }
 
+    /** Space with a climate unit that the demonstration does not touch. */
+    public CampusSpace(String spaceId, String name, SpaceType type, int capacity, double areaSqm, String buildingId,
+                       String buildingName, String branchId, String branchName, String city,
+                       ClimateProfile climateProfile, double averageOutsideTempC, double energyTariffCopPerKwh, int floor,
+                       SeatLayout seatLayout, int computers) {
+        this(spaceId, name, type, capacity, areaSqm, buildingId, buildingName, branchId, branchName, city,
+                climateProfile, averageOutsideTempC, energyTariffCopPerKwh, floor, seatLayout, computers, true, false);
+    }
+
     /** Space on the ground floor with no seat grid and no computers. */
     public CampusSpace(String spaceId, String name, SpaceType type, int capacity, double areaSqm, String buildingId,
                        String buildingName, String branchId, String branchName, String city,
                        ClimateProfile climateProfile, double averageOutsideTempC, double energyTariffCopPerKwh) {
         this(spaceId, name, type, capacity, areaSqm, buildingId, buildingName, branchId, branchName, city,
-                climateProfile, averageOutsideTempC, energyTariffCopPerKwh, 1, null, 0);
+                climateProfile, averageOutsideTempC, energyTariffCopPerKwh, 1, null, 0, true, false);
+    }
+
+    public CampusSpace withSimulationAllowed(boolean allowed) {
+        return new CampusSpace(spaceId, name, type, capacity, areaSqm, buildingId, buildingName, branchId, branchName,
+                city, climateProfile, averageOutsideTempC, energyTariffCopPerKwh, floor, seatLayout, computers,
+                hvacInstalled, allowed);
+    }
+
+    public CampusSpace withHvacInstalled(boolean installed) {
+        return new CampusSpace(spaceId, name, type, capacity, areaSqm, buildingId, buildingName, branchId, branchName,
+                city, climateProfile, averageOutsideTempC, energyTariffCopPerKwh, floor, seatLayout, computers,
+                installed, simulationAllowed);
     }
 }

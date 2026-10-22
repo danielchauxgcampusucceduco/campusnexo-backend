@@ -15,7 +15,8 @@ class LoggingHvacActuatorAdapter implements HvacActuatorCommandPort {
 
     @Override
     public void send(HvacCommand command) {
-        log.info("Comando HVAC (sin hardware): spaceId={}, mode={}, compressorOn={}, setpoint={} °C, motivo={}",
-                command.spaceId(), command.state(), command.compressorOn(), command.setpointC(), command.reason());
+        log.info("Comando HVAC (sin hardware): spaceId={}, estrategia={}, modo={}, compressorOn={}, setpoint={} °C, "
+                        + "motivo={}", command.spaceId(), command.state(), command.mode(), command.compressorOn(),
+                command.setpointC(), command.reason());
     }
 }

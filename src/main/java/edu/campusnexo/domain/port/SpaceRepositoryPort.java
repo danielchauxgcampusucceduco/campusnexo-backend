@@ -2,12 +2,11 @@ package edu.campusnexo.domain.port;
 
 import edu.campusnexo.domain.twin.ConcurrentTwinUpdateException;
 import edu.campusnexo.domain.twin.SpaceTwinState;
-import edu.campusnexo.domain.vision.StudyZoneRoi;
 import java.util.List;
 import java.util.Optional;
 
 /**
- * Persistence of the digital twin and of the desk regions drawn over each camera.
+ * Persistence of the digital twin.
  *
  * <p>Writes are optimistic: every stored twin carries a revision, and {@link #saveTwin} only succeeds when
  * the caller saw the latest one. Two streams of the same room (camera and Arduino, or two backend
@@ -29,8 +28,6 @@ public interface SpaceRepositoryPort {
      * @throws ConcurrentTwinUpdateException if another writer stored the room first
      */
     StoredTwin saveTwin(SpaceTwinState state, long expectedRevision);
-
-    List<StudyZoneRoi> findRois(String spaceId);
 
     /** A twin as stored, with the revision a writer must present to replace it. */
     record StoredTwin(SpaceTwinState state, long revision) {

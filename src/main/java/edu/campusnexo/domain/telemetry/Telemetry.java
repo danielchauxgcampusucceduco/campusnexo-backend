@@ -8,9 +8,11 @@ import static edu.campusnexo.domain.telemetry.MeasurementLimits.*;
 import java.time.Instant;
 
 /**
- * Aggregated reading of a space. {@code peopleCount} is the aggregated count reported by the
- * sensor or camera pipeline; {@code objectCount} counts objects left on desks (used by the AI
- * service to detect seats held without people). No image or personal identifier is stored.
+ * Aggregated reading of a space. {@code peopleCount} is the occupancy recorded for the room (for camera
+ * frames, the Kalman estimate that fuses camera, CO₂ and Wi-Fi); {@code cameraPeople} is the camera's own
+ * count in that frame and is {@code null} when no camera saw the room. Keeping both apart lets the AI
+ * service fuse raw measurements instead of an estimate that already contains them. {@code objectCount}
+ * counts objects left on desks. No image or personal identifier is stored.
  */
 public record Telemetry(
         String spaceId,
@@ -22,7 +24,8 @@ public record Telemetry(
         double temperatureC,
         double humidityPct,
         double illuminanceLux,
-        double activePowerKw) {
+        double activePowerKw,
+        Integer cameraPeople) {
 
     public Telemetry {
         requireText(spaceId, "spaceId");
@@ -35,6 +38,17 @@ public record Telemetry(
         requireRange(humidityPct, MIN_HUMIDITY_PCT, MAX_HUMIDITY_PCT, "humidityPct");
         requireRange(illuminanceLux, MIN_ILLUMINANCE_LUX, MAX_ILLUMINANCE_LUX, "illuminanceLux");
         requireRange(activePowerKw, MIN_POWER_KW, MAX_POWER_KW, "activePowerKw");
+        if (cameraPeople != null) {
+            requireRange(cameraPeople, 0, MAX_PEOPLE, "cameraPeople");
+        }
+    }
+
+    /** Reading from a sensor or tool that does not separate a camera count. */
+    public Telemetry(String spaceId, Instant recordedAt, int peopleCount, int objectCount, int wifiDevices,
+                     double co2Ppm, double temperatureC, double humidityPct, double illuminanceLux,
+                     double activePowerKw) {
+        this(spaceId, recordedAt, peopleCount, objectCount, wifiDevices, co2Ppm, temperatureC, humidityPct,
+                illuminanceLux, activePowerKw, null);
     }
 
     public boolean isEmpty() {

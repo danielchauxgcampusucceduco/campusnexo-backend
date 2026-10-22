@@ -23,5 +23,14 @@ public interface AlertRepository {
 
     boolean existsSince(String spaceId, AlertType type, Instant from);
 
+    /**
+     * Stores {@code alert} unless an alert of the same type was raised for the space since {@code since}.
+     * Implementations must make check and insert atomic, also across backend instances (PostgreSQL: a
+     * transaction-scoped advisory lock per space and type), so concurrent observers never duplicate an alert.
+     *
+     * @return whether the alert was stored
+     */
+    boolean saveUnlessRaisedSince(Alert alert, Instant since);
+
     Map<AlertType, Long> countByTypeSince(Instant from);
 }

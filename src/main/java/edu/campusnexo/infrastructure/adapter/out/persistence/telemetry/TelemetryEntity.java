@@ -46,6 +46,10 @@ class TelemetryEntity {
     @Column(name = "active_power_kw", nullable = false)
     private double activePowerKw;
 
+    /** The camera's own count in that frame; {@code null} when no camera saw the room. */
+    @Column(name = "camera_people")
+    private Integer cameraPeople;
+
     protected TelemetryEntity() {
     }
 
@@ -60,10 +64,11 @@ class TelemetryEntity {
         humidityPct = telemetry.humidityPct();
         illuminanceLux = telemetry.illuminanceLux();
         activePowerKw = telemetry.activePowerKw();
+        cameraPeople = telemetry.cameraPeople();
     }
 
     Telemetry toDomain() {
         return new Telemetry(spaceId, recordedAt, peopleCount, objectCount, wifiDevices, co2Ppm, temperatureC,
-                humidityPct, illuminanceLux, activePowerKw);
+                humidityPct, illuminanceLux, activePowerKw, cameraPeople);
     }
 }

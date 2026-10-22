@@ -1,6 +1,6 @@
 package edu.campusnexo.infrastructure.adapter.out.websocket;
 
-import edu.campusnexo.domain.port.RealtimeDashboardNotifierPort;
+import edu.campusnexo.application.port.out.TwinChangeNotifierPort;
 import edu.campusnexo.domain.trace.ArchitectureTrace;
 import edu.campusnexo.domain.twin.SpaceTwinState;
 import edu.campusnexo.infrastructure.adapter.contract.TwinContracts.TraceResponse;
@@ -17,14 +17,14 @@ import org.springframework.stereotype.Component;
  * telemetry pipeline fail.
  */
 @Component
-class StompRealtimeDashboardNotifierAdapter implements RealtimeDashboardNotifierPort {
+class StompTwinChangeNotifierAdapter implements TwinChangeNotifierPort {
     static final String TWIN_TOPIC = "/topic/twin";
     static final String TRACE_TOPIC = "/topic/traces";
-    private static final Logger log = LoggerFactory.getLogger(StompRealtimeDashboardNotifierAdapter.class);
+    private static final Logger log = LoggerFactory.getLogger(StompTwinChangeNotifierAdapter.class);
 
     private final SimpMessagingTemplate messaging;
 
-    StompRealtimeDashboardNotifierAdapter(SimpMessagingTemplate messaging) {
+    StompTwinChangeNotifierAdapter(SimpMessagingTemplate messaging) {
         this.messaging = messaging;
     }
 
