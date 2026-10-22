@@ -23,7 +23,11 @@ public record KalmanParameters(
         double co2PpmPerPersonSqm) {
 
     public KalmanParameters {
-        require(processNoisePerMinute > 0 && cameraVariance > 0 && co2RelativeError > 0 && wifiRelativeError > 0
+        require(Double.isFinite(processNoisePerMinute) && Double.isFinite(cameraVariance)
+                && Double.isFinite(co2RelativeError) && Double.isFinite(wifiRelativeError)
+                && Double.isFinite(peoplePerDevice) && Double.isFinite(outdoorCo2Ppm)
+                && Double.isFinite(co2PpmPerPersonSqm)
+                && processNoisePerMinute > 0 && cameraVariance > 0 && co2RelativeError > 0 && wifiRelativeError > 0
                 && peoplePerDevice > 0 && outdoorCo2Ppm > 0 && co2PpmPerPersonSqm > 0,
                 "Los parámetros del filtro de Kalman deben ser positivos");
     }
