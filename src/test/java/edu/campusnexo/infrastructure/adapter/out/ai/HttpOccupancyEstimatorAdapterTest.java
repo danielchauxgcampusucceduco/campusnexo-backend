@@ -7,6 +7,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
 
 import edu.campusnexo.domain.occupancy.OccupancyQuery;
 import edu.campusnexo.domain.occupancy.OccupancyEstimatorInvalidResponseException;
@@ -20,6 +21,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+import java.io.IOException;
 
 class HttpOccupancyEstimatorAdapterTest {
     @Test
@@ -91,6 +93,20 @@ class HttpOccupancyEstimatorAdapterTest {
                 builder.baseUrl("http://ai.test").build());
 
         org.junit.jupiter.api.Assertions.assertThrows(OccupancyEstimatorInvalidResponseException.class,
+                () -> adapter.estimate(new OccupancyQuery("A-301", 32, 48, null, 720, 10, 420)));
+        server.verify();
+    }
+
+    @Test
+    void mapsConnectionFailuresToRetryableAvailabilityErrors() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://ai.test/v1/occupancy/estimate"))
+                .andRespond(withException(new IOException("connect timed out")));
+        HttpOccupancyEstimatorAdapter adapter = new HttpOccupancyEstimatorAdapter(
+                builder.baseUrl("http://ai.test").build());
+
+        org.junit.jupiter.api.Assertions.assertThrows(OccupancyEstimatorUnavailableException.class,
                 () -> adapter.estimate(new OccupancyQuery("A-301", 32, 48, null, 720, 10, 420)));
         server.verify();
     }
