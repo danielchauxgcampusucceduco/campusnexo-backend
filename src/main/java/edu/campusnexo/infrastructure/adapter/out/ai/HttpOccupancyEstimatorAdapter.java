@@ -11,6 +11,7 @@ import edu.campusnexo.domain.shared.DomainValidationException;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpServerErrorException;
@@ -27,6 +28,7 @@ import org.springframework.web.client.RestClientException;
 class HttpOccupancyEstimatorAdapter implements OccupancyEstimator {
     private final RestClient client;
 
+    @Autowired
     HttpOccupancyEstimatorAdapter(RestClient.Builder builder,
                                   @Value("${app.ai.base-url}") String baseUrl,
                                   @Value("${app.ai.connect-timeout}") Duration connectTimeout,
@@ -35,6 +37,10 @@ class HttpOccupancyEstimatorAdapter implements OccupancyEstimator {
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(readTimeout);
         this.client = builder.clone().baseUrl(baseUrl).requestFactory(requestFactory).build();
+    }
+
+    HttpOccupancyEstimatorAdapter(RestClient client) {
+        this.client = client;
     }
 
     @Override
