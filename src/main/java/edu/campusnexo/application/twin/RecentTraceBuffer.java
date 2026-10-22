@@ -33,6 +33,6 @@ public final class RecentTraceBuffer {
             }
             result.add(trace);
         }
-        return result;
+        return List.copyOf(result);
     }
 }
