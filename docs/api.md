@@ -140,7 +140,7 @@ Consultas:
 
 ## Alertas
 
-`GET /api/v1/alerts?spaceId=&type=&limit=`: tipos `CO2_ALTO`, `SOBRECUPO`, `CONSUMO_ESPACIO_VACIO` y `RESERVA_SIN_USO`; severidad `ADVERTENCIA` o `CRITICA`. La misma alerta no se repite para un espacio durante `ALERT_COOLDOWN` (15 min). `RESERVA_SIN_USO` se emite una vez por reserva, cuando el espacio sigue vacío `RESERVATION_GRACE` (15 min) después de iniciar. Las alertas se calculan fuera del hilo de la petición (observadores asíncronos con hasta 3 intentos): pueden aparecer unos milisegundos después de que `POST /telemetry` responde.
+`GET /api/v1/alerts?spaceId=&type=&limit=`: tipos `CO2_ALTO`, `SOBRECUPO`, `CONSUMO_ESPACIO_VACIO` y `RESERVA_SIN_USO`; severidad `ADVERTENCIA` o `CRITICA`. La misma alerta no se repite para un espacio durante `ALERT_COOLDOWN` (15 min). `RESERVA_SIN_USO` se emite una vez por reserva, cuando el espacio sigue vacío `NO_SHOW_GRACE` (15 min, el mismo plazo con el que el gemelo marca el no-show) después de iniciar. Dos instancias no pueden emitir la misma alerta a la vez: la comprobación y la escritura se hacen bajo un candado de PostgreSQL por espacio y tipo. Las alertas se calculan fuera del hilo de la petición (observadores asíncronos con hasta 3 intentos): pueden aparecer unos milisegundos después de que `POST /telemetry` responde.
 
 ## Reservas
 
@@ -150,12 +150,16 @@ Consultas:
 { "startsAt": "2026-10-21T13:00:00Z", "endsAt": "2026-10-21T15:00:00Z", "expectedAttendees": 25, "reference": "IS-701" }
 ```
 
-`reference` es un código de curso o grupo, sin datos personales. Las reglas son: duración máxima de 12 h, `expectedAttendees` ≤ aforo y sin solapamiento (`409 reservation_conflict`). El solapamiento lo garantiza PostgreSQL con una restricción de exclusión sobre `tstzrange(starts_at, ends_at)` por espacio (V13): si dos peticiones simultáneas pasan la comprobación previa, la base confirma una y la otra recibe `409`. Responde `201` con `Location: /api/v1/reservations/{id}`.
+`reference` es un código de curso o grupo, sin datos personales. El servidor registra quién la creó (`createdBy`, el usuario de la sesión) y su origen (`origin`: `USUARIO` o `SIMULACION`); ambos vienen en la respuesta. Las reglas son: duración máxima de 12 h, `expectedAttendees` ≤ aforo y sin solapamiento (`409 reservation_conflict`). El solapamiento lo garantiza PostgreSQL con una restricción de exclusión sobre `tstzrange(starts_at, ends_at)` por espacio (V13): si dos peticiones simultáneas pasan la comprobación previa, la base confirma una y la otra recibe `409`. Responde `201` con `Location: /api/v1/reservations/{id}`.
 
 Consultas:
 
 - `GET /api/v1/spaces/{spaceId}/reservations?from=&to=`: por defecto, desde un día atrás hasta siete días adelante; ventana máxima de 31 días.
 - `GET /api/v1/reservations/{reservationId}`
+
+### `DELETE /api/v1/reservations/{reservationId}` 🔑
+
+Responde `204`. Solo la persona que creó la reserva o un ADMIN pueden cancelarla; cualquier otro OPERATOR recibe `403 reservation_not_owned`.
 
 ## Dashboard
 
@@ -187,12 +191,13 @@ La energía en espacios vacíos se **estima** integrando la potencia de las lect
 | 401 | `authentication_required` | Faltan credenciales, el token venció o la clave de sensor no es válida. |
 | 401 | `invalid_credentials` | Usuario o contraseña incorrectos en `/auth/login`. |
 | 403 | `forbidden` | El rol no permite la operación (el mensaje dice cuál se necesita). |
+| 403 | `reservation_not_owned` | Solo quien creó la reserva o un ADMIN puede cancelarla. |
 | 429 | `rate_limited` | Demasiados intentos de inicio de sesión o escrituras por minuto (`Retry-After: 60`). |
 | 404 | `space_not_found`, `recommendation_not_found`, `occupancy_estimate_not_found`, `reservation_not_found`, `route_not_found` | No existe. |
 | 405 / 415 | `method_not_allowed` / `unsupported_media_type` | Método o tipo de contenido no soportado. |
 | 409 | `telemetry_not_available`, `reservation_conflict`, `twin_concurrent_update` | Conflicto con el estado actual (`twin_concurrent_update`: el salón cambió en otra instancia tres veces seguidas mientras se decidía; se puede reintentar). |
 | 500 | `internal_error` | Error inesperado (el detalle solo queda en los logs). |
-| 502 | `ai_service_invalid_response` | La IA respondió datos inválidos. |
+| 502 | `ai_service_invalid_response` | La IA respondió datos inválidos (el detalle técnico solo queda en los logs). |
 | 503 | `ai_service_unavailable` | La IA no respondió y el respaldo está desactivado. |
 
 ```json
@@ -208,4 +213,12 @@ La energía en espacios vacíos se **estima** integrando la potencia de las lect
 
 ## Gemelo digital y simulación
 
-Las rutas `/api/v1/twin/**`, `/api/v1/simulation/**`, el WebSocket STOMP `/ws` y los contratos MQTT están documentados en [`gemelo-digital.md`](gemelo-digital.md). También se agregó `DELETE /api/v1/reservations/{id}` 🔑 (`204`), para cancelar reservas.
+Las rutas `/api/v1/twin/**`, `/api/v1/simulation/**`, el WebSocket STOMP `/ws` y los contratos MQTT están documentados en [`gemelo-digital.md`](gemelo-digital.md).
+
+Cambios de la auditoría técnica (V15):
+
+- Reservas: `origin` y `createdBy`; la cancelación exige ser autor o ADMIN.
+- Telemetría: `cameraPeople` (conteo crudo de la cámara) junto a `peopleCount` (estimación fusionada); una sola lectura por espacio e instante.
+- Gemelo: `hvacMode`, `hvacSetpointC`, `hvacReason`; los espacios informan `hvacInstalled` y `simulationAllowed`.
+- Estimación con IA: el backend envía `area_sqm` y `capacity` y se autentica con `X-API-Key` (`AI_API_KEY`); un `429` del servicio abre el circuito durante su `Retry-After`.
+- `GET /actuator/prometheus` (solo ADMIN): lecturas descartadas, conflictos de escritura, respaldos de IA y estado del circuito.

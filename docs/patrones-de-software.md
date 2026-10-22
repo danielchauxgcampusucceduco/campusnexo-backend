@@ -1,114 +1,133 @@
 # Patrones de software en CampusNexo Backend
 
-Cada patrón se justifica por un problema concreto del caso, con participantes reales y una colaboración que se puede ejecutar y probar. La arquitectura hexagonal organiza las dependencias, pero **no se cuenta** como patrón GoF.
+Cada patrón se justifica por un problema concreto del caso, con participantes reales, una colaboración que se ejecuta en producción y una prueba automatizada que la ejercita. La arquitectura hexagonal organiza las dependencias, pero **no se cuenta** como patrón GoF.
 
 ## Resumen
 
 | # | Categoría | Patrón | Problema del caso que resuelve | Participantes | Prueba automatizada |
 |---|---|---|---|---|---|
-| 1 | Creacional | **Abstract Factory** | Cada sede de la universidad necesita una familia coherente de algoritmos de clima: en Pasto se calienta, en Barranquilla se enfría, se deshumidifica y se controla la radiación solar, en Medellín se prefiere la ventilación natural. | `ClimatePolicyFactory` (fábrica abstracta); `AndeanClimatePolicyFactory`, `TropicalClimatePolicyFactory`, `MildClimatePolicyFactory` (fábricas concretas); `ThermalPolicy`, `VentilationPolicy`, `LightingPolicy` (productos abstractos); cliente `ClimateRecommendationService`. | `ClimatePolicyFactoryTest`, `ClimateRecommendationServiceTest` |
-| 2 | Creacional | **Builder** | Una recomendación auditable se arma por partes (tres decisiones que salen de estrategias distintas y datos de procedencia opcionales: fuente de la ocupación, instante de la telemetría, entradas usadas). | `ClimateRecommendation.Builder`, producto inmutable `ClimateRecommendation`, director `ClimateRecommendationService`. | `ClimateRecommendationTest` |
-| 3 | Estructural | **Adapter** | El servicio de IA en Python habla HTTP/JSON `snake_case` y tiene sus propios errores; el núcleo Java solo conoce `OccupancyEstimator`. | Target `OccupancyEstimator`; Adapter `HttpOccupancyEstimatorAdapter`; Adaptee: API FastAPI `/v1/occupancy/estimate` (a través de `RestClient`). | `CampusNexoApiIntegrationTest` (IA caída) |
-| 4 | Estructural | **Decorator** | Si la IA falla, el campus debe seguir operando; reintentar y tener un respaldo son responsabilidades que se agregan sin modificar el adaptador. | Componente `OccupancyEstimator`; decoradores `RetryingOccupancyEstimator`, `FallbackOccupancyEstimator`; componente concreto de respaldo `LocalHeuristicOccupancyEstimator`. Segundo uso: `MinimumCycleThermalPolicy` agrega la protección del compresor a cualquier `ThermalPolicy`. | `OccupancyDecoratorsTest`, `MinimumCycleThermalPolicyTest` |
-| 5 | Estructural | **Facade** | Evaluar un espacio exige coordinar catálogo, telemetría, IA, clima, reservas y alertas en un orden preciso. | Fachada `CampusOperationsFacade` (`SpaceEvaluationUseCase`); subsistemas: los casos de uso de catálogo, telemetría, ocupación, clima, reservas y alertas. | `CampusOperationsFacadeTest` |
-| 6 | Comportamiento | **Strategy** | Los algoritmos de decisión térmica, de ventilación y de iluminación son intercambiables. | Estrategias `ThermalPolicy` (3 implementaciones), `VentilationPolicy` (2), `LightingPolicy` (2); contexto `ClimateRecommendationService`. | `ThermalPolicyTest`, `VentilationAndLightingPolicyTest` |
-| 7 | Comportamiento | **Observer** | Una lectura de sensor debe disparar varias reacciones independientes (CO₂, sobrecupo, consumo en vacío, reserva sin uso). | Sujeto `TelemetryEventPublisher`; observador `TelemetryObserver`; observadores concretos en `application/alert` y `LoggingTelemetryObserver`; evento `TelemetryRecorded`. | `AlertObserversTest`, `TelemetryEventPublisherTest` |
+| 1 | Creacional | **Abstract Factory** | Cada sede necesita una familia coherente de clima: qué es confort, cómo se protege el compresor y qué algoritmos térmico, de ventilación y de iluminación se usan juntos. | `ClimatePolicyFactory`; `AndeanClimatePolicyFactory`, `TropicalClimatePolicyFactory`, `MildClimatePolicyFactory`; productos `ComfortBand`, `CompressorGuard`, `ThermalPolicy`, `VentilationPolicy`, `LightingPolicy`; registro `ClimateFamilies`; clientes `ClimateRecommendationService` **y** `TwinDecisionEngine` (el gemelo). | `ClimatePolicyFactoryTest`, `ComfortBandTest`, `ClimateRecommendationServiceTest`, `TwinPipelineTest` |
+| 2 | Creacional | **Builder** | Dos objetos inmutables con muchas partes: la recomendación auditable (diez partes, cuatro opcionales) y el estado del gemelo (quince partes que cada decisión copia y cambia en parte). | `ClimateRecommendation.Builder`; `SpaceTwinState.Builder` (`toBuilder()`); directores `ClimateRecommendationService` y `TwinDecisionEngine`. | `ClimateRecommendationTest`, `TwinPipelineTest` |
+| 3 | Estructural | **Adapter** | El servicio de IA en Python habla HTTP/JSON `snake_case`, con su clave y sus códigos de error; el núcleo solo conoce `OccupancyEstimator`. | Target `OccupancyEstimator`; Adapter `HttpOccupancyEstimatorAdapter`; Adaptee la API FastAPI `/v1/occupancy/estimate`. | `HttpOccupancyEstimatorAdapterTest` (servidor HTTP simulado: éxito, espacio cambiado, 5xx, 429 con `Retry-After`, JSON roto, *timeout*, clave) |
+| 4 | Estructural | **Decorator** | Reintentar, cortar el circuito y tener respaldo son responsabilidades que se apilan sobre el adaptador sin modificarlo. Igual con la protección del compresor sobre cualquier algoritmo térmico. | Componente `OccupancyEstimator`; decoradores `RetryingOccupancyEstimator`, `CircuitBreakerOccupancyEstimator`, `FallbackOccupancyEstimator`; `MinimumCycleThermalPolicy` sobre `ThermalPolicy`. | `OccupancyDecoratorsTest`, `ResilienceChainTest`, `MinimumCycleThermalPolicyTest` |
+| 5 | Estructural | **Facade** | Evaluar un espacio exige coordinar catálogo, telemetría, IA, clima, reservas y alertas en un orden preciso. | `CampusOperationsFacade` (`SpaceEvaluationUseCase`) sobre los casos de uso de cada subsistema. | `CampusOperationsFacadeTest` |
+| 6 | Estructural | **Proxy** | El catálogo y las regiones de pupitre solo cambian con una migración, pero cada frame y cada petición los buscaba en PostgreSQL. | Sujeto `SpaceCatalogRepository` / `SeatRegionRepository`; proxies `CachingSpaceCatalogRepository`, `CachingSeatRegionRepository`; sujetos reales los adaptadores JPA. | `CachingProxiesTest` (100 búsquedas, 1 consulta) |
+| 7 | Comportamiento | **Strategy** | Los algoritmos térmicos, de ventilación y de iluminación son intercambiables por familia. | `ThermalPolicy` (3), `VentilationPolicy` (2), `LightingPolicy` (2); contextos `ClimateRecommendationService` y la regla `FamilyStrategyRule` del gemelo. | `ThermalPolicyTest`, `VentilationAndLightingPolicyTest`, `HvacSettingChainTest` |
+| 8 | Comportamiento | **Observer** | Una lectura debe disparar varias reacciones independientes (CO₂, sobrecupo, consumo en vacío, reserva sin uso). | Sujeto `TelemetryEventPublisher`; `TelemetryObserver` y sus observadores en `application/alert`; evento `TelemetryRecorded`. | `AlertObserversTest`, `TelemetryEventPublisherTest` |
+| 9 | Comportamiento | **Chain of Responsibility** | Quién decide qué hace el equipo de clima de un salón: sin equipo, mantenimiento, control del docente, protección del compresor, familia climática o control predictivo, en ese orden de precedencia. Antes eran ternarios anidados. | Handler `HvacSettingRule`; cadena `HvacSettingChain`; reglas `NoClimateUnitRule`, `MaintenanceRule`, `ManualOverrideRule`, `CompressorProtectionRule`, `FamilyStrategyRule`, `PredictiveControlRule`. | `HvacSettingChainTest` |
+| 10 | Comportamiento | **State** | El *circuit breaker* frente a la IA se comporta distinto cerrado, abierto o semiabierto, y cada estado decide su transición. | Contexto `CircuitBreakerOccupancyEstimator`; estados `Closed`, `Open`, `HalfOpen` (interfaz `BreakerState`). | `CircuitBreakerOccupancyEstimatorTest` |
 
-Los **cinco patrones vistos en clase** (Abstract Factory, Builder, Adapter, Decorator y Facade) son la selección principal. Strategy y Observer son patrones investigados adicionalmente, como pide el requisito "investigar más patrones".
+Los **cinco patrones vistos en clase** (Abstract Factory, Builder, Adapter, Decorator y Facade) son la selección principal. Proxy, Strategy, Observer, Chain of Responsibility y State son patrones investigados adicionalmente, cada uno resolviendo un problema medible del caso.
 
-## 1. Abstract Factory
+## 1. Abstract Factory: un solo cerebro de clima
 
-`ClimateRecommendationService` obtiene el perfil climático de la sede y pide a su fábrica las tres estrategias. Las familias **no se diferencian solo por números**: cada una combina algoritmos distintos que tienen sentido juntos.
-
-| Familia | Térmica | Ventilación | Iluminación |
-|---|---|---|---|
-| Andina (Pasto, 14,5 °C promedio) | `HeatingFirstThermalPolicy`: calefacción bajo 19 °C | `Co2ThresholdVentilationPolicy`: mecánica con ventanas cerradas | `DaylightHarvestingPolicy` |
-| Tropical (Barranquilla, 31,8 °C) | `CoolingWithDehumidificationPolicy`: enfría y deshumidifica | `Co2ThresholdVentilationPolicy` (900 ppm, edificio cerrado por aire acondicionado) | `GlareControlLightingPolicy`: cierra persianas para reducir la carga térmica |
-| Templada (Medellín, 22,8 °C) | `ComfortBandThermalPolicy`: banda amplia, prefiere el enfriamiento libre | `NaturalVentilationPolicy`: abre ventanas si el exterior es apto | `DaylightHarvestingPolicy` |
-
-Mezclar familias sería incoherente (por ejemplo, abrir ventanas en Barranquilla mientras opera el aire acondicionado). Al iniciar, el servicio verifica que exista una fábrica por cada perfil.
+La familia define **todo lo que significa clima en esa sede**: la banda de confort, la protección del compresor y los tres algoritmos. Y la leen los dos decisores del campus:
 
 ```text
-POST /api/v1/spaces/{id}/climate-recommendations
-  → ClimateRecommendationService
-  → ClimatePolicyFactory del perfil de la sede        (Abstract Factory)
-  → ThermalPolicy / VentilationPolicy / LightingPolicy (Strategy)
-       ThermalPolicy envuelta en MinimumCycleThermalPolicy (Decorator)
-  → ClimateRecommendation.Builder                     (Builder)
-  → ClimateRecommendationRepository
+Familia (ClimatePolicyFactory) de la sede
+ ├─ comfortBand() ───────────► ThermalInertiaMpcDomainService   (gemelo: cuándo encender, pre-calentar, cortar)
+ ├─ createThermalStrategy() ─► FamilyStrategyRule               (gemelo: qué modo — calentar, enfriar, deshumidificar)
+ ├─ compressorGuard() ───────► CompressorProtectionRule         (gemelo) y MinimumCycleThermalPolicy (recomendación)
+ └─ createThermalPolicy(), createVentilationPolicy(), createLightingPolicy()
+                              ► ClimateRecommendationService    (POST /climate-recommendations y /evaluations)
 ```
+
+| Familia | Banda | Térmica | Ventilación | Iluminación |
+|---|---|---|---|---|
+| Andina (Pasto) | 19–24 °C | `HeatingFirstThermalPolicy`: calefacción bajo 19 °C | `Co2ThresholdVentilationPolicy`, ventanas cerradas | `DaylightHarvestingPolicy` |
+| Tropical (Barranquilla) | 23–26 °C | `CoolingWithDehumidificationPolicy`: enfría y deshumidifica | `Co2ThresholdVentilationPolicy` (900 ppm) | `GlareControlLightingPolicy` |
+| Templada (Medellín) | 20–25 °C | `ComfortBandThermalPolicy`: prefiere el enfriamiento libre | `NaturalVentilationPolicy` | `DaylightHarvestingPolicy` |
+
+Mezclar familias sería incoherente, y ahora también es imposible entre el gemelo y la recomendación: no hay una segunda tabla de bandas. `ClimateFamilies` verifica al arrancar que exista exactamente una fábrica por perfil.
 
 ## 2. Builder
 
-El constructor canónico del `record` es el único lugar donde se valida. El `Builder` permite que el servicio arme la recomendación a medida que obtiene cada parte, genera el identificador y aplica los valores por defecto a las partes opcionales (`occupancySource = MANUAL`, sin snapshot de entradas). No se usa Builder "por usarlo": la recomendación tiene diez componentes, cuatro de ellos opcionales.
-
-Diferencia con el Builder GoF clásico: no hay un Builder abstracto con varias representaciones; es la variante con interfaz fluida para objetos inmutables. El papel de director lo cumple `ClimateRecommendationService`. Conviene explicarlo así en la sustentación.
+`ClimateRecommendation.Builder` arma la recomendación a medida que salen las tres decisiones y aplica los valores por defecto de las partes opcionales. `SpaceTwinState.Builder` resuelve el otro extremo: un estado de quince partes (cada una un *value object*: `HvacSetting`, `Environment`, `Sensing`, `ManualControls`, `RoomTimers`…) que cada decisión copia y cambia en parte. Sin él, cada cambio era un constructor de 22 argumentos en orden fijo, donde intercambiar dos `double` compilaba sin aviso. Es la variante fluida para objetos inmutables, no el Builder GoF con varias representaciones.
 
 ## 3. Adapter
 
-`HttpOccupancyEstimatorAdapter` convierte `OccupancyQuery` en el JSON `snake_case` que espera FastAPI y la respuesta en `OccupancyEstimate`. También traduce los errores: un fallo de transporte o un 5xx produce `OccupancyEstimatorUnavailableException` (HTTP 503); una respuesta incompleta, con datos fuera de rango o de otro espacio produce `OccupancyEstimatorInvalidResponseException` (HTTP 502). El dominio no importa clases HTTP.
+`HttpOccupancyEstimatorAdapter` convierte `OccupancyQuery` en el JSON que espera FastAPI (con el conteo **crudo** de la cámara, el área y la capacidad del salón) y envía la clave `X-API-Key`. Traduce los errores: transporte, 5xx y 429 → `OccupancyEstimatorUnavailableException` (con el `Retry-After` del servicio, si lo hay); respuesta incompleta, fuera de rango o de otro espacio → `OccupancyEstimatorInvalidResponseException` (502, sin reenviar al cliente el texto del servicio). El dominio no importa clases HTTP.
 
 ## 4. Decorator
 
 ```text
-FallbackOccupancyEstimator            ← si todo falla, responde la heurística local
-  └─ RetryingOccupancyEstimator       ← reintenta si la IA no está disponible
-       └─ HttpOccupancyEstimatorAdapter (Adapter)
+FallbackOccupancyEstimator               ← si todo falla: la misma fusión, calculada en Java (RESPALDO_LOCAL)
+  └─ CircuitBreakerOccupancyEstimator    ← tras 3 fallas deja de llamar 30 s (o lo que pida Retry-After)
+       └─ RetryingOccupancyEstimator     ← 2 intentos, espera 100 ms × 2^n con jitter
+            └─ HttpOccupancyEstimatorAdapter (Adapter)
 ```
 
-La composición se arma en `ApplicationConfiguration` y se activa o desactiva por configuración (`AI_MAX_ATTEMPTS`, `AI_FALLBACK_ENABLED`). Cada resultado indica su fuente real (`SERVICIO_IA` o `RESPALDO_LOCAL`), que también queda en la recomendación. La heurística local es ilustrativa y reporta una confianza baja a propósito.
+La composición se arma en `ApplicationConfiguration` y se ajusta por configuración (`AI_MAX_ATTEMPTS`, `AI_BACKOFF`, `AI_CIRCUIT_*`, `AI_FALLBACK_ENABLED`). Con la IA caída, la primera evaluación tarda como máximo 2 × (1 s + 2 s) + 0,15 s; con el circuito abierto, el respaldo responde en microsegundos. Cada respaldo se cuenta en `campusnexo_ai_fallbacks_total`.
 
 ## 5. Facade
 
-`POST /api/v1/spaces/{id}/evaluations` ejecuta el flujo completo del caso: toma la última lectura del sensor, estima la ocupación con IA (con respaldo), deriva el estado actual del HVAC desde el historial, genera y guarda la recomendación y devuelve también la reserva activa y las alertas recientes. Antes, el cliente tenía que copiar valores de una respuesta a la siguiente petición.
+`POST /api/v1/spaces/{id}/evaluations` toma la última lectura, estima la ocupación con el **conteo propio de la cámara** (nunca con la estimación ya fusionada del gemelo, que contaría dos veces el CO₂ y el Wi-Fi), genera y guarda la recomendación con el estado HVAC **real** que el gemelo comandó y devuelve la reserva activa y las alertas recientes.
 
-## 6. Strategy
+## 6. Proxy
 
-El cliente (`ClimateRecommendationService`) solo conoce las interfaces. Hay varias implementaciones por interfaz, que se intercambian según la familia. Las pruebas muestran que un mismo ambiente (17 °C, 60 % HR) produce calefacción en la sede andina y climatización apagada en la tropical.
+`CachingSpaceCatalogRepository` y `CachingSeatRegionRepository` tienen la interfaz del repositorio y responden desde memoria; cargan todo en una consulta por tiempo de vida (`CATALOG_CACHE_TTL`, 5 min). Junto con las consultas en lote de `TwinQueryService`, la vista del campus pasó de unas 216 consultas por petición (dos por salón) a cuatro.
 
-## 7. Observer
+## 7. Strategy
 
-Después de guardar una lectura, `TelemetryService` publica `TelemetryRecorded`. Cada observador evalúa una regla y **persiste** la alerta (`GET /api/v1/alerts`), con un periodo de enfriamiento para no repetir la misma alerta en cada lectura. Agregar un observador no exige modificar el publicador: `LoggingTelemetryObserver` se registra solo, como componente de Spring.
+Los clientes solo conocen las interfaces. Un mismo ambiente (17 °C, 60 % HR) produce calefacción en la familia andina y climatización apagada en la tropical; con 82 % de humedad y la temperatura en banda, la estrategia tropical deshumidifica, y el gemelo lo aplica a través de `FamilyStrategyRule`.
 
-La entrega es **asíncrona** (un grupo pequeño de hilos, fuera de la petición) y cada entrega fallida se **reintenta** hasta 3 veces con espera creciente; si sigue fallando se reporta, sin afectar a los demás observadores ni a la lectura guardada. Si la cola se llena, la ingesta hace la entrega ella misma (se frena en vez de perder reacciones). Lo que no garantiza: si el proceso se reinicia con entregas pendientes, se pierden (están en memoria). Para alertas que se recalculan con la siguiente lectura es aceptable; si algún observador tuviera que ejecutarse exactamente una vez, el paso siguiente sería una tabla *outbox* en la base de datos.
+## 8. Observer
+
+Después de guardar una lectura, y **solo cuando la transacción confirma** (`UnitOfWork.afterCommit`), `TelemetryService` publica `TelemetryRecorded`. Cada observador evalúa una regla y guarda la alerta con un periodo de enfriamiento. El repositorio hace la comprobación y la inserción en un solo paso atómico (bloqueo *advisory* de PostgreSQL por salón y tipo), así que dos hilos o dos instancias no duplican una alerta. La entrega es asíncrona con hasta 3 intentos; si el grupo de hilos está saturado, la entrega se reporta en lugar de ejecutarse en el hilo de la cámara: la alerta se deriva de nuevo con la siguiente lectura, mientras que un *pipeline* bloqueado perdería frames.
+
+## 9. Chain of Responsibility
+
+```text
+NoClimateUnitRule → MaintenanceRule → ManualOverrideRule → CompressorProtectionRule → FamilyStrategyRule → PredictiveControlRule
+   sin equipo         apaga ya            docente: centro       retiene el cambio si       la familia elige      propone la
+   → SIN_CLIMATIZ.                         de la banda           acortaría el ciclo          el modo               estrategia (MPC)
+```
+
+Cada regla decide o pasa la petición con `next.proceed(request)`; `CompressorProtectionRule` y `FamilyStrategyRule` además ajustan lo que propuso el resto de la cadena. El orden **es** la precedencia y se prueba (`rulesAreOrderedByPrecedence`). Agregar una regla (por ejemplo, horario de mantenimiento preventivo) es una clase nueva y una línea en `HvacSettingChain.standard()`.
+
+## 10. State
+
+`CircuitBreakerOccupancyEstimator` delega cada llamada en su estado actual. `Closed` cuenta fallas consecutivas y pasa a `Open`; `Open` falla de inmediato hasta su instante de reapertura y entonces pasa a `HalfOpen`; `HalfOpen` permite una sola llamada de prueba (las concurrentes fallan rápido) y vuelve a `Closed` o a `Open`. Un 429 con `Retry-After` abre el circuito de inmediato por el tiempo pedido. Las transiciones se publican en `campusnexo_ai_circuit_transitions_total`.
 
 ## Guion de demostración (aprox. 10 minutos)
 
-La base de datos carga un solo campus, UCC Pasto (familia andina). Las familias tropical y templada siguen en el código porque la UCC tiene sedes en otros climas; se demuestran con sus pruebas.
-
-1. `GET /api/v1/spaces`: mostrar el campus, sus bloques A y B y los 107 espacios del plano.
-2. Iniciar sesión (`POST /api/v1/auth/login`) y enviar al salón `424-A` (18 pupitres) una lectura fría con 25 personas y 1600 ppm de CO₂ con la clave de sensor (`X-API-Key`). Consultar `GET /api/v1/alerts?spaceId=424-A`: aparecen `CO2_ALTO` y `SOBRECUPO` (**Observer**).
-3. `POST /api/v1/spaces/424-A/evaluations` con un token de OPERATOR y el servicio de IA apagado: la ocupación sale con `source = RESPALDO_LOCAL` (**Decorator** sobre el **Adapter**) y la recomendación es `CALEFACCION` (**Facade**, **Abstract Factory**, **Strategy**, **Builder**).
-4. Repetir la evaluación con la IA encendida: `source = SERVICIO_IA`.
-5. Ejecutar `ClimatePolicyFactoryTest` y `ThermalPolicyTest`: el mismo ambiente (17 °C, 60 % HR) produce calefacción en la familia andina, climatización apagada en la tropical y enfriamiento libre en la templada.
-6. Crear una reserva en `402-B`, enviar lecturas vacías después de 15 minutos y mostrar `RESERVA_SIN_USO` (o ejecutar el escenario `NO_SHOW`).
-7. `GET /api/v1/occupancy/live?type=BIBLIOTECA` y `GET /api/v1/dashboard/summary`.
-8. Mostrar en el código las pruebas de cada patrón (tabla de arriba) y el reporte de cobertura de la CI.
+1. `GET /api/v1/spaces`: el campus UCC Pasto, 107 espacios; 63 con equipo de clima y 11 habilitados para la demostración.
+2. Escenario `CLASE_EN_CURSO` (421-A): corte por inercia térmica; la traza muestra la cadena HVAC y la familia andina.
+3. Escenario `CO2_ALTO` y `FALLO_CAMARA`: ventilación con prioridad; sin cámara, el Kalman sigue con CO₂ y Wi-Fi.
+4. `POST /api/v1/spaces/421-A/evaluations` con la IA apagada: `RESPALDO_LOCAL` (**Decorator**, **Adapter**), recomendación `CALEFACCION` (**Facade**, **Abstract Factory**, **Strategy**, **Builder**). Repetir tres veces: el circuito se abre (**State**) y `/actuator/prometheus` lo muestra.
+5. Con la IA encendida: `SERVICIO_IA`, con el peso de cada fuente.
+6. Pruebas: `HvacSettingChainTest` (precalentamiento en Pasto, deshumidificación tropical, protección del compresor) y `FusionModelTest` (los mismos casos que el servicio Python).
+7. `REINICIAR`: solo los salones de la demostración vuelven a cero.
 
 ## Lo que **no** se cuenta como patrón
 
-- **`HvacCommand` y `EquipmentCommand` no son el patrón Command.** Son objetos de datos que describen una orden para el ESP32 o el Arduino; no encapsulan una operación ejecutable, no hay invocador ni historial para deshacer. Se nombran así porque son "comandos" en el sentido de mensajes MQTT.
-- **Spring crea los beans una sola vez, pero eso no es Singleton GoF.** No hay una clase que controle su propia instancia; es el ciclo de vida del contenedor.
-- **La arquitectura hexagonal, REST, JPA, Docker y la separación en repositorios** son decisiones de arquitectura y tecnología, no patrones GoF.
-- **`TwinWriter`** (leer → decidir → guardar con revisión, repetir si hay conflicto) es control de concurrencia optimista, no un patrón GoF.
-- **La fusión heurística del servicio Python** no se presenta como Strategy: el Strategy contabilizado está en las políticas Java.
+- **`HvacCommand` y `EquipmentCommand` no son Command.** Son mensajes de datos para el ESP32 y el Arduino; no hay invocador, ejecución diferida ni deshacer.
+- **`HvacControlState` no es el patrón State.** Es un enum con datos (potencia, compresor encendido); quien decide las transiciones es la cadena de reglas. El State contabilizado es el del *circuit breaker*.
+- **Los beans de Spring no son Singleton GoF**: es el ciclo de vida del contenedor.
+- **La arquitectura hexagonal, REST, JPA, Docker y los repositorios separados** son arquitectura y tecnología.
+- **`TwinWriter`** es control de concurrencia optimista; **`UnitOfWork`** y la *outbox* son patrones de arquitectura empresarial (Fowler), no GoF.
+- **`MqttInbox`** es un productor-consumidor acotado con confirmación posterior al procesamiento: concurrencia, no GoF.
+- **La fusión del servicio Python** es una función; no se presenta como Strategy.
 
-## Preguntas difíciles y respuestas honestas
+## Preguntas difíciles y respuestas con evidencia
 
-| Pregunta | Respuesta, con la evidencia |
+| Pregunta | Respuesta |
 |---|---|
-| ¿Un anónimo puede ejecutar escenarios en producción? | No. Los escenarios están apagados por defecto y en `prod`; encendidos, exigen rol ADMIN (`AccessPolicy`) y la aplicación no arranca si conviven con actuadores reales (`OperationalSafetyCheck`). Evidencia: `CampusNexoApiIntegrationTest.simulationScenarios` (401 sin sesión, 403 para OPERATOR y VIEWER). |
-| ¿Quién puede ver la ocupación? | Solo personas con sesión (VIEWER o superior), también en el WebSocket (`liveFeedRequiresSignIn`). Las rutas nuevas fallan cerrado. |
-| ¿Qué impide dos reservas cruzadas enviadas a la vez? | La restricción de exclusión de PostgreSQL (V13), no solo la consulta previa. Evidencia: `concurrentReservationsCannotOverlap` lanza 6 reservas idénticas en paralelo: 1 → 201, 5 → 409. |
-| ¿Qué significa `confidence_pct = 90`? | Es la estabilidad interna del filtro (derivada de su varianza), no la probabilidad de acertar. No hay datos etiquetados todavía; `campusnexo-ai-service/eval/evaluate.py` mide MAE, RMSE, sesgo y calibración cuando los haya. |
-| ¿Cuál es la IA real? | YOLO (preentrenado, sin reentrenar) cuenta personas y objetos en el borde; un filtro de Kalman fusiona cámara, CO₂ y Wi-Fi (en Java para el gemelo y, con pesos fijos, en el servicio Python para el flujo de evaluación); un controlador predictivo elige el clima. Ninguno es un modelo entrenado con datos del campus. |
-| Si el backend cae, ¿el operador lo nota? | Sí. En producción el dashboard no cambia solo a la simulación: muestra "Sin conexión con el servidor" y solo usa datos simulados si la persona lo elige; una franja fija avisa cuando los datos son simulados o están desactualizados. |
-| ¿Dos lecturas simultáneas del mismo salón se pisan? | No. `TwinWriter` serializa las escrituras de un salón y la columna `revision` rechaza una escritura basada en un estado viejo; la decisión se recalcula. Evidencia: `TwinPipelineTest.concurrentWriteIsRecomputed` y `parallelStreamsOfOneRoomTakeTurns`. |
-| ¿Por qué Builder y no un constructor? | La recomendación se arma por partes que salen de tres estrategias distintas, con cuatro datos opcionales de procedencia; el Builder concentra los valores por defecto y la validación final. Es la variante fluida para objetos inmutables, no el Builder GoF con varias representaciones. |
+| ¿Por qué hay un MPC y una Abstract Factory? ¿No son dos cerebros? | Es uno. La familia define el confort, el modo y la protección del compresor; el MPC solo decide *cuándo*, simulando la inercia. Pasto usa la familia andina, por eso el MPC precalienta antes de la clase de las 7 (`preHeatsAColdRoomBeforeTheClass`). La recomendación lee el estado que el gemelo comandó (`HvacStateResolver`). |
+| ¿La IA recibe el conteo de la cámara o su propio Kalman? | El conteo crudo (`telemetry_stream.camera_people`, V15), o `null` si la cámara está caída. Mandarle la estimación fusionada contaría dos veces el CO₂ y el Wi-Fi. |
+| ¿Cuántos modelos de ocupación hay? | Uno: el gemelo (con memoria), el respaldo local y el servicio Python (sin memoria) usan la misma fusión y los mismos parámetros, y los dos repositorios prueban el mismo `fusion_golden_cases.csv`. |
+| Con MQTT QoS 1, ¿qué pasa si un frame llega dos veces? | Se ignora: cada salón guarda la hora de captura de su último frame y de su última lectura del Arduino, y `UNIQUE (space_id, recorded_at)` lo garantiza también en la base. El mensaje se confirma al broker después de procesarlo, con sesión persistente: una caída no pierde frames. Evidencia: `redeliveredFrameIsIgnored`, `redeliveredEdgeFrameIsIgnoredAndCounted`, `MqttInboxTest`. |
+| ¿Y si el frame trae una fecha imposible? | Se rechaza antes de tocar nada (`ReadingAdmission`): ni el gemelo ni el historial cambian (`invalidTimestampChangesNothing`). |
+| ¿Qué pasa si la IA se cae en plena sustentación? | La primera evaluación responde con el respaldo en ≈ 6 s como máximo; desde la tercera falla el circuito se abre y el respaldo responde al instante. Evidencia: `ResilienceChainTest`, `CircuitBreakerOccupancyEstimatorTest`. |
+| ¿La demostración puede dañar datos reales? | No. Solo toca salones marcados `simulation_allowed`, pasa exclusivamente por los puertos de entrada (ArchUnit lo exige), sus reservas llevan origen `SIMULACION` como columna y no se ejecuta si choca con una reserva real. Evidencia: `SimulationServiceTest`, `simulationLeavesRealRoomsAlone`. |
+| ¿Cualquier operador puede cancelar cualquier reserva? | No: solo su autor o un administrador (`reservation_not_owned`, 403). |
+| ¿De dónde sale el ahorro en pesos? | De un contrafactual declarado: el equipo encendido todo el horario, y solo en espacios con equipo (`hvac_installed`). Es una estimación de modelo, no una medición del contador. |
+| ¿Qué significa `confidence_pct = 90`? | `1 − σ/capacidad`: el margen de error es el 10 % del salón. No es probabilidad de acierto; `eval/evaluate.py` mide MAE, RMSE, sesgo y calibración con conteos reales. |
 
 ## Límites que se deben decir en la defensa
 
-- Los umbrales, setpoints y la heurística de respaldo son valores de referencia; no están calibrados con instrumentos del campus.
-- No hay mediciones de error de la ocupación ni de ahorro: los modelos están documentados y hay herramienta para medirlos, pero no resultados.
-- En el flujo de evaluación (`/evaluations`) el estado del HVAC se **infiere** de la última recomendación. El gemelo digital sí publica órdenes al ESP32 y al Arduino por MQTT, pero no se ha probado con equipos reales.
+- Umbrales, setpoints y parámetros de la fusión son valores de referencia, no calibrados con instrumentos del campus.
+- Qué salones tienen equipo de clima es un supuesto del prototipo (V15) que debe confirmar la planta física.
+- No hay mediciones de error de la ocupación ni de ahorro todavía; la herramienta para medirlos sí existe.
+- El gemelo publica órdenes al ESP32 y al Arduino por MQTT, pero no se ha probado con equipos reales.
 - El backend recibe conteos agregados; no recibe ni guarda imágenes.

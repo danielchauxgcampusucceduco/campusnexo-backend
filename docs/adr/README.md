@@ -9,3 +9,6 @@ Los ADR explican decisiones que cruzan capas o condicionan despliegue y segurida
 | [0003](0003-estimacion-de-ocupacion-con-respaldo.md) | Estimación de ocupación resiliente y límites de confianza | Aceptada |
 | [0004](0004-paginacion-keyset.md) | Paginación keyset cronológica | Aceptada |
 | [0005](0005-autorizacion-por-rol.md) | Autorización por rol en el servidor | Aceptada |
+| [0006](0006-un-solo-cerebro-climatico.md) | Un solo cerebro climático | Aceptada |
+| [0007](0007-gemelo-idempotente-y-transaccional.md) | Gemelo idempotente y transaccional | Aceptada |
+| [0008](0008-demostracion-aislada.md) | Demostración aislada del campus real | Aceptada |
