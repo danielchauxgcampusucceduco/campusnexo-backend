@@ -8,6 +8,7 @@ import edu.campusnexo.domain.trace.ArchitectureTrace;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
 class RecentTraceBufferTest {
@@ -35,6 +36,16 @@ class RecentTraceBufferTest {
         List<ArchitectureTrace> snapshot = buffer.latest(1);
         assertThrows(UnsupportedOperationException.class, () -> snapshot.add(trace("mutated")));
         assertTrue(buffer.latest(0).isEmpty());
+    }
+
+    @Test
+    void keepsItsCapacityWhenMultipleWritersAddTracesConcurrently() {
+        RecentTraceBuffer buffer = new RecentTraceBuffer(20);
+
+        IntStream.range(0, 200).parallel().forEach(index -> buffer.add(trace("trace-" + index)));
+
+        assertEquals(20, buffer.latest(100).size());
+        assertEquals(20, buffer.latest(100).stream().map(ArchitectureTrace::traceId).distinct().count());
     }
 
     private static ArchitectureTrace trace(String trigger) {
