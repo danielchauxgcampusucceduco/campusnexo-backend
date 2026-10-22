@@ -23,6 +23,11 @@ public final class TraceRecorder {
         this.startedAt = startedAt;
     }
 
+    /** A step of a class of the core: its name comes from the class itself, so it cannot go stale. */
+    public TraceRecorder step(HexagonalLayer layer, Class<?> component, String detail) {
+        return step(layer, component.getSimpleName(), detail);
+    }
+
     public TraceRecorder step(HexagonalLayer layer, String component, String detail) {
         steps.add(new TraceStep(layer, component, detail, (System.nanoTime() - startNanos) / 1_000));
         return this;

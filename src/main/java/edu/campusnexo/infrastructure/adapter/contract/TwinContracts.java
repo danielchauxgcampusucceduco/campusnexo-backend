@@ -6,7 +6,9 @@ import edu.campusnexo.application.port.in.SimulationScenario;
 import edu.campusnexo.application.port.in.SpaceTwinView;
 import edu.campusnexo.domain.catalog.ClimateProfile;
 import edu.campusnexo.domain.catalog.SpaceType;
+import edu.campusnexo.domain.climate.HvacMode;
 import edu.campusnexo.domain.reservation.Reservation;
+import edu.campusnexo.domain.reservation.ReservationOrigin;
 import edu.campusnexo.domain.trace.ArchitectureTrace;
 import edu.campusnexo.domain.trace.HexagonalLayer;
 import edu.campusnexo.domain.twin.HvacControlState;
@@ -43,22 +45,23 @@ public final class TwinContracts {
     public record SpaceInfo(String spaceId, String name, SpaceType type, int capacity, double areaSqm,
                             String buildingId, String buildingName, String branchId, String branchName, String city,
                             ClimateProfile climateProfile, double energyTariffCopPerKwh, int floor, int computers,
-                            Integer seatRows, Integer seatColumns) {
+                            Integer seatRows, Integer seatColumns, boolean hvacInstalled, boolean simulationAllowed) {
         static SpaceInfo from(SpaceTwinView view) {
             var space = view.space();
             var layout = space.seatLayout();
             return new SpaceInfo(space.spaceId(), space.name(), space.type(), space.capacity(), space.areaSqm(),
                     space.buildingId(), space.buildingName(), space.branchId(), space.branchName(), space.city(),
                     space.climateProfile(), space.energyTariffCopPerKwh(), space.floor(), space.computers(),
-                    layout == null ? null : layout.rows(), layout == null ? null : layout.columns());
+                    layout == null ? null : layout.rows(), layout == null ? null : layout.columns(), space.hvacInstalled(),
+                    space.simulationAllowed());
         }
     }
 
     public record ReservationInfo(UUID reservationId, Instant startsAt, Instant endsAt, int expectedAttendees,
-                                  String reference) {
+                                  String reference, ReservationOrigin origin) {
         static ReservationInfo from(Reservation reservation) {
             return new ReservationInfo(reservation.reservationId(), reservation.startsAt(), reservation.endsAt(),
-                    reservation.expectedAttendees(), reservation.reference());
+                    reservation.expectedAttendees(), reservation.reference(), reservation.origin());
         }
     }
 
@@ -69,8 +72,13 @@ public final class TwinContracts {
         }
     }
 
+    /**
+     * {@code hvacState} is the strategy, {@code hvacMode} what the unit does in it and {@code hvacReason} the
+     * explanation of the rule that decided it; {@code thermal} is the predictive controller's own proposal.
+     */
     public record TwinStateResponse(String spaceId, SpaceStatus status, HvacControlState hvacState,
-                                    Instant hvacStateSince, int occupancy, double occupancyEstimate,
+                                    Instant hvacStateSince, HvacMode hvacMode, double hvacSetpointC, String hvacReason,
+                                    int occupancy, double occupancyEstimate,
                                     double occupancyStdDev, double indoorTemperatureC, double outdoorTemperatureC,
                                     double co2Ppm, double humidityPct, boolean cameraOnline, double energySavedKwh,
                                     Instant overrideUntil, Instant popUpUntil, boolean maintenance, Instant updatedAt,
@@ -79,7 +87,7 @@ public final class TwinContracts {
                                     int devicesTotal, Instant emptySince, Instant equipmentShutdownAt) {
         public static TwinStateResponse from(SpaceTwinState state) {
             return new TwinStateResponse(state.spaceId(), state.status(), state.hvacState(), state.hvacStateSince(),
-                    state.occupancy().people(), round(state.occupancy().estimate()),
+                    state.hvacMode(), state.hvac().setpointC(), state.hvac().reason(), state.occupancy().people(), round(state.occupancy().estimate()),
                     round(state.occupancy().standardDeviation()), state.indoorTemperatureC(), state.outdoorTemperatureC(),
                     state.co2Ppm(), state.humidityPct(), state.cameraOnline(), state.energySavedKwh(),
                     state.overrideUntil(), state.popUpUntil(), state.maintenance(), state.updatedAt(),
@@ -117,13 +125,13 @@ public final class TwinContracts {
     public record MeasurementResponse(MeasurementSource source, double value, double variance, double gain) {
     }
 
-    public record ThermalResponse(HvacControlState recommendedState, double setpointC, int horizonMinutes,
+    public record ThermalResponse(HvacControlState recommendedState, HvacMode mode, double setpointC, int horizonMinutes,
                                   int stepMinutes, List<Double> freeRunningTrajectoryC, String explanation) {
         static ThermalResponse from(ThermalDecision decision) {
             if (decision == null) {
                 return null;
             }
-            return new ThermalResponse(decision.state(), decision.setpointC(), decision.horizonMinutes(),
+            return new ThermalResponse(decision.state(), decision.mode(), decision.setpointC(), decision.horizonMinutes(),
                     decision.stepMinutes(), decision.freeRunningTrajectoryC(), decision.explanation());
         }
     }

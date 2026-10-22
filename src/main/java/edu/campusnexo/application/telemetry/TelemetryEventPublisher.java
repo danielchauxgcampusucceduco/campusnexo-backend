@@ -1,9 +1,12 @@
 package edu.campusnexo.application.telemetry;
 
+import edu.campusnexo.application.port.out.ObserverFailureReporter;
+import edu.campusnexo.application.port.out.TelemetryObserver;
 import edu.campusnexo.domain.telemetry.TelemetryRecorded;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
 /**
  * Observer subject: notifies independent observers after a reading is stored.
@@ -40,9 +43,18 @@ public class TelemetryEventPublisher {
         this.backoff = backoff;
     }
 
+    /**
+     * Hands every observer the event without waiting for any of them. When the executor is saturated the
+     * delivery is reported instead of blocking the caller: the alert will be derived again from the next
+     * reading of the room, while a blocked camera pipeline would lose frames.
+     */
     public void publish(TelemetryRecorded event) {
         for (TelemetryObserver observer : observers) {
-            executor.execute(() -> deliver(observer, event));
+            try {
+                executor.execute(() -> deliver(observer, event));
+            } catch (RejectedExecutionException saturated) {
+                failureReporter.report(observer, event, saturated);
+            }
         }
     }
 

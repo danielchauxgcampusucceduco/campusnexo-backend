@@ -1,5 +1,6 @@
 package edu.campusnexo.infrastructure.adapter.in.web;
 
+import edu.campusnexo.application.port.in.Requester;
 import edu.campusnexo.application.port.in.ReservationUseCase;
 import edu.campusnexo.domain.reservation.Reservation;
 import edu.campusnexo.infrastructure.adapter.in.web.dto.ReservationRequest;
@@ -30,8 +31,8 @@ class ReservationController {
 
     @PostMapping("/spaces/{spaceId}/reservations")
     ResponseEntity<ReservationResponse> create(@PathVariable String spaceId,
-                                               @Valid @RequestBody ReservationRequest request) {
-        Reservation reservation = reservations.create(request.toCommand(spaceId));
+                                               @Valid @RequestBody ReservationRequest request, Requester requester) {
+        Reservation reservation = reservations.create(request.toCommand(spaceId, requester));
         URI location = URI.create(ApiPaths.BASE + "/reservations/" + reservation.reservationId());
         return ResponseEntity.created(location).body(ReservationResponse.from(reservation));
     }
@@ -48,9 +49,10 @@ class ReservationController {
         return ReservationResponse.from(reservations.get(reservationId));
     }
 
+    /** Its author or an administrator; anyone else gets 403 {@code reservation_not_owned}. */
     @DeleteMapping("/reservations/{reservationId}")
-    ResponseEntity<Void> cancel(@PathVariable UUID reservationId) {
-        reservations.cancel(reservationId);
+    ResponseEntity<Void> cancel(@PathVariable UUID reservationId, Requester requester) {
+        reservations.cancel(reservationId, requester);
         return ResponseEntity.noContent().build();
     }
 }

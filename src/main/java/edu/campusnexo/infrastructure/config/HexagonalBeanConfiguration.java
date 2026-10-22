@@ -1,29 +1,34 @@
 package edu.campusnexo.infrastructure.config;
 
 import edu.campusnexo.application.port.in.CampusCatalogUseCase;
+import edu.campusnexo.application.port.in.ProcessEnvironmentReadingUseCase;
+import edu.campusnexo.application.port.in.ProcessSpaceTelemetryUseCase;
 import edu.campusnexo.application.port.in.ReservationUseCase;
 import edu.campusnexo.application.port.in.SimulationUseCase;
 import edu.campusnexo.application.port.in.TelemetryUseCase;
 import edu.campusnexo.application.port.in.TwinControlUseCase;
 import edu.campusnexo.application.port.in.TwinQueryUseCase;
+import edu.campusnexo.application.port.out.OperationalMetrics;
+import edu.campusnexo.application.port.out.TwinChangeNotifierPort;
+import edu.campusnexo.application.port.out.UnitOfWork;
 import edu.campusnexo.application.simulation.SimulationService;
-import edu.campusnexo.application.port.in.ProcessEnvironmentReadingUseCase;
-import edu.campusnexo.application.port.in.ProcessSpaceTelemetryUseCase;
-import edu.campusnexo.application.port.in.SpaceReevaluationUseCase;
 import edu.campusnexo.application.twin.ProcessCameraFrameService;
 import edu.campusnexo.application.twin.ProcessEnvironmentReadingService;
+import edu.campusnexo.application.twin.RecentTraceBuffer;
+import edu.campusnexo.application.twin.SeatRegions;
 import edu.campusnexo.application.twin.SpaceReevaluationService;
+import edu.campusnexo.application.twin.TwinControlService;
 import edu.campusnexo.application.twin.TwinDecisionEngine;
 import edu.campusnexo.application.twin.TwinPublisher;
-import edu.campusnexo.application.twin.TwinWriter;
-import edu.campusnexo.application.twin.RecentTraceBuffer;
-import edu.campusnexo.application.twin.TwinControlService;
 import edu.campusnexo.application.twin.TwinQueryService;
+import edu.campusnexo.application.twin.TwinWriter;
+import edu.campusnexo.domain.climate.policy.ClimateFamilies;
 import edu.campusnexo.domain.port.HvacActuatorCommandPort;
-import edu.campusnexo.domain.port.RealtimeDashboardNotifierPort;
 import edu.campusnexo.domain.port.ReservationRepository;
 import edu.campusnexo.domain.port.RoomEquipmentCommandPort;
+import edu.campusnexo.domain.port.SeatRegionRepository;
 import edu.campusnexo.domain.port.SpaceRepositoryPort;
+import edu.campusnexo.domain.telemetry.ReadingAdmission;
 import edu.campusnexo.domain.twin.EnergyAccountingPolicy;
 import edu.campusnexo.domain.twin.IdleEquipmentShutdownPolicy;
 import edu.campusnexo.domain.twin.KalmanParameters;
@@ -32,9 +37,11 @@ import edu.campusnexo.domain.twin.RoomConditionPolicy;
 import edu.campusnexo.domain.twin.SpaceStatusPolicy;
 import edu.campusnexo.domain.twin.ThermalInertiaMpcDomainService;
 import edu.campusnexo.domain.twin.ThermalParameters;
+import edu.campusnexo.domain.twin.hvac.HvacSettingChain;
 import java.time.Clock;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -43,17 +50,22 @@ import org.springframework.context.annotation.Configuration;
  * Composition root of the digital twin. Domain services are plain Java objects built here from
  * {@link TwinProperties}; the domain never sees Spring. Each input port (camera frames, Arduino readings,
  * re-evaluation after a manual control) is its own use case; they share the decision engine, the writer
- * that serializes and version-checks the writes of one room, and the publisher of the effects.
+ * that serializes, version-checks and commits the writes of one room, and the publisher of the effects.
  */
 @Configuration
 @EnableConfigurationProperties(TwinProperties.class)
 class HexagonalBeanConfiguration {
 
     @Bean
-    OccupancyKalmanDomainService occupancyKalmanDomainService(TwinProperties properties) {
+    KalmanParameters kalmanParameters(TwinProperties properties) {
         TwinProperties.Kalman k = properties.kalman();
-        return new OccupancyKalmanDomainService(new KalmanParameters(k.processNoisePerMinute(), k.cameraVariance(),
-                k.co2RelativeError(), k.wifiRelativeError(), k.peoplePerDevice(), k.outdoorCo2Ppm(), k.co2PpmPerPersonSqm()));
+        return new KalmanParameters(k.processNoisePerMinute(), k.cameraVariance(), k.co2RelativeError(),
+                k.wifiRelativeError(), k.peoplePerDevice(), k.outdoorCo2Ppm(), k.co2PpmPerPersonSqm());
+    }
+
+    @Bean
+    OccupancyKalmanDomainService occupancyKalmanDomainService(KalmanParameters parameters) {
+        return new OccupancyKalmanDomainService(parameters);
     }
 
     @Bean
@@ -82,66 +94,77 @@ class HexagonalBeanConfiguration {
     }
 
     @Bean
-    TwinWriter twinWriter(SpaceRepositoryPort twins) {
-        return new TwinWriter(twins);
+    SeatRegions seatRegions(SeatRegionRepository regions) {
+        return new SeatRegions(regions);
     }
 
     @Bean
-    TwinDecisionEngine twinDecisionEngine(ReservationRepository reservations, SpaceStatusPolicy statusPolicy,
-                                          ThermalInertiaMpcDomainService thermal, EnergyAccountingPolicy energy,
+    TwinWriter twinWriter(SpaceRepositoryPort twins, UnitOfWork unitOfWork, OperationalMetrics metrics) {
+        return new TwinWriter(twins, unitOfWork, metrics);
+    }
+
+    @Bean
+    TwinDecisionEngine twinDecisionEngine(SpaceStatusPolicy statusPolicy, ThermalInertiaMpcDomainService thermal,
+                                          ClimateFamilies families, EnergyAccountingPolicy energy,
                                           TwinProperties properties) {
-        return new TwinDecisionEngine(reservations, statusPolicy, thermal, energy, new RoomConditionPolicy(),
-                new IdleEquipmentShutdownPolicy(properties.status().equipmentIdleShutdown()));
+        return new TwinDecisionEngine(statusPolicy, thermal, families, HvacSettingChain.standard(), energy,
+                new RoomConditionPolicy(), new IdleEquipmentShutdownPolicy(properties.status().equipmentIdleShutdown()));
     }
 
     @Bean
     TwinPublisher twinPublisher(SpaceRepositoryPort twins, HvacActuatorCommandPort actuator,
-                                RoomEquipmentCommandPort equipment, RealtimeDashboardNotifierPort notifier,
+                                RoomEquipmentCommandPort equipment, TwinChangeNotifierPort notifier,
                                 RecentTraceBuffer traces) {
         return new TwinPublisher(twins, actuator, equipment, notifier, traces);
     }
 
     @Bean
     ProcessSpaceTelemetryUseCase processCameraFrame(Clock clock, CampusCatalogUseCase catalog, TelemetryUseCase telemetry,
-                                                    SpaceRepositoryPort twins, OccupancyKalmanDomainService kalman,
+                                                    ReservationRepository reservations, SeatRegions seatRegions,
+                                                    ReadingAdmission admission, OccupancyKalmanDomainService kalman,
                                                     TwinProperties properties, TwinWriter writer,
-                                                    TwinDecisionEngine engine, TwinPublisher publisher) {
-        return new ProcessCameraFrameService(clock, catalog, telemetry, twins, kalman,
-                properties.status().deskAbandonThreshold(), writer, engine, publisher);
+                                                    TwinDecisionEngine engine, TwinPublisher publisher,
+                                                    OperationalMetrics metrics) {
+        return new ProcessCameraFrameService(clock, catalog, telemetry, reservations, seatRegions, admission, kalman,
+                properties.status().deskAbandonThreshold(), writer, engine, publisher, metrics);
     }
 
     @Bean
     ProcessEnvironmentReadingUseCase processEnvironmentReading(Clock clock, CampusCatalogUseCase catalog,
-                                                               TwinWriter writer, TwinDecisionEngine engine,
-                                                               TwinPublisher publisher) {
-        return new ProcessEnvironmentReadingService(clock, catalog, writer, engine, publisher);
+                                                               ReservationRepository reservations,
+                                                               ReadingAdmission admission, TwinWriter writer,
+                                                               TwinDecisionEngine engine, TwinPublisher publisher,
+                                                               OperationalMetrics metrics) {
+        return new ProcessEnvironmentReadingService(clock, catalog, reservations, admission, writer, engine, publisher,
+                metrics);
     }
 
     @Bean
-    SpaceReevaluationUseCase spaceReevaluation(Clock clock, CampusCatalogUseCase catalog, TwinWriter writer,
+    SpaceReevaluationService spaceReevaluation(Clock clock, CampusCatalogUseCase catalog,
+                                               ReservationRepository reservations, TwinWriter writer,
                                                TwinDecisionEngine engine, TwinPublisher publisher) {
-        return new SpaceReevaluationService(clock, catalog, writer, engine, publisher);
+        return new SpaceReevaluationService(clock, catalog, reservations, writer, engine, publisher);
     }
 
     @Bean
-    TwinControlUseCase twinControl(Clock clock, CampusCatalogUseCase catalog, TwinWriter writer,
-                                   SpaceReevaluationUseCase reevaluation) {
-        return new TwinControlService(clock, catalog, writer, reevaluation);
+    TwinControlUseCase twinControl(Clock clock, CampusCatalogUseCase catalog, SpaceReevaluationService reevaluation) {
+        return new TwinControlService(clock, catalog, reevaluation);
     }
 
     @Bean
     TwinQueryUseCase twinQuery(Clock clock, CampusCatalogUseCase catalog, SpaceRepositoryPort twins,
-                               ReservationRepository reservations, EnergyAccountingPolicy energy, RecentTraceBuffer traces,
-                               TwinProperties properties) {
-        return new TwinQueryService(clock, catalog, twins, reservations, energy,
+                               ReservationRepository reservations, SeatRegions seatRegions, EnergyAccountingPolicy energy,
+                               RecentTraceBuffer traces, TwinProperties properties) {
+        return new TwinQueryService(clock, catalog, twins, reservations, seatRegions, energy,
                 properties.energy().emissionFactorKgCo2PerKwh(), traces);
     }
 
+    /** Exists only when the demonstration is enabled; without it the routes are not even mapped. */
     @Bean
+    @ConditionalOnProperty(name = "app.simulation.enabled", havingValue = "true")
     SimulationUseCase simulation(Clock clock, ProcessSpaceTelemetryUseCase camera,
                                  ProcessEnvironmentReadingUseCase environment, TwinControlUseCase controls,
-                                 ReservationUseCase reservations, CampusCatalogUseCase catalog, SpaceRepositoryPort twins,
-                                 TwinWriter writer, TwinQueryUseCase queries) {
-        return new SimulationService(clock, camera, environment, controls, reservations, catalog, twins, writer, queries);
+                                 ReservationUseCase reservations, CampusCatalogUseCase catalog, TwinQueryUseCase queries) {
+        return new SimulationService(clock, camera, environment, controls, reservations, catalog, queries);
     }
 }

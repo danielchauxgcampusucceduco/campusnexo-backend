@@ -44,6 +44,15 @@ public final class InMemoryAlertRepository implements AlertRepository {
     }
 
     @Override
+    public synchronized boolean saveUnlessRaisedSince(Alert alert, Instant since) {
+        if (existsSince(alert.spaceId(), alert.type(), since)) {
+            return false;
+        }
+        save(alert);
+        return true;
+    }
+
+    @Override
     public Map<AlertType, Long> countByTypeSince(Instant from) {
         return rows.stream().filter(row -> !row.detectedAt().isBefore(from))
                 .collect(Collectors.groupingBy(Alert::type, Collectors.counting()));

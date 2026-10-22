@@ -16,5 +16,10 @@ public interface ReservationUseCase {
 
     Optional<Reservation> activeAt(String spaceId, Instant instant);
 
-    void cancel(UUID reservationId);
+    /**
+     * Cancels a booking. An administrator may cancel any booking; anyone else only the bookings they made.
+     *
+     * @throws edu.campusnexo.application.exception.ForbiddenOperationException otherwise
+     */
+    void cancel(UUID reservationId, Requester requester);
 }

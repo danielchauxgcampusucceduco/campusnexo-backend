@@ -1,6 +1,7 @@
 package edu.campusnexo.infrastructure.adapter.out.mqtt;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import edu.campusnexo.domain.climate.HvacMode;
 import edu.campusnexo.domain.port.HvacActuatorCommandPort;
 import edu.campusnexo.domain.twin.HvacCommand;
 import edu.campusnexo.domain.twin.HvacControlState;
@@ -53,19 +54,23 @@ class Esp32HvacActuatorAdapter implements HvacActuatorCommandPort {
         }
     }
 
-    /** Wire format read by the ESP32 firmware (snake_case, flat). */
+    /**
+     * Wire format read by the ESP32 firmware (snake_case, flat): {@code strategy} is the supervisory state,
+     * {@code mode} what the unit must do (CALEFACCION, ENFRIAMIENTO, DESHUMIDIFICACION or APAGADO).
+     */
     record Esp32Command(
             @JsonProperty("command_id") UUID commandId,
             @JsonProperty("space_id") String spaceId,
-            @JsonProperty("mode") HvacControlState mode,
+            @JsonProperty("strategy") HvacControlState strategy,
+            @JsonProperty("mode") HvacMode mode,
             @JsonProperty("compressor_on") boolean compressorOn,
             @JsonProperty("setpoint_c") double setpointC,
             @JsonProperty("issued_at") Instant issuedAt,
             @JsonProperty("reason") String reason) {
 
         static Esp32Command from(HvacCommand command) {
-            return new Esp32Command(command.commandId(), command.spaceId(), command.state(), command.compressorOn(),
-                    command.setpointC(), command.issuedAt(), command.reason());
+            return new Esp32Command(command.commandId(), command.spaceId(), command.state(), command.mode(),
+                    command.compressorOn(), command.setpointC(), command.issuedAt(), command.reason());
         }
     }
 }

@@ -1,12 +1,13 @@
 package edu.campusnexo.application.twin;
 
+import edu.campusnexo.application.port.out.TwinChangeNotifierPort;
 import edu.campusnexo.domain.port.HvacActuatorCommandPort;
-import edu.campusnexo.domain.port.RealtimeDashboardNotifierPort;
 import edu.campusnexo.domain.port.RoomEquipmentCommandPort;
 import edu.campusnexo.domain.port.SpaceRepositoryPort;
 import edu.campusnexo.domain.trace.ArchitectureTrace;
 import edu.campusnexo.domain.twin.EquipmentCommand;
 import edu.campusnexo.domain.twin.HvacCommand;
+import edu.campusnexo.domain.twin.HvacControlState;
 import edu.campusnexo.domain.twin.SpaceTwinState;
 
 /**
@@ -17,11 +18,11 @@ public final class TwinPublisher {
     private final SpaceRepositoryPort twins;
     private final HvacActuatorCommandPort actuator;
     private final RoomEquipmentCommandPort equipmentActuator;
-    private final RealtimeDashboardNotifierPort notifier;
+    private final TwinChangeNotifierPort notifier;
     private final RecentTraceBuffer traceBuffer;
 
     public TwinPublisher(SpaceRepositoryPort twins, HvacActuatorCommandPort actuator,
-                         RoomEquipmentCommandPort equipmentActuator, RealtimeDashboardNotifierPort notifier,
+                         RoomEquipmentCommandPort equipmentActuator, TwinChangeNotifierPort notifier,
                          RecentTraceBuffer traceBuffer) {
         this.twins = twins;
         this.actuator = actuator;
@@ -36,10 +37,12 @@ public final class TwinPublisher {
         TraceRecorder trace = outcome.trace();
         trace.outbound("SpaceRepositoryPort.saveTwin", twins, saved.status() + " / " + saved.hvacState());
 
-        boolean strategyChanged = saved.hvacState() != previous.hvacState() || previous.lastKalmanStep() == null;
-        if (strategyChanged) {
-            actuator.send(HvacCommand.of(saved.spaceId(), saved.lastThermalDecision(), saved.hvacState(), saved.updatedAt()));
-            trace.outbound("HvacActuatorCommandPort.send", actuator, previous.hvacState() + " → " + saved.hvacState());
+        boolean hasUnit = saved.hvacState() != HvacControlState.SIN_CLIMATIZACION;
+        boolean settingChanged = saved.hvac().differsFrom(previous.hvac()) || previous.lastKalmanStep() == null;
+        if (hasUnit && settingChanged) {
+            actuator.send(HvacCommand.of(saved.spaceId(), saved.hvac(), saved.hvac().reason(), saved.updatedAt()));
+            trace.outbound("HvacActuatorCommandPort.send", actuator, previous.hvacState() + " → " + saved.hvacState()
+                    + " (" + saved.hvacMode() + ")");
         }
         EquipmentCommand command = outcome.equipmentCommand();
         if (command != null) {
@@ -49,7 +52,7 @@ public final class TwinPublisher {
                             + (command.suspendDevices() ? "suspender equipos" : ""));
         }
         notifier.publishTwinUpdate(saved);
-        trace.outbound("RealtimeDashboardNotifierPort.publishTwinUpdate", notifier, "Gemelo actualizado");
+        trace.outbound("TwinChangeNotifierPort.publishTwinUpdate", notifier, "Gemelo actualizado");
 
         ArchitectureTrace finished = trace.finish();
         traceBuffer.add(finished);

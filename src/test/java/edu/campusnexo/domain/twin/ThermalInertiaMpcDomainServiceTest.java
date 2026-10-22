@@ -4,14 +4,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import edu.campusnexo.domain.catalog.ClimateProfile;
+import edu.campusnexo.domain.climate.ComfortBand;
+import edu.campusnexo.domain.climate.policy.ClimateFamilies;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class ThermalInertiaMpcDomainServiceTest {
     private final ThermalInertiaMpcDomainService mpc = new ThermalInertiaMpcDomainService(ThermalParameters.defaults());
-    private final ComfortBand andean = ComfortBand.forProfile(ClimateProfile.SEDE_ANDINA);
-    private final ComfortBand tropical = ComfortBand.forProfile(ClimateProfile.SEDE_TROPICAL);
+    private final ComfortBand andean = ClimateFamilies.standard().of(ClimateProfile.SEDE_ANDINA).comfortBand();
+    private final ComfortBand tropical = ClimateFamilies.standard().of(ClimateProfile.SEDE_TROPICAL).comfortBand();
 
     @Test
     @DisplayName("Sin climatizar, la temperatura tiende exponencialmente a la exterior")
@@ -68,5 +70,25 @@ class ThermalInertiaMpcDomainServiceTest {
                 mpc.decide(new ThermalContext(27, 31.8, 0, 72, 440, tropical, null, null)).state());
         assertEquals(HvacControlState.BLOQUEO_AHORRO_VACIO,
                 mpc.decide(new ThermalContext(27, 31.8, 0, 72, 440, tropical, null, 180)).state());
+    }
+
+    @Test
+    @DisplayName("Pasto, 6:40 a. m.: el salón vacío llegaría frío a la clase de las 7 y se pre-calienta")
+    void preHeatingBeforeAMorningClassInPasto() {
+        ThermalDecision decision = mpc.decide(new ThermalContext(18.2, 9, 0, 48, 430, andean, null, 20));
+        assertEquals(HvacControlState.PRE_CALENTAMIENTO_IA, decision.state());
+        assertEquals(edu.campusnexo.domain.climate.HvacMode.CALEFACCION, decision.mode());
+        assertEquals(19.5, decision.setpointC());
+    }
+
+    @Test
+    @DisplayName("Cada estrategia declara qué hace el equipo: calentar, enfriar o nada")
+    void everyStrategyStatesTheMode() {
+        assertEquals(edu.campusnexo.domain.climate.HvacMode.CALEFACCION,
+                mpc.decide(new ThermalContext(17.5, 9, 20, 48, 600, andean, 60, null)).mode());
+        assertEquals(edu.campusnexo.domain.climate.HvacMode.ENFRIAMIENTO,
+                mpc.decide(new ThermalContext(28.5, 32, 0, 72, 430, tropical, null, 20)).mode());
+        assertEquals(edu.campusnexo.domain.climate.HvacMode.APAGADO,
+                mpc.decide(new ThermalContext(22.5, 14, 26, 48, 780, andean, 80, null)).mode());
     }
 }

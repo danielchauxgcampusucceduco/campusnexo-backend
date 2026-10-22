@@ -48,17 +48,19 @@ edu.campusnexo
 └── infrastructure/
     ├── config/                 ApplicationConfiguration, HexagonalBeanConfiguration, MQTT, WebSocket
     └── adapter/
-        ├── in/web/             controladores REST (incluye CampusNexoRestController), errores, cursores
+        ├── in/web/             controladores REST (TwinController, TwinIngestionController, SimulationController…), errores, cursores
         ├── in/mqtt/            YoloMqttTelemetryInboundAdapter, ArduinoMqttEnvironmentInboundAdapter
         ├── contract/           JSON compartido por REST, STOMP y MQTT
         ├── out/persistence/    adaptadores JPA (incluye PostgresSpaceRepositoryAdapter)
         ├── out/ai/             HttpOccupancyEstimatorAdapter (Adapter)
         ├── out/mqtt/           Esp32HvacActuatorAdapter, ArduinoEquipmentCommandAdapter
-        ├── out/websocket/      StompRealtimeDashboardNotifierAdapter
+        ├── out/websocket/      StompTwinChangeNotifierAdapter
         └── out/observability/  logs y actuador sin hardware
 ```
 
 Los patrones, sus participantes y el guion de demostración están en [`docs/patrones-de-software.md`](docs/patrones-de-software.md).
+
+Las decisiones transversales de arquitectura, seguridad y operación están registradas en [`docs/adr/`](docs/adr/README.md).
 
 ## Inicio local con Docker Compose
 

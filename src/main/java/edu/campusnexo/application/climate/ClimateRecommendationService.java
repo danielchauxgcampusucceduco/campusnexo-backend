@@ -5,52 +5,45 @@ import edu.campusnexo.application.port.in.CampusCatalogUseCase;
 import edu.campusnexo.application.port.in.ClimateRecommendationUseCase;
 import edu.campusnexo.application.port.in.RecommendClimateCommand;
 import edu.campusnexo.domain.catalog.CampusSpace;
-import edu.campusnexo.domain.catalog.ClimateProfile;
 import edu.campusnexo.domain.climate.ClimateContext;
 import edu.campusnexo.domain.climate.ClimateRecommendation;
 import edu.campusnexo.domain.climate.HvacState;
+import edu.campusnexo.domain.climate.policy.ClimateFamilies;
 import edu.campusnexo.domain.climate.policy.ClimatePolicyFactory;
 import edu.campusnexo.domain.occupancy.OccupancySource;
 import edu.campusnexo.domain.port.ClimateRecommendationRepository;
 import edu.campusnexo.domain.shared.DomainValidationException;
 import edu.campusnexo.domain.shared.ResultLimit;
 import java.time.Clock;
-import java.util.EnumMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
  * Client of the Abstract Factory: picks the policy family of the branch climate profile and runs
- * its three strategies, then assembles the recommendation with the Builder.
+ * its three strategies, then assembles the recommendation with the Builder. The digital twin reads the same
+ * family (comfort band, thermal strategy, compressor protection), so both answer with one notion of comfort.
  */
 public class ClimateRecommendationService implements ClimateRecommendationUseCase {
     private final Clock clock;
     private final CampusCatalogUseCase catalog;
     private final ClimateRecommendationRepository repository;
     private final HvacStateResolver hvacStateResolver;
-    private final Map<ClimateProfile, ClimatePolicyFactory> factories;
+    private final ClimateFamilies families;
 
     public ClimateRecommendationService(Clock clock, CampusCatalogUseCase catalog,
                                         ClimateRecommendationRepository repository,
-                                        HvacStateResolver hvacStateResolver,
-                                        List<ClimatePolicyFactory> factories) {
+                                        HvacStateResolver hvacStateResolver, ClimateFamilies families) {
         this.clock = clock;
         this.catalog = catalog;
         this.repository = repository;
         this.hvacStateResolver = hvacStateResolver;
-        EnumMap<ClimateProfile, ClimatePolicyFactory> byProfile = new EnumMap<>(ClimateProfile.class);
-        for (ClimatePolicyFactory factory : factories) {
-            if (byProfile.put(factory.climateProfile(), factory) != null) {
-                throw new IllegalStateException("Hay más de una fábrica para " + factory.climateProfile());
-            }
-        }
-        for (ClimateProfile profile : ClimateProfile.values()) {
-            if (!byProfile.containsKey(profile)) {
-                throw new IllegalStateException("Falta la fábrica de políticas para " + profile);
-            }
-        }
-        this.factories = Map.copyOf(byProfile);
+        this.families = families;
+    }
+
+    public ClimateRecommendationService(Clock clock, CampusCatalogUseCase catalog,
+                                        ClimateRecommendationRepository repository,
+                                        HvacStateResolver hvacStateResolver, List<ClimatePolicyFactory> factories) {
+        this(clock, catalog, repository, hvacStateResolver, new ClimateFamilies(factories));
     }
 
     @Override
@@ -61,7 +54,7 @@ public class ClimateRecommendationService implements ClimateRecommendationUseCas
                 command.outsideTemperatureC() == null ? space.averageOutsideTempC() : command.outsideTemperatureC(),
                 command.humidityPct(), command.illuminanceLux(), currentHvacState(command));
 
-        ClimatePolicyFactory family = factories.get(space.climateProfile());
+        ClimatePolicyFactory family = families.of(space.climateProfile());
         ClimateRecommendation recommendation = ClimateRecommendation.builder()
                 .spaceId(space.spaceId())
                 .climateProfile(space.climateProfile())

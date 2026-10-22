@@ -1,7 +1,7 @@
 package edu.campusnexo.infrastructure.adapter.out.observability;
 
-import edu.campusnexo.application.telemetry.ObserverFailureReporter;
-import edu.campusnexo.application.telemetry.TelemetryObserver;
+import edu.campusnexo.application.port.out.ObserverFailureReporter;
+import edu.campusnexo.application.port.out.TelemetryObserver;
 import edu.campusnexo.domain.telemetry.TelemetryRecorded;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -43,16 +43,44 @@ public final class OccupancyKalmanDomainService {
     }
 
     private List<Observation> observations(TelemetrySnapshot snapshot, CampusSpace space) {
-        List<Observation> observations = new ArrayList<>(3);
-        Integer camera = snapshot.cameraPeopleCount();
-        if (camera != null) {
-            observations.add(new Observation(MeasurementSource.CAMARA_YOLO, camera, parameters.cameraVariance()));
+        return observations(snapshot.cameraPeopleCount(), snapshot.co2Ppm(), snapshot.wifiDevices(), space.areaSqm(),
+                parameters.outdoorCo2Ppm());
+    }
+
+    /**
+     * Fuses one set of raw measurements without a prior: the inverse-variance weighted mean of the available
+     * sources, which is the Kalman update from an uninformed prior. Used where no history of the room is
+     * kept (the local fallback of the occupancy estimator); the AI service implements the same model and both
+     * are checked against the same reference cases.
+     */
+    public FusedOccupancy fuse(Integer cameraPeople, double co2Ppm, int wifiDevices, double areaSqm,
+                               double outdoorCo2Ppm) {
+        List<Observation> sources = observations(cameraPeople, co2Ppm, wifiDevices, areaSqm, outdoorCo2Ppm);
+        double information = 0;
+        double weighted = 0;
+        List<KalmanMeasurement> measurements = new ArrayList<>(sources.size());
+        for (Observation source : sources) {
+            information += 1 / source.variance();
+            weighted += source.value() / source.variance();
         }
-        double co2Excess = Math.max(0, snapshot.co2Ppm() - parameters.outdoorCo2Ppm());
-        double fromCo2 = co2Excess * space.areaSqm() / parameters.co2PpmPerPersonSqm();
+        for (Observation source : sources) {
+            measurements.add(new KalmanMeasurement(source.source(), source.value(), source.variance(),
+                    (1 / source.variance()) / information));
+        }
+        return new FusedOccupancy(Math.max(0, weighted / information), 1 / information, measurements);
+    }
+
+    private List<Observation> observations(Integer cameraPeople, double co2Ppm, int wifiDevices, double areaSqm,
+                                           double outdoorCo2Ppm) {
+        List<Observation> observations = new ArrayList<>(3);
+        if (cameraPeople != null) {
+            observations.add(new Observation(MeasurementSource.CAMARA_YOLO, cameraPeople, parameters.cameraVariance()));
+        }
+        double co2Excess = Math.max(0, co2Ppm - outdoorCo2Ppm);
+        double fromCo2 = co2Excess * areaSqm / parameters.co2PpmPerPersonSqm();
         observations.add(new Observation(MeasurementSource.CO2_BALANCE_MASICO, fromCo2,
                 relativeVariance(fromCo2, parameters.co2RelativeError())));
-        double fromWifi = snapshot.wifiDevices() * parameters.peoplePerDevice();
+        double fromWifi = wifiDevices * parameters.peoplePerDevice();
         observations.add(new Observation(MeasurementSource.WIFI_DISPOSITIVOS, fromWifi,
                 relativeVariance(fromWifi, parameters.wifiRelativeError())));
         return observations;
@@ -64,5 +92,17 @@ public final class OccupancyKalmanDomainService {
     }
 
     private record Observation(MeasurementSource source, double value, double variance) {
+    }
+
+    /** Result of {@link #fuse}: estimate and variance in people, and the weight each source received. */
+    public record FusedOccupancy(double estimate, double variance, List<KalmanMeasurement> measurements) {
+        public double standardDeviation() {
+            return Math.sqrt(variance);
+        }
+
+        /** 1 − σ / capacity, as a percentage: how small the margin of error is relative to the room. */
+        public double confidencePct(int capacity) {
+            return Math.round(Math.max(0, 1 - standardDeviation() / Math.max(1, capacity)) * 1000) / 10.0;
+        }
     }
 }

@@ -23,7 +23,9 @@ El requisito del curso exige el proyecto desplegado en producción. El archivo [
 
 ## 2. Crear los recursos
 
-En Render: **New → Blueprint**, elige el repositorio `campusnexo-backend` y acepta `render.yaml`. Render crea los cuatro recursos y genera `APP_TOKEN_SECRET` y `APP_SENSOR_KEYS`.
+En Render: **New → Blueprint**, elige el repositorio `campusnexo-backend` y acepta `render.yaml`. Render crea los cuatro recursos y genera `APP_TOKEN_SECRET`, `APP_SENSOR_KEYS` y la clave `AI_API_KEY` del servicio de IA, que el backend toma del mismo valor (`fromService`): nadie la copia a mano. El blueprint fija `APP_ENVIRONMENT=production`, con el que el backend se niega a arrancar con la seguridad de desarrollo.
+
+**Orden de despliegue.** El servicio de IA nuevo exige `area_sqm`, `capacity` y `X-API-Key`; despliega primero la IA y luego el backend. Mientras la IA no responde, el backend usa su respaldo local (mismo modelo de fusión) y lo cuenta en `/actuator/prometheus`.
 
 ## 3. Completar las variables (`sync: false`)
 
@@ -49,6 +51,7 @@ TOKEN=$(curl -s -X POST $B/api/v1/auth/login -H 'Content-Type: application/json'
 curl -s -H "Authorization: Bearer $TOKEN" $B/api/v1/spaces | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))'  # 107
 curl -s -o /dev/null -w '%{http_code}\n' -X POST -H "Authorization: Bearer $TOKEN" $B/api/v1/simulation/REINICIAR  # 403 (viewer)
 curl -s https://<ai>.onrender.com/health                     # {"status":"ok",...}
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://<ai>.onrender.com/v1/occupancy/estimate   # 401 sin X-API-Key
 ```
 
 Abre el dashboard, inicia sesión y comprueba que la barra superior dice **Servidor real** y **En vivo**. Anota en el documento de entrega las tres URL, la fecha y el resultado de estos comandos.
@@ -70,5 +73,8 @@ Cualquier plataforma que ejecute contenedores sirve (Railway, Fly.io, Azure Cont
 | `DATABASE_USER`/`DATABASE_PASSWORD` **o** `DB_USER`/`DB_PASSWORD` | Credenciales |
 | `APP_USERS`, `APP_TOKEN_SECRET`, `APP_SENSOR_KEYS` | Personas, secreto de tokens (32+), claves de sensores |
 | `AI_SERVICE_URL`, `CORS_ALLOWED_ORIGINS` | URLs públicas |
+| `AI_API_KEY` | La misma clave (24+ caracteres) en el backend y en el servicio de IA |
+| `APP_ENVIRONMENT` | `production`: impide arrancar con la seguridad de desarrollo |
+| `MQTT_INSTANCE_ID` | Identificador estable por instancia (sesión MQTT persistente) |
 | `FORWARD_HEADERS_STRATEGY` | `framework` detrás de un proxy |
 | `PORT` | Lo inyecta la plataforma (por defecto, 8080) |

@@ -1,8 +1,11 @@
 package edu.campusnexo.infrastructure.adapter.out.persistence.reservation;
 
 import edu.campusnexo.domain.reservation.Reservation;
+import edu.campusnexo.domain.reservation.ReservationOrigin;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
@@ -30,6 +33,13 @@ class ReservationEntity {
     @Column(name = "reference", nullable = false, length = 80)
     private String reference;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "origin", nullable = false, length = 16)
+    private ReservationOrigin origin;
+
+    @Column(name = "created_by", length = 64)
+    private String createdBy;
+
     protected ReservationEntity() {
     }
 
@@ -40,9 +50,11 @@ class ReservationEntity {
         endsAt = reservation.endsAt();
         expectedAttendees = reservation.expectedAttendees();
         reference = reservation.reference();
+        origin = reservation.origin();
+        createdBy = reservation.createdBy();
     }
 
     Reservation toDomain() {
-        return new Reservation(reservationId, spaceId, startsAt, endsAt, expectedAttendees, reference);
+        return new Reservation(reservationId, spaceId, startsAt, endsAt, expectedAttendees, reference, origin, createdBy);
     }
 }

@@ -1,9 +1,11 @@
 package edu.campusnexo.application.reservation;
 
+import edu.campusnexo.application.exception.ForbiddenOperationException;
 import edu.campusnexo.application.exception.ReservationConflictException;
 import edu.campusnexo.application.exception.ResourceNotFoundException;
 import edu.campusnexo.application.port.in.CampusCatalogUseCase;
 import edu.campusnexo.application.port.in.CreateReservationCommand;
+import edu.campusnexo.application.port.in.Requester;
 import edu.campusnexo.application.port.in.ReservationUseCase;
 import edu.campusnexo.domain.catalog.CampusSpace;
 import edu.campusnexo.domain.port.ReservationRepository;
@@ -39,7 +41,8 @@ public class ReservationService implements ReservationUseCase {
     public Reservation create(CreateReservationCommand command) {
         CampusSpace space = catalog.getRequiredSpace(command.spaceId());
         Reservation reservation = new Reservation(UUID.randomUUID(), space.spaceId(), command.startsAt(),
-                command.endsAt(), command.expectedAttendees(), command.reference());
+                command.endsAt(), command.expectedAttendees(), command.reference(), command.origin(),
+                command.requestedBy() == null ? null : command.requestedBy().name());
         if (reservation.expectedAttendees() > space.capacity()) {
             throw new DomainValidationException("expectedAttendees supera el aforo del espacio (" + space.capacity() + ")");
         }
@@ -83,8 +86,13 @@ public class ReservationService implements ReservationUseCase {
     }
 
     @Override
-    public void cancel(UUID reservationId) {
-        get(reservationId);
+    public void cancel(UUID reservationId, Requester requester) {
+        Reservation reservation = get(reservationId);
+        boolean owner = reservation.createdBy() != null && reservation.createdBy().equals(requester.name());
+        if (!requester.administrator() && !owner) {
+            throw new ForbiddenOperationException("reservation_not_owned",
+                    "Solo quien creó la reserva o un administrador puede cancelarla");
+        }
         repository.delete(reservationId);
     }
 }

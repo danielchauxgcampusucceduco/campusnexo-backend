@@ -3,6 +3,8 @@ package edu.campusnexo.infrastructure.adapter.in.web.dto;
 import static edu.campusnexo.domain.telemetry.MeasurementLimits.MAX_PEOPLE;
 
 import edu.campusnexo.application.port.in.CreateReservationCommand;
+import edu.campusnexo.application.port.in.Requester;
+import edu.campusnexo.domain.reservation.ReservationOrigin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -17,7 +19,9 @@ public record ReservationRequest(
         @NotNull @Min(1) @Max(MAX_PEOPLE) Integer expectedAttendees,
         @NotBlank @Size(max = 80) String reference) {
 
-    public CreateReservationCommand toCommand(String spaceId) {
-        return new CreateReservationCommand(spaceId, startsAt, endsAt, expectedAttendees, reference);
+    /** Bookings made through the API always have origin {@code USUARIO}; the caller becomes the author. */
+    public CreateReservationCommand toCommand(String spaceId, Requester requester) {
+        return new CreateReservationCommand(spaceId, startsAt, endsAt, expectedAttendees, reference,
+                ReservationOrigin.USUARIO, requester);
     }
 }

@@ -1,7 +1,11 @@
 package edu.campusnexo.architecture;
 
+import static com.tngtech.archunit.base.DescribedPredicate.not;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
 import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaClass;
@@ -71,4 +75,35 @@ class HexagonalArchitectureTest {
             .that().resideInAPackage("..infrastructure.adapter.out..")
             .should().dependOnClassesThat().resideInAPackage("..infrastructure.adapter.in..")
             .because("los contratos compartidos viven en adapter.contract");
+
+    @ArchTest
+    static final ArchRule domainModulesAreFreeOfCycles = slices().matching("edu.campusnexo.domain.(*)..")
+            .should().beFreeOfCycles()
+            .because("cada módulo del dominio se entiende y se prueba sin arrastrar a los demás en círculo");
+
+    @ArchTest
+    static final ArchRule applicationModulesAreFreeOfCycles = slices().matching("edu.campusnexo.application.(*)..")
+            .should().beFreeOfCycles()
+            .because("los casos de uso se comunican por puertos, no en círculo");
+
+    @ArchTest
+    static final ArchRule inboundAdaptersOnlyUseInputPorts = noClasses()
+            .that().resideInAPackage("..infrastructure.adapter.in..")
+            .should().dependOnClassesThat(resideInAPackage("edu.campusnexo.application..")
+                    .and(not(resideInAnyPackage("edu.campusnexo.application.port..",
+                            "edu.campusnexo.application.exception.."))))
+            .because("un adaptador de entrada conoce el contrato del caso de uso, nunca su implementación");
+
+    @ArchTest
+    static final ArchRule onlyTheTwinUseCasesWriteTheTwin = classes().that().haveSimpleName("TwinWriter")
+            .should().onlyBeAccessed().byAnyPackage("edu.campusnexo.application.twin..",
+                    "edu.campusnexo.infrastructure.config..")
+            .because("el gemelo se escribe solo con lectura-decisión-comparación y en una transacción");
+
+    @ArchTest
+    static final ArchRule simulationOnlyUsesInputPorts = noClasses()
+            .that().resideInAPackage("edu.campusnexo.application.simulation..")
+            .should().dependOnClassesThat().resideInAnyPackage("edu.campusnexo.application.twin..",
+                    "edu.campusnexo.domain.port..")
+            .because("la demostración recorre el mismo camino que los dispositivos: solo los puertos de entrada");
 }

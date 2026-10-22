@@ -5,7 +5,9 @@ import edu.campusnexo.domain.reservation.Reservation;
 import edu.campusnexo.domain.reservation.ReservationOverlapException;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -60,6 +62,17 @@ class JpaReservationAdapter implements ReservationRepository {
     public Optional<Reservation> findActiveAt(String spaceId, Instant instant) {
         return data.findFirstBySpaceIdAndStartsAtLessThanEqualAndEndsAtGreaterThanOrderByStartsAtDesc(
                 spaceId, instant, instant).map(ReservationEntity::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Reservation> findActiveAtForAll(Instant instant) {
+        Map<String, Reservation> active = new LinkedHashMap<>();
+        for (ReservationEntity entity : data.findActiveAt(instant)) {
+            Reservation reservation = entity.toDomain();
+            active.putIfAbsent(reservation.spaceId(), reservation);
+        }
+        return active;
     }
 
     @Override

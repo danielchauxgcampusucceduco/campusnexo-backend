@@ -1,5 +1,6 @@
 package edu.campusnexo.support;
 
+import edu.campusnexo.domain.port.SeatRegionRepository;
 import edu.campusnexo.domain.port.SpaceRepositoryPort;
 import edu.campusnexo.domain.twin.ConcurrentTwinUpdateException;
 import edu.campusnexo.domain.twin.SpaceTwinState;
@@ -11,11 +12,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-public final class InMemorySpaceRepositoryPort implements SpaceRepositoryPort {
+public final class InMemorySpaceRepositoryPort implements SpaceRepositoryPort, SeatRegionRepository {
     private final Map<String, StoredTwin> twins = new LinkedHashMap<>();
     /** Number of writes rejected because the caller saw an old revision. */
     public int conflicts;
     private final Map<String, List<StudyZoneRoi>> rois = new LinkedHashMap<>();
+    /** Number of desk-region queries, to check that hot paths read them in batch or from the cache. */
+    public int roiQueries;
 
     /** Same 4 × 2 desk layout seeded by Flyway V10 for BIB-PISO-2. */
     public static List<StudyZoneRoi> libraryDesks() {
@@ -74,7 +77,14 @@ public final class InMemorySpaceRepositoryPort implements SpaceRepositoryPort {
     }
 
     @Override
-    public List<StudyZoneRoi> findRois(String spaceId) {
+    public synchronized List<StudyZoneRoi> findRois(String spaceId) {
+        roiQueries++;
         return rois.getOrDefault(spaceId, List.of());
+    }
+
+    @Override
+    public synchronized Map<String, List<StudyZoneRoi>> findAllRois() {
+        roiQueries++;
+        return Map.copyOf(rois);
     }
 }

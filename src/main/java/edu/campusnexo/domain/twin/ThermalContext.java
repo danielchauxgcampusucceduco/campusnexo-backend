@@ -3,6 +3,8 @@ package edu.campusnexo.domain.twin;
 import static edu.campusnexo.domain.shared.DomainChecks.require;
 import static edu.campusnexo.domain.shared.DomainChecks.requireNonNull;
 
+import edu.campusnexo.domain.climate.ComfortBand;
+
 /**
  * Inputs of the thermal controller. {@code minutesUntilOccupancyEnds} and
  * {@code minutesUntilNextOccupancy} come from the reservations and may be {@code null}.
@@ -19,7 +21,8 @@ public record ThermalContext(
 
     public ThermalContext {
         require(Double.isFinite(indoorTemperatureC) && Double.isFinite(outdoorTemperatureC), "Temperaturas no válidas");
-        require(occupants >= 0 && areaSqm > 0 && co2Ppm >= 0, "Contexto térmico no válido");
+        require(occupants >= 0 && Double.isFinite(areaSqm) && areaSqm > 0
+                && Double.isFinite(co2Ppm) && co2Ppm >= 0, "Contexto térmico no válido");
         requireNonNull(comfortBand, "comfortBand");
         require(minutesUntilOccupancyEnds == null || minutesUntilOccupancyEnds >= 0, "minutesUntilOccupancyEnds negativo");
         require(minutesUntilNextOccupancy == null || minutesUntilNextOccupancy >= 0, "minutesUntilNextOccupancy negativo");

@@ -54,6 +54,15 @@ services:
       # Public URL of campusnexo-ai, e.g. https://campusnexo-ai.onrender.com
       - key: AI_SERVICE_URL
         sync: false
+      # Shared key with the AI service (X-API-Key): generated once there and read from it here.
+      - key: AI_API_KEY
+        fromService:
+          type: web
+          name: campusnexo-ai
+          envVarKey: AI_API_KEY
+      # Declares production: the backend refuses to start with development security.
+      - key: APP_ENVIRONMENT
+        value: production
       # Public URL of campusnexo-dashboard, e.g. https://campusnexo-dashboard.onrender.com
       - key: CORS_ALLOWED_ORIGINS
         sync: false
@@ -73,6 +82,10 @@ services:
     repo: https://github.com/danielchauxgcampusucceduco/campusnexo-ai-service
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
+    envVars:
+      # Every route but /health and /ready requires it in X-API-Key; the backend reads the same value.
+      - key: AI_API_KEY
+        generateValue: true
 
   - type: web
     name: campusnexo-dashboard

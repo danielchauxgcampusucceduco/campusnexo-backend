@@ -27,7 +27,10 @@ public record ThermalParameters(
         double co2VentilationPpm) {
 
     public ThermalParameters {
-        require(timeConstantMinutes > 0 && occupantGainCPerHour >= 0 && hvacRateCPerMinute > 0 && stepMinutes > 0
+        require(Double.isFinite(timeConstantMinutes) && Double.isFinite(occupantGainCPerHour)
+                && Double.isFinite(hvacRateCPerMinute) && Double.isFinite(ecoSetbackOffsetC)
+                && Double.isFinite(co2VentilationPpm)
+                && timeConstantMinutes > 0 && occupantGainCPerHour >= 0 && hvacRateCPerMinute > 0 && stepMinutes > 0
                 && defaultOccupiedMinutes > 0 && preConditioningLeadMinutes > 0 && ecoSetbackWindowMinutes > 0
                 && ecoSetbackOffsetC >= 0 && co2VentilationPpm > 0, "Parámetros térmicos no válidos");
     }

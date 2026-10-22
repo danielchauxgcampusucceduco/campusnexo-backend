@@ -15,8 +15,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * Owns the single Paho callback of the shared connection. Inbound adapters register their topic filter
- * here instead of setting their own callback (Paho keeps only one), and every registered subscription is
- * restored after an automatic reconnection, because clean sessions do not keep them on the broker.
+ * here instead of setting their own callback (Paho keeps only one), every registered subscription is
+ * restored after an automatic reconnection, and the adapters confirm each message here once they have
+ * processed it (the client runs with manual acknowledgements).
  */
 @Component
 @ConditionalOnProperty(name = "app.mqtt.enabled", havingValue = "true")
@@ -57,6 +58,18 @@ public class MqttSubscriptions {
         Subscription subscription = new Subscription(topicFilter, qos, listener);
         subscriptions.add(subscription);
         subscribe(subscription);
+    }
+
+    /** Confirms a QoS 1 message to the broker; until then the broker keeps it for redelivery. */
+    public void acknowledge(MqttMessage message) {
+        if (message.getQos() == 0) {
+            return;
+        }
+        try {
+            client.messageArrivedComplete(message.getId(), message.getQos());
+        } catch (MqttException failure) {
+            log.warn("No se pudo confirmar el mensaje MQTT {}", message.getId(), failure);
+        }
     }
 
     public void remove(String topicFilter) {

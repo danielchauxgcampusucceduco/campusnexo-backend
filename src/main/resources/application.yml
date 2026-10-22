@@ -26,13 +26,19 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        # prometheus: operational counters (readings discarded, AI fallback, circuit state); ADMIN only.
+        include: health,info,prometheus
   endpoint:
     health:
       probes:
         enabled: true
 
 app:
+  # local | production. Production refuses development security (SECURITY_MODE=development).
+  environment: ${APP_ENVIRONMENT:local}
+  catalog:
+    # The catalog and the desk regions only change with a migration: read once per this time.
+    cache-ttl: ${CATALOG_CACHE_TTL:5m}
   cors:
     # Comma-separated list. 5173 = Vite dev server, 3000 = frontend container.
     allowed-origins: ${CORS_ALLOWED_ORIGINS:${CORS_ALLOWED_ORIGIN:http://localhost:5173,http://localhost:3000}}
@@ -66,9 +72,18 @@ app:
       backoff: ${OBSERVER_BACKOFF:200ms}
   ai:
     base-url: ${AI_SERVICE_URL:http://localhost:8001}
-    connect-timeout: ${AI_CONNECT_TIMEOUT:2s}
-    read-timeout: ${AI_READ_TIMEOUT:5s}
+    # Shared with the AI service (its AI_API_KEY); sent as X-API-Key. Empty only for local development.
+    api-key: ${AI_API_KEY:}
+    connect-timeout: ${AI_CONNECT_TIMEOUT:1s}
+    read-timeout: ${AI_READ_TIMEOUT:2s}
     max-attempts: ${AI_MAX_ATTEMPTS:2}
+    # Wait before the second attempt (doubles per attempt, plus up to 50 % jitter).
+    backoff: ${AI_BACKOFF:100ms}
+    circuit:
+      # Consecutive failed evaluations that open the circuit, and how long it stays open (or the service's
+      # Retry-After, if longer). While open, the local fallback answers immediately.
+      failure-threshold: ${AI_CIRCUIT_FAILURE_THRESHOLD:3}
+      open-duration: ${AI_CIRCUIT_OPEN_DURATION:30s}
     fallback-enabled: ${AI_FALLBACK_ENABLED:true}
     default-outdoor-co2-ppm: ${OUTDOOR_CO2_PPM:420}
   occupancy:
@@ -83,6 +98,10 @@ app:
     enabled: ${MQTT_ENABLED:false}
     broker-url: ${MQTT_BROKER_URL:tcp://localhost:1883}
     client-id-prefix: ${MQTT_CLIENT_ID_PREFIX:campusnexo-backend}
+    # Stable id of this instance: the broker keeps its persistent session (unconfirmed QoS 1 messages).
+    instance-id: ${MQTT_INSTANCE_ID:${HOSTNAME:local}}
+    # Rooms with a message waiting at most; beyond that new topics are dropped and counted.
+    max-pending-rooms: ${MQTT_MAX_PENDING_ROOMS:2000}
     username: ${MQTT_USERNAME:}
     password: ${MQTT_PASSWORD:}
     qos: ${MQTT_QOS:1}
@@ -132,4 +151,4 @@ app:
     co2-threshold-ppm: ${CO2_ALERT_THRESHOLD_PPM:1000}
     empty-space-power-threshold-kw: ${EMPTY_SPACE_POWER_THRESHOLD_KW:0.15}
     cooldown: ${ALERT_COOLDOWN:15m}
-    reservation-grace: ${RESERVATION_GRACE:15m}
+    # The no-show grace of the alert is app.twin.status.no-show-grace: one rule, one value.

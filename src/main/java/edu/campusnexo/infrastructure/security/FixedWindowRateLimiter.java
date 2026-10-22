@@ -16,6 +16,12 @@ final class FixedWindowRateLimiter {
     private final ConcurrentMap<String, Window> windows = new ConcurrentHashMap<>();
 
     FixedWindowRateLimiter(int limit, Duration window, Clock clock) {
+        if (window == null || window.isZero() || window.isNegative() || window.toMillis() == 0) {
+            throw new IllegalArgumentException("window debe durar al menos un milisegundo");
+        }
+        if (clock == null) {
+            throw new IllegalArgumentException("clock es obligatorio");
+        }
         this.limit = limit;
         this.windowMillis = window.toMillis();
         this.clock = clock;

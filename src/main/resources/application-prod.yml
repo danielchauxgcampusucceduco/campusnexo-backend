@@ -15,6 +15,8 @@ server:
   forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:framework}
 
 app:
+  # Declares the environment: the safety check refuses development security here.
+  environment: production
   security:
     # Not overridable: production always requires sign-in, a token secret and at least one ADMIN.
     mode: enforced

@@ -1,6 +1,7 @@
 package edu.campusnexo.infrastructure.adapter.in.web.dto;
 
 import edu.campusnexo.domain.reservation.Reservation;
+import edu.campusnexo.domain.reservation.ReservationOrigin;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -10,10 +11,13 @@ public record ReservationResponse(
         Instant startsAt,
         Instant endsAt,
         int expectedAttendees,
-        String reference) {
+        String reference,
+        ReservationOrigin origin,
+        String createdBy) {
 
     public static ReservationResponse from(Reservation reservation) {
         return new ReservationResponse(reservation.reservationId(), reservation.spaceId(), reservation.startsAt(),
-                reservation.endsAt(), reservation.expectedAttendees(), reservation.reference());
+                reservation.endsAt(), reservation.expectedAttendees(), reservation.reference(), reservation.origin(),
+                reservation.createdBy());
     }
 }
