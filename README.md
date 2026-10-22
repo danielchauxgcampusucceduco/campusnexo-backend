@@ -60,6 +60,8 @@ edu.campusnexo
 
 Los patrones, sus participantes y el guion de demostración están en [`docs/patrones-de-software.md`](docs/patrones-de-software.md).
 
+Las decisiones transversales de arquitectura, seguridad y operación están registradas en [`docs/adr/`](docs/adr/README.md).
+
 ## Inicio local con Docker Compose
 
 ```sh
