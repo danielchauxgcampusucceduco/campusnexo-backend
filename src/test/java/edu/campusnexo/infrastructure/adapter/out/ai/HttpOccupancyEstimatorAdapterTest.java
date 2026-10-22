@@ -80,4 +80,18 @@ class HttpOccupancyEstimatorAdapterTest {
                 () -> adapter.estimate(new OccupancyQuery("A-301", 32, 48, null, 720, 10, 420)));
         server.verify();
     }
+
+    @Test
+    void classifiesMalformedJsonAsInvalidRatherThanUnavailable() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://ai.test/v1/occupancy/estimate"))
+                .andRespond(withSuccess("not-json", MediaType.APPLICATION_JSON));
+        HttpOccupancyEstimatorAdapter adapter = new HttpOccupancyEstimatorAdapter(
+                builder.baseUrl("http://ai.test").build());
+
+        org.junit.jupiter.api.Assertions.assertThrows(OccupancyEstimatorInvalidResponseException.class,
+                () -> adapter.estimate(new OccupancyQuery("A-301", 32, 48, null, 720, 10, 420)));
+        server.verify();
+    }
 }
