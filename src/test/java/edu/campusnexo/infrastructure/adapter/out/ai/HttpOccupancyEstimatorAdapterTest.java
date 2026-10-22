@@ -8,8 +8,11 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import edu.campusnexo.domain.occupancy.OccupancyQuery;
+import edu.campusnexo.domain.occupancy.OccupancyEstimatorInvalidResponseException;
 import edu.campusnexo.domain.occupancy.OccupancySource;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -40,5 +43,24 @@ class HttpOccupancyEstimatorAdapterTest {
         assertEquals(82.5, result.confidencePct());
         assertEquals(OccupancySource.SERVICIO_IA, result.source());
         assertTrue(result.cameraAvailable());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{\"space_id\":\"A-301\",\"occupancy_estimate\":null,\"confidence_pct\":80}",
+            "{\"space_id\":\"B-201\",\"occupancy_estimate\":14,\"confidence_pct\":80}",
+            "{\"space_id\":\"A-301\",\"occupancy_estimate\":14,\"confidence_pct\":101}"
+    })
+    void classifiesMissingMismatchedAndOutOfRangeResponsesAsInvalid(String body) {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("http://ai.test/v1/occupancy/estimate"))
+                .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+        HttpOccupancyEstimatorAdapter adapter = new HttpOccupancyEstimatorAdapter(
+                builder.baseUrl("http://ai.test").build());
+
+        org.junit.jupiter.api.Assertions.assertThrows(OccupancyEstimatorInvalidResponseException.class,
+                () -> adapter.estimate(new OccupancyQuery("A-301", 32, 48, null, 720, 10, 420)));
+        server.verify();
     }
 }
