@@ -1,5 +1,5 @@
--- Hardening after the technical audit: the camera's own count, idempotent readings, which rooms have a
--- climate unit, which rooms the demonstration may touch, and typed authorship of reservations.
+-- Integrity of readings, climate units per room, rooms the demonstration may touch and typed authorship
+-- of reservations.
 
 -- 1. Raw camera count, kept apart from the twin's fused estimate (people_count). The AI service fuses
 --    camera, CO2 and Wi-Fi itself: sending it the fused value would count the CO2 and Wi-Fi evidence twice.

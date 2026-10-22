@@ -215,7 +215,7 @@ La energía en espacios vacíos se **estima** integrando la potencia de las lect
 
 Las rutas `/api/v1/twin/**`, `/api/v1/simulation/**`, el WebSocket STOMP `/ws` y los contratos MQTT están documentados en [`gemelo-digital.md`](gemelo-digital.md).
 
-Cambios de la auditoría técnica (V15):
+Cambios de la versión 15 del esquema (V15):
 
 - Reservas: `origin` y `createdBy`; la cancelación exige ser autor o ADMIN.
 - Telemetría: `cameraPeople` (conteo crudo de la cámara) junto a `peopleCount` (estimación fusionada); una sola lectura por espacio e instante.
