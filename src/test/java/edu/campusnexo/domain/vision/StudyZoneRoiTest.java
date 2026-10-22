@@ -73,6 +73,23 @@ class StudyZoneRoiTest {
     }
 
     @Test
+    @DisplayName("El puesto no hereda el abandono de otro ROI ni de un estado distinto")
+    void abandonmentTimerBelongsToItsDeskAndState() {
+        List<TrackedDetection> backpackOnly = List.of(detection(7, DetectedObjectClass.BACKPACK, 0.2, 0.2));
+        DeskObservation otherDesk = new DeskObservation("Z2", ZoneDeskState.LIBERADO_POR_ABANDONO,
+                0, 1, T0.minus(Duration.ofMinutes(30)), T0);
+        DeskObservation wrongZone = lShape.evaluateDeskGhosting(backpackOnly, otherDesk, T0, FIFTEEN_MINUTES);
+        DeskObservation occupied = new DeskObservation("Z1", ZoneDeskState.OCUPADO_VERIFICADO,
+                0, 1, T0.minus(Duration.ofMinutes(30)), T0);
+        DeskObservation wrongState = lShape.evaluateDeskGhosting(backpackOnly, occupied, T0, FIFTEEN_MINUTES);
+
+        assertEquals(ZoneDeskState.ALERTA_ACAPARAMIENTO, wrongZone.state());
+        assertEquals(0, wrongZone.unattendedMinutes());
+        assertEquals(ZoneDeskState.ALERTA_ACAPARAMIENTO, wrongState.state());
+        assertEquals(0, wrongState.unattendedMinutes());
+    }
+
+    @Test
     @DisplayName("Objetos fuera del polígono no cuentan; sin nada dentro el puesto está disponible")
     void emptyDesk() {
         DeskObservation result = lShape.evaluateDeskGhosting(

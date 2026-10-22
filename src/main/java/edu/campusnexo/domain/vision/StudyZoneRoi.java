@@ -74,7 +74,10 @@ public record StudyZoneRoi(String zoneId, String spaceId, String label, List<Nor
         if (belongings == 0) {
             return new DeskObservation(zoneId, ZoneDeskState.DISPONIBLE, 0, 0, null, now);
         }
-        Instant since = previous != null && previous.unattendedSince() != null && !previous.unattendedSince().isAfter(now)
+        boolean sameAbandonment = previous != null && zoneId.equals(previous.zoneId())
+                && (previous.state() == ZoneDeskState.ALERTA_ACAPARAMIENTO
+                        || previous.state() == ZoneDeskState.LIBERADO_POR_ABANDONO);
+        Instant since = sameAbandonment && previous.unattendedSince() != null && !previous.unattendedSince().isAfter(now)
                 ? previous.unattendedSince()
                 : now;
         ZoneDeskState state = Duration.between(since, now).compareTo(abandonThreshold) >= 0
