@@ -59,6 +59,10 @@
         </dependency>
         <!-- Plain driver for the append-only twin history; no Spring Data, no auto-configuration. -->
         <dependency>
+            <groupId>org.mongodb</groupId>
+            <artifactId>mongodb-driver-sync</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.eclipse.paho</groupId>
             <artifactId>org.eclipse.paho.client.mqttv3</artifactId>
             <version>${paho.version}</version>
