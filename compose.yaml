@@ -1,0 +1,90 @@
+# The system on one machine. `docker compose up` starts the backend with its databases and broker; with the
+# `sistema` profile (`docker compose --profile sistema up`) it also builds the AI service from the sibling
+# repository ../campusnexo-ai-service.
+services:
+  database:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-campusnexo}
+      POSTGRES_USER: ${POSTGRES_USER:-campusnexo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Copia .env.example a .env y define POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - campusnexo-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  history:
+    image: mongo:8
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - campusnexo-mongo:/data/db
+
+  mqtt:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  backend:
+    build: .
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-jdbc:postgresql://database:5432/campusnexo}
+      DATABASE_USER: ${DATABASE_USER:-campusnexo}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Copia .env.example a .env y define DATABASE_PASSWORD}
+      MONGODB_URI: ${MONGODB_URI:-mongodb://history:27017}
+      SERVER_PORT: 8080
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      SECURITY_MODE: ${SECURITY_MODE:-enforced}
+      APP_USERS: ${APP_USERS:-}
+      APP_SENSOR_KEYS: ${APP_SENSOR_KEYS:-}
+      APP_TOKEN_SECRET: ${APP_TOKEN_SECRET:-}
+      ADMIN_ALLOWED_NETWORKS: ${ADMIN_ALLOWED_NETWORKS:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-0}
+      ACTUATORS_MODE: ${ACTUATORS_MODE:-log}
+      AI_SERVICE_URL: ${AI_SERVICE_URL:-http://ai:8001}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_FALLBACK_ENABLED: ${AI_FALLBACK_ENABLED:-true}
+      MQTT_ENABLED: ${MQTT_ENABLED:-true}
+      MQTT_BROKER_URL: ${MQTT_BROKER_URL:-tcp://mqtt:1883}
+      KALMAN_CAMERA_VARIANCE: ${KALMAN_CAMERA_VARIANCE:-0.64}
+      NO_SHOW_GRACE: ${NO_SHOW_GRACE:-15m}
+      DESK_ABANDON_THRESHOLD: ${DESK_ABANDON_THRESHOLD:-15m}
+      EQUIPMENT_IDLE_SHUTDOWN: ${EQUIPMENT_IDLE_SHUTDOWN:-5m}
+      EMPAREJAMIENTO_ANTICIPACION: ${EMPAREJAMIENTO_ANTICIPACION:-75s}
+      EMPAREJAMIENTO_RANURA: ${EMPAREJAMIENTO_RANURA:-5s}
+    ports:
+      - "8080:8080"
+    depends_on:
+      database:
+        condition: service_healthy
+      history:
+        condition: service_started
+      mqtt:
+        condition: service_started
+
+  ai:
+    profiles: ["sistema"]
+    build: ../campusnexo-ai-service
+    restart: unless-stopped
+    environment:
+      AI_API_KEY: ${AI_API_KEY:-}
+    ports:
+      - "8001:8001"
+
+
+volumes:
+  campusnexo-postgres:
+  campusnexo-mongo:
