@@ -1,0 +1,21 @@
+# Production profile: no default credentials and sign-in always enforced.
+# Either DATABASE_URL (JDBC) or DB_HOST/DB_PORT/DB_NAME must be provided.
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}}
+    username: ${DATABASE_USER:${DB_USER}}
+    password: ${DATABASE_PASSWORD:${DB_PASSWORD}}
+
+management:
+  endpoint:
+    health:
+      show-details: never
+
+app:
+  # Declares the environment: the safety check refuses development security here.
+  environment: production
+  security:
+    # Not overridable: production always requires sign-in, a token secret and at least one ADMIN.
+    mode: enforced
+    # Render puts one proxy in front of the service.
+    trusted-proxies: ${TRUSTED_PROXIES:1}
