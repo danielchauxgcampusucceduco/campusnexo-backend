@@ -1,0 +1,253 @@
+# API CampusNexo v1
+
+Base local: `http://localhost:8080`. JSON en `camelCase`; instantes en ISO-8601 UTC (`2026-10-20T15:00:00Z`). Todas las respuestas de error usan `ProblemDetail` con un `code` estable.
+
+## Autenticación y roles
+
+Salvo `GET /actuator/health`, `POST /api/v1/auth/login` y `GET /api/v1/auth/session`, toda ruta exige credenciales:
+
+- **Personas**: `POST /api/v1/auth/login` con `{ "username": "jurado", "password": "…" }` responde `{ "token", "tokenType": "Bearer", "username", "role", "expiresAt" }`. Se envía como `Authorization: Bearer <token>`. Credenciales malas → `401 invalid_credentials`; demasiados intentos desde la misma IP → `429 rate_limited`.
+- **Dispositivos** (cámaras, Arduino, agentes de PC y kioscos): `X-API-Key: <clave>` (`APP_SENSOR_KEYS`). Una clave de dispositivo solo puede enviar lecturas.
+- **Administración**: además del rol ADMIN, las rutas `/api/v1/admin/**` solo responden desde las redes de `ADMIN_ALLOWED_NETWORKS` (la IP de la VPN). La IP del cliente es la última entrada de `X-Forwarded-For` que agregó un proxy de confianza (`TRUSTED_PROXIES`); fuera de la red → `403 admin_network_required`. En producción la lista es obligatoria: sin ella el backend no arranca.
+- `GET /api/v1/auth/session` dice el modo (`enforced`/`development`) y, si el token es válido, quién es y su rol.
+
+| Rol | Rutas |
+|---|---|
+| VIEWER | todos los `GET /api/**` y el canal STOMP |
+| OPERATOR | además: `POST /spaces/{id}/reservations\|evaluations\|occupancy-estimates\|climate-recommendations`, `DELETE /reservations/{id}`, `POST /twin/spaces/{id}/override\|popup\|maintenance` y las rutas anteriores de ocupación y clima |
+| ADMIN | todo, incluidas las rutas `/admin/**` (también para leer: tienen datos de personas) |
+| SENSOR | `POST /telemetry`, `/twin/telemetry`, `/twin/environment`, `/workstations/heartbeats\|audit\|discovery\|pairing`, `/spaces/{id}/check-in` |
+
+Cualquier ruta nueva que no esté en la tabla exige VIEWER para leer y ADMIN para el resto. En este documento, 🔑 marca las rutas de escritura.
+
+## Paginación
+
+`GET /api/v1/telemetry`, `GET /api/v1/spaces/{id}/telemetry` y `GET /api/v1/alerts` devuelven un arreglo JSON, del más reciente al más antiguo. Si la página está llena, la cabecera `X-Next-Cursor` trae el cursor de la siguiente: `?limit=20&cursor=<X-Next-Cursor>`. Es paginación por llave (instante + desempate), así que no se repiten ni se saltan filas aunque lleguen lecturas nuevas entre páginas. Un cursor mal formado → `400 invalid_request`.
+
+## Catálogo
+
+| Ruta | Descripción |
+|---|---|
+| `GET /api/v1/spaces?type=BIBLIOTECA` | Lista los espacios (filtro opcional por `AULA`, `SALA_ESTUDIO`, `AUDITORIO`, `ADMINISTRATIVA`, `LOGISTICA`, `BIBLIOTECA`, `CAFETERIA`, `LABORATORIO`, `SALA_COMPUTO` o `ZONA_COMUN`). Incluye edificio, sede, perfil climático, temperatura exterior promedio y tarifa de energía (COP/kWh). |
+| `GET /api/v1/spaces/{spaceId}` | Un espacio. `404 space_not_found` si no existe. |
+
+Espacios: los 107 salones del campus Pasto tomados del plano institucional, por ejemplo `421-A`, `402-B` o `BIBLIOTECA-2B` (ver `docs/gemelo-digital.md`).
+
+## Telemetría
+
+### `POST /api/v1/telemetry` 🔑
+
+```json
+{
+  "spaceId": "421-A",
+  "recordedAt": "2026-10-20T15:00:00Z",
+  "peopleCount": 18,
+  "objectCount": 0,
+  "wifiDevices": 21,
+  "co2Ppm": 820,
+  "temperatureC": 23.1,
+  "humidityPct": 58,
+  "illuminanceLux": 410,
+  "activePowerKw": 2.4
+}
+```
+
+| Campo | Rango (validado en el dominio) |
+|---|---|
+| `recordedAt` | Opcional (se usa la hora del servidor). Máximo 5 min en el futuro y 30 días en el pasado. |
+| `peopleCount` | 0–5000. Conteo agregado del sensor o la cámara. |
+| `objectCount` | 0–10000. Objetos sobre los puestos (lo usa la IA para detectar puestos "apartados"). |
+| `wifiDevices` | 0–10000. |
+| `co2Ppm` | 0–10000. |
+| `temperatureC` | −30 a 60. |
+| `humidityPct` | 0–100. |
+| `illuminanceLux` | 0–20000. Aporte de luz natural. |
+| `activePowerKw` | 0–10000. |
+
+- `201 Created`: lectura nueva, se notifica a los observadores.
+- `200 OK`: ya existía una lectura con el mismo `spaceId` y `recordedAt` (reintento idempotente; no se duplica).
+
+### Consultas
+
+- `GET /api/v1/telemetry?spaceId=&limit=20`: más recientes primero; `limit` va de 1 a 100.
+- `GET /api/v1/spaces/{spaceId}/telemetry?limit=20`
+
+## Evaluación de punta a punta (Facade)
+
+### `POST /api/v1/spaces/{spaceId}/evaluations`
+
+Sin cuerpo. Usa la última lectura del espacio: estima la ocupación (IA, o respaldo local), deriva el estado del HVAC desde el historial, guarda la recomendación y responde:
+
+```json
+{
+  "space": { "spaceId": "421-A", "climateProfile": "SEDE_ANDINA", "...": "..." },
+  "telemetry": { "recordedAt": "...", "peopleCount": 22, "...": "..." },
+  "occupancy": { "estimateId": "...", "occupancyEstimate": 22, "confidencePct": 82.0, "source": "SERVICIO_IA" },
+  "recommendation": { "hvac": { "mode": "CALEFACCION", "setpointC": 20.0 }, "occupancySource": "SERVICIO_IA", "sourceTelemetryAt": "..." },
+  "activeReservation": null,
+  "recentAlerts": []
+}
+```
+
+`409 telemetry_not_available` si el espacio no tiene lecturas.
+
+## Ocupación
+
+| Ruta | Descripción |
+|---|---|
+| `POST /api/v1/spaces/{spaceId}/occupancy-estimates` | Cuerpo `{ "yoloPeople": 18, "co2Ppm": 820, "wifiDevices": 21, "outdoorCo2Ppm": 420 }` (`yoloPeople` y `outdoorCo2Ppm` son opcionales). `201` con `Location`. |
+| `POST /api/v1/occupancy/estimate?spaceId=` | **Ruta anterior**, mantenida para el dashboard React actual (`200`, mismos campos). Está obsoleta. |
+| `GET /api/v1/spaces/{spaceId}/occupancy-estimates?limit=` | Historial de estimaciones. |
+| `GET /api/v1/occupancy-estimates/{estimateId}` | Una estimación. |
+| `GET /api/v1/occupancy/live?type=BIBLIOTECA` | Ocupación en vivo: `peopleCount`, `freeSeats`, `occupancyPct`, `status` (`LIBRE` < 60 % ≤ `MODERADO` < 85 % ≤ `SATURADO`; `SIN_DATOS` si la última lectura tiene más de 30 min). Primero los espacios con más puestos libres. |
+
+Cada estimación indica su `source`: `SERVICIO_IA` o `RESPALDO_LOCAL`. Si la IA está caída y el respaldo está desactivado, la respuesta es `503 ai_service_unavailable`; si la IA responde con datos inválidos, `502 ai_service_invalid_response`.
+
+## Recomendaciones climáticas
+
+### `POST /api/v1/spaces/{spaceId}/climate-recommendations`
+
+```json
+{
+  "occupancy": 18,
+  "co2Ppm": 820,
+  "indoorTemperatureC": 17.5,
+  "outsideTemperatureC": 12,
+  "humidityPct": 60,
+  "illuminanceLux": 250,
+  "currentHvacMode": "APAGADO",
+  "minutesInCurrentHvacMode": 30
+}
+```
+
+- `outsideTemperatureC` es opcional (se usa el promedio de la sede).
+- `currentHvacMode` y `minutesInCurrentHvacMode` se envían juntos o se omiten juntos; si se omiten, se derivan del historial.
+- Responde `201` con `Location: /api/v1/climate/recommendations/{id}`.
+
+La respuesta contiene:
+
+- `hvac.mode` (`APAGADO`, `CALEFACCION`, `ENFRIAMIENTO` o `DESHUMIDIFICACION`) y `setpointC` con decimales.
+- `ventilation.mode` (`NINGUNA`, `NATURAL` o `MECANICA`).
+- `lighting.targetLevelPct` y `lighting.closeBlinds`.
+- `explanations`, `occupancySource`, `sourceTelemetryAt` e `inputs` (las entradas usadas, para auditoría).
+
+Consultas:
+
+- `GET /api/v1/climate/recommendations?spaceId=&limit=`
+- `GET /api/v1/spaces/{spaceId}/climate-recommendations?limit=`
+- `GET /api/v1/climate/recommendations/{recommendationId}`
+
+`POST /api/v1/climate/recommendations?spaceId=` sigue disponible como ruta anterior (obsoleta).
+
+## Alertas
+
+`GET /api/v1/alerts?spaceId=&type=&limit=`: tipos `CO2_ALTO`, `SOBRECUPO`, `CONSUMO_ESPACIO_VACIO`, `RESERVA_SIN_USO`, `CPU_ENCENDIDA_SIN_USUARIO`, `ACTIVO_FALTANTE` y `SENSOR_ANOMALO`; severidad `INFORMATIVA`, `ADVERTENCIA` o `CRITICA`. La misma alerta no se repite para un espacio durante `ALERT_COOLDOWN` (15 min). `RESERVA_SIN_USO` se emite una vez por reserva, cuando el espacio sigue vacío `NO_SHOW_GRACE` (15 min, el mismo plazo con el que el gemelo marca el no-show) después de iniciar. Dos instancias no pueden emitir la misma alerta a la vez: la comprobación y la escritura se hacen bajo un candado de PostgreSQL por espacio y tipo. Las alertas se calculan fuera del hilo de la petición (observadores asíncronos con hasta 3 intentos): pueden aparecer unos milisegundos después de que `POST /telemetry` responde.
+
+## Reservas
+
+### `POST /api/v1/spaces/{spaceId}/reservations` 🔑
+
+```json
+{ "startsAt": "2026-10-21T13:00:00Z", "endsAt": "2026-10-21T15:00:00Z", "expectedAttendees": 25, "reference": "IS-701",
+  "holderCode": "D-100" }
+```
+
+`reference` es un código de curso o grupo, sin datos personales. El servidor registra quién la creó (`createdBy`, el usuario de la sesión). `holderCode` (opcional) es el código institucional del docente o estudiante titular: debe estar registrado y su tipo decide qué puede reservar y por cuánto tiempo (docente: aulas, salas de cómputo, laboratorios, auditorios y salas de estudio, hasta 4 h; estudiante: salas de estudio y biblioteca, hasta 2 h). Las reglas generales son: duración máxima de 12 h, `expectedAttendees` ≤ aforo y sin solapamiento (`409 reservation_conflict`). El solapamiento lo garantiza PostgreSQL con una restricción de exclusión sobre `tstzrange(starts_at, ends_at)` por espacio: si dos peticiones simultáneas pasan la comprobación previa, la base confirma una y la otra recibe `409`. Responde `201` con `Location: /api/v1/reservations/{id}`.
+
+Consultas:
+
+- `GET /api/v1/spaces/{spaceId}/reservations?from=&to=`: por defecto, desde un día atrás hasta siete días adelante; ventana máxima de 31 días.
+- `GET /api/v1/reservations/{reservationId}`
+
+### `DELETE /api/v1/reservations/{reservationId}` 🔑
+
+Responde `204`. Solo la persona que creó la reserva o un ADMIN pueden cancelarla; cualquier otro OPERATOR recibe `403 reservation_not_owned`.
+
+### `POST /api/v1/spaces/{spaceId}/check-in` 📡
+
+Kiosco de la puerta: `{ "codigo": "D-100" }`. Confirma la llegada del titular de la reserva en curso (o que empieza en los próximos 15 minutos) y responde a quién pertenece: `{ "reservationId", "reference", "tipo", "nombre", "checkedInAt" }`. Repetirlo conserva la primera hora. Otro código → `400`; sin reserva en la ventana → `404 reservation_not_found`.
+
+## Administración (🔐 ADMIN, desde la VPN)
+
+| Ruta | Descripción |
+|---|---|
+| `PUT /admin/spaces/{id}` 🔑 | Medidas tomadas en sitio: `{capacity, areaSqm, seatRows, seatColumns, computers, hvacInstalled}` (filas y columnas juntas o ambas `null`). Una rejilla que deje un puesto registrado afuera → `409 puestos_fuera_de_rejilla`. |
+| `GET /admin/personas?tipo=`, `GET /admin/personas/{codigo}` | Docentes y estudiantes, con sus reglas de reserva (`puedeReservar`, `reservaMaximaHoras`). |
+| `POST /admin/personas` 🔑, `DELETE /admin/personas/{codigo}` 🔑 | Registra o actualiza por código (`{tipo, codigo, nombre, adscripcion}`); sin datos de contacto ni biometría. |
+| `GET /admin/spaces/{id}/puestos` | Puestos con sus activos, si la cámara ve a alguien, si el computador está encendido y qué falta. |
+| `POST /admin/activos` 🔑, `DELETE /admin/activos/{codigo}` 🔑 | Ubica a mano un activo en un puesto (`{spaceId, numeroPuesto, tipo, codigo, potenciaW}`). |
+| `GET /admin/spaces/{id}/propuesta` | Propuesta de la cámara: lo que agregaría, los puestos incompletos, los computadores sin puesto y el emparejamiento. |
+| `POST /admin/spaces/{id}/emparejamiento` 🔑 | Programa una ranura por computador sin puesto para que muestre su patrón. |
+| `POST /admin/spaces/{id}/propuesta/confirmar` 🔑 | Registra lo propuesto salvo `{ "descartar": ["A4"] }`. Nada se registra sin este paso. |
+| `POST /admin/ia/asignacion` 🔑 | `{cursos: [{cursoId, asistentes}], margenSeguridad}` → salones que cubren la asistencia con la menor potencia nominal. |
+| `GET /admin/ia/sensores?horas=24` | Lecturas anómalas (fuera de rango, sensor pegado, salto); cada salón afectado recibe `SENSOR_ANOMALO`. |
+| `GET /admin/spaces/{id}/pronostico?horas=12` | Ocupación esperada por hora con intervalo, aprendida del historial (MongoDB); sin historial → `409 history_not_available`. |
+| `GET /admin/spaces/{id}/historial.csv?desde=&hasta=` | Historial del gemelo en CSV, con las columnas que lee la evaluación de la IA. |
+
+## Dispositivos (📡)
+
+| Ruta | Descripción |
+|---|---|
+| `POST /workstations/heartbeats` | `{cpu, spaceId}`. Respuesta `202 {cpu, asignado, puesto, patronDesde, patronHasta}`: el estado del puesto si el computador ya tiene uno; si no, su ranura de patrón cuando hay emparejamiento. |
+| `POST /workstations/discovery` | Puestos vistos por la cámara con el salón vacío: `{spaceId, emulado, puestos: [{fila, columna, monitor, silla, mesa}]}`. |
+| `POST /workstations/pairing` | `{spaceId, fila, columna, at}`: dónde y cuándo la cámara vio un patrón. |
+| `POST /workstations/audit` | `{spaceId, puestos: [{zoneId, silla, mesa}]}` → activos del inventario que no se ven (`ACTIVO_FALTANTE`). |
+
+## Dashboard
+
+`GET /api/v1/dashboard/summary`
+
+```json
+{
+  "monitoredSpaces": 3,
+  "readingsLast24h": 240,
+  "since": "2026-10-19T15:00:00Z",
+  "alertsLast24h": 6,
+  "alertsByType": { "CO2_ALTO": 2, "SOBRECUPO": 1, "CONSUMO_ESPACIO_VACIO": 3, "RESERVA_SIN_USO": 0 },
+  "averageOccupancyPct": 41.5,
+  "saturatedSpaces": 1,
+  "estimatedEmptySpaceEnergyKwh": 3.25,
+  "estimatedEmptySpaceEnergyCostCop": 2811
+}
+```
+
+La energía en espacios vacíos se **estima** integrando la potencia de las lecturas con `peopleCount = 0` hasta la lectura siguiente, con un tope de 15 min por intervalo. Es un indicador del prototipo, no una medición certificada.
+
+## Errores
+
+| HTTP | `code` | Significado |
+|---|---|---|
+| 400 | `validation_failed` | Faltan campos o un valor está fuera de su rango físico (incluye `errors[]` con campo y mensaje; los rangos son los mismos `MeasurementLimits` del dominio). |
+| 400 | `invalid_request` | Valor fuera de rango o regla del dominio violada (mensaje con el campo). |
+| 400 | `malformed_request` | JSON inválido, tipo incorrecto o parámetro requerido ausente. |
+| 401 | `authentication_required` | Faltan credenciales, el token venció o la clave de sensor no es válida. |
+| 401 | `invalid_credentials` | Usuario o contraseña incorrectos en `/auth/login`. |
+| 403 | `forbidden` | El rol no permite la operación (el mensaje dice cuál se necesita). |
+| 403 | `reservation_not_owned` | Solo quien creó la reserva o un ADMIN puede cancelarla. |
+| 403 | `admin_network_required` | Ruta de administración fuera de la red de la VPN (el mensaje dice qué dirección vio el servidor). |
+| 429 | `rate_limited` | Demasiados intentos de inicio de sesión o escrituras por minuto (`Retry-After: 60`). |
+| 404 | `space_not_found`, `recommendation_not_found`, `occupancy_estimate_not_found`, `reservation_not_found`, `persona_not_found`, `activo_not_found`, `propuesta_not_found`, `route_not_found` | No existe. |
+| 405 / 415 | `method_not_allowed` / `unsupported_media_type` | Método o tipo de contenido no soportado. |
+| 409 | `telemetry_not_available`, `reservation_conflict`, `twin_concurrent_update`, `history_not_available` | Conflicto con el estado actual (`twin_concurrent_update`: el salón cambió en otra instancia tres veces seguidas mientras se decidía; se puede reintentar). |
+| 500 | `internal_error` | Error inesperado (el detalle solo queda en los logs). |
+| 502 | `ai_service_invalid_response` | La IA respondió datos inválidos (el detalle técnico solo queda en los logs). |
+| 503 | `ai_service_unavailable` | La IA no respondió (y el respaldo está desactivado, en la estimación de ocupación). |
+
+```json
+{ "type": "about:blank", "title": "Recurso no encontrado", "status": 404, "detail": "No existe el espacio: AULA-999", "code": "space_not_found" }
+```
+
+## Cambios respecto a la versión anterior
+
+- Rutas por recurso (`/spaces/{id}/...`); las rutas antiguas de ocupación y recomendaciones siguen funcionando.
+- La recomendación manual exige `humidityPct` y reemplaza `hvacOn` por `currentHvacMode` + `minutesInCurrentHvacMode` (ambos opcionales).
+- `hvac.setpointC` ahora es decimal y `hvac` y `ventilation` tienen `mode`.
+- `POST /telemetry` responde `200` (en lugar de `201`) cuando la lectura ya existía.
+
+## Gemelo digital
+
+Las rutas `/api/v1/twin/**`, el WebSocket STOMP `/ws` y los contratos MQTT están documentados en [`gemelo-digital.md`](gemelo-digital.md). Cada estado del gemelo trae `teachersPresent`, `studentsPresent`, `emulated`, `lastCameraFrameAt` y `escenarios` (los escenarios operativos reconocidos, con su descripción).
+
+- Telemetría: `cameraPeople` (conteo crudo de la cámara) junto a `peopleCount` (estimación fusionada); una sola lectura por espacio e instante.
+- Estimación con IA: el backend envía `area_sqm` y `capacity` y se autentica con `X-API-Key` (`AI_API_KEY`); un `429` del servicio abre el circuito durante su `Retry-After`.
+- `GET /actuator/prometheus` (solo ADMIN): lecturas descartadas, conflictos de escritura, respaldos de IA, estado del circuito y `campusnexo_frame_latency_seconds` (p50, p95 y p99 del frame capturado en el borde al gemelo publicado; QA-2).
