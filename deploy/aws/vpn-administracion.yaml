@@ -1,0 +1,166 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  VPN de administración de CampusNexo. Una VPC propia con un servidor WireGuard (EC2 t4g.nano) y una IP elástica.
+  Los administradores se conectan a la VPN y salen a Internet por esa IP fija; el backend en Render solo atiende
+  /api/v1/admin/** desde ella (ADMIN_ALLOWED_NETWORKS = salida AdminAllowedNetworks). Sin SSH: se administra con
+  AWS Systems Manager. La configuración de cada administrador queda cifrada en SSM Parameter Store.
+
+Parameters:
+  Administradores:
+    Type: Number
+    Default: 3
+    MinValue: 1
+    MaxValue: 20
+    Description: Cuántas configuraciones de cliente generar (una por administrador).
+  TipoInstancia:
+    Type: String
+    Default: t4g.nano
+    AllowedValues: [t4g.nano, t4g.micro]
+  ImagenAmazonLinux:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.60.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{Key: Name, Value: campusnexo-vpn-admin}]
+
+  Gateway:
+    Type: AWS::EC2::InternetGateway
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref Gateway
+
+  SubredPublica:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.60.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+
+  Rutas:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+
+  RutaInternet:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref Rutas
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref Gateway
+
+  AsociacionRutas:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubredPublica
+      RouteTableId: !Ref Rutas
+
+  GrupoSeguridad:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Solo WireGuard; sin SSH (administración por Systems Manager)
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: udp
+          FromPort: 51820
+          ToPort: 51820
+          CidrIp: 0.0.0.0/0
+          Description: WireGuard autentica cada cliente por su clave
+
+  Rol:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ec2.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: configuraciones-vpn
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [ssm:PutParameter]
+                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/campusnexo/vpn/*
+
+  PerfilInstancia:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref Rol]
+
+  IpElastica:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  Servidor:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref ImagenAmazonLinux
+      InstanceType: !Ref TipoInstancia
+      IamInstanceProfile: !Ref PerfilInstancia
+      MetadataOptions: {HttpTokens: required}
+      NetworkInterfaces:
+        - DeviceIndex: "0"
+          SubnetId: !Ref SubredPublica
+          GroupSet: [!Ref GrupoSeguridad]
+          AssociatePublicIpAddress: true
+      Tags: [{Key: Name, Value: campusnexo-vpn-admin}]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euo pipefail
+          dnf install -y wireguard-tools iptables-nft
+          sysctl -w net.ipv4.ip_forward=1
+          echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/99-wireguard.conf
+          umask 077
+          mkdir -p /etc/wireguard
+          servidor_privada=$(wg genkey); servidor_publica=$(echo "$servidor_privada" | wg pubkey)
+          interfaz=$(ip route show default | awk '{print $5}')
+          cat > /etc/wireguard/wg0.conf <<EOF
+          [Interface]
+          Address = 10.61.0.1/24
+          ListenPort = 51820
+          PrivateKey = $servidor_privada
+          PostUp = iptables -t nat -A POSTROUTING -o $interfaz -j MASQUERADE
+          PostDown = iptables -t nat -D POSTROUTING -o $interfaz -j MASQUERADE
+          EOF
+          for n in $(seq 1 ${Administradores}); do
+            cliente_privada=$(wg genkey); cliente_publica=$(echo "$cliente_privada" | wg pubkey)
+            printf '\n[Peer]\nPublicKey = %s\nAllowedIPs = 10.61.0.%d/32\n' "$cliente_publica" $((n + 1)) >> /etc/wireguard/wg0.conf
+            # Full tunnel: everything the administrator does leaves through the elastic IP the backend allows.
+            configuracion=$(printf '[Interface]\nPrivateKey = %s\nAddress = 10.61.0.%d/32\nDNS = 1.1.1.1\n\n[Peer]\nPublicKey = %s\nEndpoint = ${IpElastica.PublicIp}:51820\nAllowedIPs = 0.0.0.0/0\nPersistentKeepalive = 25\n' "$cliente_privada" $((n + 1)) "$servidor_publica")
+            aws ssm put-parameter --region ${AWS::Region} --name "/campusnexo/vpn/admin-$n" --type SecureString \
+              --overwrite --value "$configuracion"
+          done
+          systemctl enable --now wg-quick@wg0
+
+  AsociacionIp:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt IpElastica.AllocationId
+      InstanceId: !Ref Servidor
+
+Outputs:
+  IpPublicaVpn:
+    Description: IP fija con la que salen los administradores conectados a la VPN.
+    Value: !Ref IpElastica
+  AdminAllowedNetworks:
+    Description: Valor de ADMIN_ALLOWED_NETWORKS para el backend en Render.
+    Value: !Sub ${IpElastica}/32
+  ConfiguracionAdministrador:
+    Description: Comando para obtener la configuración WireGuard del administrador N (importarla en la app WireGuard).
+    Value: !Sub aws ssm get-parameter --region ${AWS::Region} --with-decryption --name /campusnexo/vpn/admin-1 --query Parameter.Value --output text
