@@ -1,0 +1,73 @@
+# Render Blueprint (https://render.com/docs/blueprint-spec) of the two services that run on Render:
+#   campusnexo-backend   this repository (Docker), Spring profile prod: sign-in enforced
+#   campusnexo-ai        repository campusnexo-ai-service (Docker, without the optional YOLO extra)
+# The databases are outside Render: PostgreSQL in Neon and MongoDB in Atlas (free plans that do not expire).
+# The dashboard is on Vercel (repository campusnexo-frontend). The administrators reach /api/v1/admin/** only
+# through the university VPN in AWS (deploy/aws/vpn-administracion.yaml).
+# After the first deploy, fill the `sync: false` variables (docs/despliegue.md) and redeploy.
+services:
+  - type: web
+    name: campusnexo-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      # Neon: jdbc:postgresql://<host>/<db>?sslmode=require, with its user and password.
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_USER
+        sync: false
+      - key: DATABASE_PASSWORD
+        sync: false
+      # Atlas: mongodb+srv://<user>:<password>@<cluster>/?retryWrites=true
+      - key: MONGODB_URI
+        sync: false
+      # Signs the session tokens; generated once by Render and never committed.
+      - key: APP_TOKEN_SECRET
+        generateValue: true
+      # name:ROLE:hash entries from tools/auth/hash_password.py (at least one ADMIN).
+      - key: APP_USERS
+        sync: false
+      # Keys for cameras, room boards, computer agents and kiosks (X-API-Key), one per device, comma separated.
+      - key: APP_SENSOR_KEYS
+        sync: false
+      # Public IP of the administration VPN as CIDR, e.g. 203.0.113.7/32 (output of the CloudFormation stack).
+      # Required: in production the backend does not start without it, so /admin is never open to any network.
+      - key: ADMIN_ALLOWED_NETWORKS
+        sync: false
+      # Render puts one proxy in front of the service: the client is the last X-Forwarded-For entry.
+      - key: TRUSTED_PROXIES
+        value: "1"
+      # Public URL of campusnexo-ai, e.g. https://campusnexo-ai.onrender.com
+      - key: AI_SERVICE_URL
+        sync: false
+      # Shared key with the AI service (X-API-Key): generated once there and read from it here.
+      - key: AI_API_KEY
+        fromService:
+          type: web
+          name: campusnexo-ai
+          envVarKey: AI_API_KEY
+      # Declares production: the backend refuses to start with development security.
+      - key: APP_ENVIRONMENT
+        value: production
+      # Vercel domains of the dashboard, patterns allowed: https://campusnexo*.vercel.app
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      # No real devices in the cloud: actuator orders go to the log.
+      - key: ACTUATORS_MODE
+        value: log
+
+  - type: web
+    name: campusnexo-ai
+    runtime: docker
+    plan: free
+    repo: https://github.com/danielchauxgcampusucceduco/campusnexo-ai-service
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      # Every route but /health and /ready requires it in X-API-Key; the backend reads the same value.
+      - key: AI_API_KEY
+        generateValue: true
