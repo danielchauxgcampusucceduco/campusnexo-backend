@@ -23,7 +23,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @ConfigurationProperties(prefix = "app.security")
 public record SecurityProperties(String mode, String users, String sensorKeys, String ingestApiKey, String tokenSecret,
-                                 Duration tokenTtl, int loginAttemptsPerMinute, int writesPerMinute,
+                                 Duration tokenTtl, int loginAttemptsPerMinute, int writesPerMinute, int sensorWritesPerMinute,
                                  int trustedProxies, String adminNetworks) {
 
     public boolean development() {

@@ -59,7 +59,8 @@ public final class Authenticator {
             return tokens.verify(authorization.substring(BEARER.length()).trim());
         }
         if (apiKey != null) {
-            return users.isSensorKey(apiKey) ? Optional.of(new Principal("sensor", Role.SENSOR, null)) : Optional.empty();
+            int key = users.sensorKeyIndex(apiKey);
+            return key >= 0 ? Optional.of(new Principal("sensor-" + (key + 1), Role.SENSOR, null)) : Optional.empty();
         }
         return development ? Optional.of(new Principal("desarrollo-local", Role.ADMIN, null)) : Optional.empty();
     }

@@ -59,7 +59,8 @@ class SecurityConfiguration implements WebMvcConfigurer {
     FilterRegistrationBean<AuthenticationFilter> authenticationFilter(Authenticator authenticator,
                                                                       SecurityProperties properties, Clock clock) {
         FilterRegistrationBean<AuthenticationFilter> registration = new FilterRegistrationBean<>(
-                new AuthenticationFilter(authenticator, properties.writesPerMinute(), properties.trustedProxies(), clock));
+                new AuthenticationFilter(authenticator, properties.writesPerMinute(), properties.sensorWritesPerMinute(),
+                        properties.trustedProxies(), clock));
         registration.setOrder(1);
         return registration;
     }

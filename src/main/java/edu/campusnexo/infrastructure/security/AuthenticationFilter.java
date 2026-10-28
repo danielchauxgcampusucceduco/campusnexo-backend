@@ -24,11 +24,15 @@ final class AuthenticationFilter extends OncePerRequestFilter {
 
     private final Authenticator authenticator;
     private final FixedWindowRateLimiter writes;
+    /** Devices report several times a minute per room: each key has its own, larger quota. */
+    private final FixedWindowRateLimiter sensorWrites;
     private final int trustedProxies;
 
-    AuthenticationFilter(Authenticator authenticator, int writesPerMinute, int trustedProxies, Clock clock) {
+    AuthenticationFilter(Authenticator authenticator, int writesPerMinute, int sensorWritesPerMinute, int trustedProxies,
+                         Clock clock) {
         this.authenticator = authenticator;
         this.writes = new FixedWindowRateLimiter(writesPerMinute, Duration.ofMinutes(1), clock);
+        this.sensorWrites = new FixedWindowRateLimiter(sensorWritesPerMinute, Duration.ofMinutes(1), clock);
         this.trustedProxies = trustedProxies;
     }
 
@@ -60,7 +64,9 @@ final class AuthenticationFilter extends OncePerRequestFilter {
             return;
         }
         boolean change = !method.equals("GET") && !method.equals("HEAD");
-        if (change && !writes.tryAcquire(caller.name() + "@" + client)) {
+        boolean allowed = !change || (caller.role() == Role.SENSOR ? sensorWrites.tryAcquire(caller.name())
+                : writes.tryAcquire(caller.name() + "@" + client));
+        if (!allowed) {
             audit.warn("AUDIT denegado motivo=limite usuario={} metodo={} ruta={} ip={}", caller.name(), method, path, client);
             response.setHeader("Retry-After", "60");
             ProblemResponses.write(response, 429, "Demasiadas solicitudes",

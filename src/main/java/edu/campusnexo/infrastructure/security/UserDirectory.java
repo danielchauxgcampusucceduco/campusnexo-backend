@@ -44,15 +44,23 @@ final class UserDirectory {
     }
 
     boolean isSensorKey(String provided) {
+        return sensorKeyIndex(provided) >= 0;
+    }
+
+    /** Position of the key in APP_SENSOR_KEYS (it names the device without revealing the key), or -1. */
+    int sensorKeyIndex(String provided) {
         if (provided == null || provided.isBlank()) {
-            return false;
+            return -1;
         }
         byte[] candidate = PasswordHasher.utf8(provided);
-        boolean match = false;
-        for (byte[] key : sensorKeys) {
-            match |= MessageDigest.isEqual(key, candidate);
+        int index = -1;
+        for (int i = 0; i < sensorKeys.size(); i++) {
+            // Every key is compared, so the time does not tell which one matched.
+            if (MessageDigest.isEqual(sensorKeys.get(i), candidate)) {
+                index = i;
+            }
         }
-        return match;
+        return index;
     }
 
     int userCount() {

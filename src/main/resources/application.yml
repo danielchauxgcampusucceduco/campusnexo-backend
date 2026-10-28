@@ -57,6 +57,8 @@ app:
     token-ttl: ${APP_TOKEN_TTL:8h}
     login-attempts-per-minute: ${LOGIN_ATTEMPTS_PER_MINUTE:10}
     writes-per-minute: ${WRITES_PER_MINUTE:300}
+    # Per sensor key (one per device): a camera feeding several rooms at 1 Hz stays well below it.
+    sensor-writes-per-minute: ${SENSOR_WRITES_PER_MINUTE:12000}
     # Proxies in front that append to X-Forwarded-For (Render: 1). The caller is that many entries from the
     # right; the leftmost entry is written by the caller and never trusted.
     trusted-proxies: ${TRUSTED_PROXIES:0}
@@ -150,6 +152,10 @@ app:
       eco-setback-window-minutes: 60
       eco-setback-offset-c: 2.0
       co2-ventilation-ppm: ${CO2_ALERT_THRESHOLD_PPM:1000}
+    # Re-decides rooms with devices that went quiet: camera down, no-show, abandoned desks, idle equipment.
+    watchdog:
+      enabled: ${TWIN_WATCHDOG_ENABLED:true}
+      interval: ${TWIN_WATCHDOG_INTERVAL:30s}
     # Re-decides rooms with devices that went quiet: camera down, no-show, abandoned desks, idle equipment.
     watchdog:
       enabled: ${TWIN_WATCHDOG_ENABLED:true}

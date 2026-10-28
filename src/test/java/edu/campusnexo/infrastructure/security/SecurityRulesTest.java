@@ -119,4 +119,29 @@ class SecurityRulesTest {
         now[0] = NOW.plus(Duration.ofMinutes(1));
         assertTrue(limiter.tryAcquire("ip"));
     }
+
+    @Test
+    @DisplayName("Cada clave de sensor tiene su cuota y su nombre en la auditoría, sin revelar la clave")
+    void sensorsHaveTheirOwnQuota() throws Exception {
+        UserDirectory directory = new UserDirectory("daniel:ADMIN:" + PYTHON_HASH,
+                "clave-de-sensor-del-salon-421A,clave-de-sensor-del-salon-303A", null);
+        assertEquals(1, directory.sensorKeyIndex("clave-de-sensor-del-salon-303A"));
+        assertEquals(-1, directory.sensorKeyIndex("clave-desconocida-de-24-caracteres"));
+
+        SecurityProperties properties = new SecurityProperties("enforced", "daniel:ADMIN:" + PYTHON_HASH,
+                "clave-de-sensor-del-salon-421A,clave-de-sensor-del-salon-303A", null,
+                "un-secreto-de-al-menos-32-caracteres!", Duration.ofHours(8), 10, 2, 3, 0, "");
+        AuthenticationFilter filter = new AuthenticationFilter(new Authenticator(properties, java.time.Clock.systemUTC()),
+                2, 3, 0, java.time.Clock.systemUTC());
+        int ok = 0;
+        for (int i = 0; i < 5; i++) {
+            org.springframework.mock.web.MockHttpServletRequest request =
+                    new org.springframework.mock.web.MockHttpServletRequest("POST", "/api/v1/twin/telemetry");
+            request.addHeader("X-API-Key", "clave-de-sensor-del-salon-303A");
+            org.springframework.mock.web.MockHttpServletResponse response = new org.springframework.mock.web.MockHttpServletResponse();
+            filter.doFilter(request, response, new org.springframework.mock.web.MockFilterChain());
+            ok += response.getStatus() == 200 ? 1 : 0;
+        }
+        assertEquals(3, ok, "la cuota de sensores (3), no la de personas (2)");
+    }
 }
