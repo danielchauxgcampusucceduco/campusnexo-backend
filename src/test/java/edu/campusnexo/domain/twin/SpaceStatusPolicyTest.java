@@ -40,4 +40,11 @@ class SpaceStatusPolicyTest {
         assertEquals(SpaceStatus.HABILITADO_POPUP_PARCIALES, policy.classify(false, true, 9, 32, null, NOW));
         assertEquals(SpaceStatus.LIBRE, policy.classify(false, false, 0, 32, null, NOW));
     }
+
+    @Test
+    void anAttendedReservationLeftEmptyIsNotANoShow() {
+        assertEquals(SpaceStatus.LIBRE, policy.classify(false, false, 0, 32, startedMinutesAgo(40, 25), true, NOW));
+        assertEquals(SpaceStatus.LIBERADO_POR_NO_SHOW,
+                policy.classify(false, false, 0, 32, startedMinutesAgo(40, 25), false, NOW));
+    }
 }

@@ -183,8 +183,8 @@ public class ApplicationConfiguration {
 
     @Bean
     TelemetryObserver reservationNoShowObserver(AlertRecorder recorder, ReservationRepository reservations,
-                                                AlertThresholds thresholds) {
-        return new ReservationNoShowObserver(recorder, reservations, thresholds);
+                                                SpaceRepositoryPort twins, AlertThresholds thresholds) {
+        return new ReservationNoShowObserver(recorder, reservations, twins, thresholds);
     }
 
     @Bean

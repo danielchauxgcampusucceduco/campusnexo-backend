@@ -73,8 +73,10 @@ public final class TwinDecisionEngine {
         Instant now = in.now();
         int people = in.belief().people();
         Reservation active = reservations.active();
+        boolean attended = active != null && (people > 0 || active.checkedIn()
+                || active.reservationId().equals(previous.timers().attendedReservation()));
         SpaceStatus status = statusPolicy.classify(previous.maintenance(), previous.popUpActive(now), people,
-                space.capacity(), active, now);
+                space.capacity(), active, attended, now);
         trace.step(HexagonalLayer.DOMAIN_SERVICE, SpaceStatusPolicy.class,
                 people + "/" + space.capacity() + " personas" + (active == null ? "" : ", reserva " + active.reference())
                         + " → " + status);
@@ -127,7 +129,7 @@ public final class TwinDecisionEngine {
                 .energySavedKwh(round(saved))
                 .equipment(equipment)
                 .condition(condition)
-                .timers(new RoomTimers(emptySince, shutdownAt))
+                .timers(new RoomTimers(emptySince, shutdownAt, attended ? active.reservationId() : null))
                 .updatedAt(now.isBefore(previous.updatedAt()) ? previous.updatedAt() : now)
                 .build();
         return new TwinOutcome(previous, state, command, trace);

@@ -27,6 +27,15 @@ public final class SpaceStatusPolicy {
 
     public SpaceStatus classify(boolean maintenance, boolean popUpActive, int people, int capacity,
                                 Reservation activeReservation, Instant now) {
+        return classify(maintenance, popUpActive, people, capacity, activeReservation, false, now);
+    }
+
+    /**
+     * {@code attended}: someone was seen during the reservation or the holder checked in. An empty room after that
+     * is a class that ended or left early, not a no-show.
+     */
+    public SpaceStatus classify(boolean maintenance, boolean popUpActive, int people, int capacity,
+                                Reservation activeReservation, boolean attended, Instant now) {
         if (maintenance) {
             return SpaceStatus.MANTENIMIENTO;
         }
@@ -38,6 +47,9 @@ public final class SpaceStatusPolicy {
         }
         if (activeReservation != null) {
             if (people == 0) {
+                if (attended || activeReservation.checkedIn()) {
+                    return SpaceStatus.LIBRE;
+                }
                 boolean graceOver = !now.isBefore(activeReservation.startsAt().plus(noShowGrace));
                 return graceOver ? SpaceStatus.LIBERADO_POR_NO_SHOW : SpaceStatus.RESERVADO_EN_ESPERA;
             }

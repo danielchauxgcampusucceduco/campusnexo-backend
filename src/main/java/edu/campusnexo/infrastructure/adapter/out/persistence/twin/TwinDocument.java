@@ -21,6 +21,7 @@ import edu.campusnexo.domain.vision.DeskObservation;
 import edu.campusnexo.domain.vision.ZoneDeskState;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Storage format of {@link SpaceTwinState}. Kept separate from the domain records so that refactoring the
@@ -58,7 +59,8 @@ record TwinDocument(
         Equipment equipment,
         RoomCondition condition,
         Instant emptySince,
-        Instant equipmentShutdownAt) {
+        Instant equipmentShutdownAt,
+        UUID attendedReservation) {
 
     static final int VERSION = 1;
 
@@ -71,7 +73,8 @@ record TwinDocument(
                 state.sensing().lastEnvironmentAt(), state.sensing().emulated(),
                 state.desks().stream().map(Desk::from).toList(), state.presence().teachers(),
                 state.presence().students(), state.energySavedKwh(), state.overrideUntil(), state.popUpUntil(), state.maintenance(), state.updatedAt(),
-                Equipment.from(state.equipment()), state.condition(), state.emptySince(), state.equipmentShutdownAt());
+                Equipment.from(state.equipment()), state.condition(), state.emptySince(), state.equipmentShutdownAt(),
+                state.timers().attendedReservation());
     }
 
     SpaceTwinState toDomain() {
@@ -85,7 +88,7 @@ record TwinDocument(
                 new Sensing(cameraOnline, lastCameraFrameAt, lastEnvironmentAt, emulated),
                 desks.stream().map(Desk::toDomain).toList(), new Presence(teachersPresent, studentsPresent),
                 energySavedKwh, new ManualControls(overrideUntil, popUpUntil, maintenance), equipment.toDomain(),
-                condition, new RoomTimers(emptySince, equipmentShutdownAt), updatedAt);
+                condition, new RoomTimers(emptySince, equipmentShutdownAt, attendedReservation), updatedAt);
     }
 
     record Equipment(boolean lightsOn, double illuminanceLux, int devicesOn, int devicesTotal) {

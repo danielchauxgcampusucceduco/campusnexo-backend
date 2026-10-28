@@ -23,7 +23,8 @@ public class CapacityAlertObserver implements TelemetryObserver {
         if (reading.peopleCount() <= capacity) {
             return;
         }
-        AlertSeverity severity = reading.peopleCount() > capacity * 1.2 ? AlertSeverity.CRITICA : AlertSeverity.ADVERTENCIA;
+        // More people than seats is a safety matter (evacuation): always critical.
+        AlertSeverity severity = AlertSeverity.CRITICA;
         Alert alert = Alert.raise(reading.spaceId(), AlertType.SOBRECUPO, severity, reading.recordedAt(),
                 reading.peopleCount() + " personas en un espacio con aforo de " + capacity,
                 reading.peopleCount(), capacity);

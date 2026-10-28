@@ -10,6 +10,9 @@ import edu.campusnexo.domain.telemetry.Telemetry;
 import edu.campusnexo.domain.telemetry.TelemetryRecorded;
 import edu.campusnexo.support.InMemoryAlertRepository;
 import edu.campusnexo.support.InMemoryReservationRepository;
+import edu.campusnexo.support.InMemorySpaceRepositoryPort;
+import edu.campusnexo.domain.twin.SpaceStatus;
+import edu.campusnexo.domain.twin.SpaceTwinState;
 import edu.campusnexo.support.TestData;
 import java.time.Duration;
 import java.time.Instant;
@@ -57,7 +60,10 @@ class AlertObserversTest {
     void reservationNoShow() {
         Instant start = TestData.NOW.minus(Duration.ofMinutes(20));
         reservations.save(new Reservation(UUID.randomUUID(), "AULA-301", start, start.plus(Duration.ofHours(2)), 25, "IS-701"));
-        ReservationNoShowObserver observer = new ReservationNoShowObserver(recorder, reservations, thresholds);
+        InMemorySpaceRepositoryPort twins = new InMemorySpaceRepositoryPort();
+        twins.overwrite(SpaceTwinState.initial(TestData.andeanClassroom(), start).toBuilder()
+                .status(SpaceStatus.LIBERADO_POR_NO_SHOW).build());
+        ReservationNoShowObserver observer = new ReservationNoShowObserver(recorder, reservations, twins, thresholds);
 
         observer.onTelemetryRecorded(event(TestData.reading("AULA-301", start.plus(Duration.ofMinutes(5)), 0, 450, 0.1)));
         assertTrue(alerts.rows().isEmpty());
@@ -65,5 +71,19 @@ class AlertObserversTest {
         observer.onTelemetryRecorded(event(TestData.reading("AULA-301", TestData.NOW.plus(Duration.ofMinutes(30)), 0, 450, 0.1)));
         assertEquals(1, alerts.rows().size());
         assertEquals(AlertType.RESERVA_SIN_USO, alerts.rows().get(0).type());
+    }
+
+    @Test
+    @DisplayName("Si hubo clase y el salón quedó vacío, no es reserva sin uso")
+    void attendedReservationIsNotANoShow() {
+        Instant start = TestData.NOW.minus(Duration.ofMinutes(40));
+        reservations.save(new Reservation(UUID.randomUUID(), "AULA-301", start, start.plus(Duration.ofHours(2)), 25, "IS-701"));
+        InMemorySpaceRepositoryPort twins = new InMemorySpaceRepositoryPort();
+        twins.overwrite(SpaceTwinState.initial(TestData.andeanClassroom(), start).toBuilder()
+                .status(SpaceStatus.LIBRE).build());
+        new ReservationNoShowObserver(recorder, reservations, twins, thresholds)
+                .onTelemetryRecorded(event(TestData.reading("AULA-301", TestData.NOW, 0, 450, 0.1)));
+
+        assertTrue(alerts.rows().isEmpty());
     }
 }
