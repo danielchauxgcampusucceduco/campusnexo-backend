@@ -1,5 +1,6 @@
 package edu.campusnexo.domain.escenario;
 
+import edu.campusnexo.domain.twin.Sensing;
 import edu.campusnexo.domain.twin.SpaceTwinState;
 import java.time.Duration;
 import java.time.Instant;
@@ -9,8 +10,7 @@ import java.time.Instant;
  * that never had a camera are not failing.
  */
 final class FalloCamara implements DetectorDeEscenario {
-    /** Frames arrive every few seconds; this long without one means the camera or its link is down. */
-    static final Duration SIN_SENAL = Duration.ofMinutes(2);
+    static final Duration SIN_SENAL = Sensing.CAMERA_SILENCE;
 
     @Override
     public EscenarioOperativo escenario() {

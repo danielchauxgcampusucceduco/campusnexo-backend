@@ -1,11 +1,14 @@
 package edu.campusnexo.infrastructure.config;
 
+import edu.campusnexo.application.alert.AlertRecorder;
+import edu.campusnexo.application.alert.AlertThresholds;
 import edu.campusnexo.application.port.in.CampusCatalogUseCase;
 import edu.campusnexo.application.port.in.ProcessEnvironmentReadingUseCase;
 import edu.campusnexo.application.port.in.ProcessSpaceTelemetryUseCase;
 import edu.campusnexo.application.port.in.TelemetryUseCase;
 import edu.campusnexo.application.port.in.TwinControlUseCase;
 import edu.campusnexo.application.port.in.TwinQueryUseCase;
+import edu.campusnexo.application.port.in.TwinWatchdogUseCase;
 import edu.campusnexo.application.port.out.OperationalMetrics;
 import edu.campusnexo.application.port.out.TwinChangeNotifierPort;
 import edu.campusnexo.application.port.out.UnitOfWork;
@@ -18,6 +21,7 @@ import edu.campusnexo.application.twin.TwinControlService;
 import edu.campusnexo.application.twin.TwinDecisionEngine;
 import edu.campusnexo.application.twin.TwinPublisher;
 import edu.campusnexo.application.twin.TwinQueryService;
+import edu.campusnexo.application.twin.TwinWatchdogService;
 import edu.campusnexo.application.twin.TwinWriter;
 import edu.campusnexo.domain.climate.policy.ClimateFamilies;
 import edu.campusnexo.domain.port.HvacActuatorCommandPort;
@@ -36,9 +40,11 @@ import edu.campusnexo.domain.twin.ThermalInertiaMpcDomainService;
 import edu.campusnexo.domain.twin.ThermalParameters;
 import edu.campusnexo.domain.twin.hvac.HvacSettingChain;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -141,6 +147,13 @@ class HexagonalBeanConfiguration {
                                                ReservationRepository reservations, TwinWriter writer,
                                                TwinDecisionEngine engine, TwinPublisher publisher) {
         return new SpaceReevaluationService(clock, catalog, reservations, writer, engine, publisher);
+    }
+
+    @Bean
+    TwinWatchdogUseCase twinWatchdog(Clock clock, SpaceRepositoryPort twins, SpaceReevaluationService reevaluation,
+                                     AlertRecorder alerts, AlertThresholds thresholds,
+                                     @Value("${app.twin.watchdog.interval}") Duration interval) {
+        return new TwinWatchdogService(clock, twins, reevaluation, alerts, interval, thresholds.cooldown());
     }
 
     @Bean

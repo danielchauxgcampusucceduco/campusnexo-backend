@@ -57,6 +57,8 @@ class CampusNexoApiIntegrationTest {
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
+        // The watchdog runs on real time; the tests drive the twin themselves.
+        registry.add("app.twin.watchdog.enabled", () -> "false");
         registry.add("spring.datasource.url", () -> "jdbc:postgresql://" + POSTGRES.getHost() + ":"
                 + POSTGRES.getMappedPort(5432) + "/campusnexo");
         registry.add("spring.datasource.username", () -> "campusnexo");

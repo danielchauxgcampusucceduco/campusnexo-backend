@@ -150,6 +150,10 @@ app:
       eco-setback-window-minutes: 60
       eco-setback-offset-c: 2.0
       co2-ventilation-ppm: ${CO2_ALERT_THRESHOLD_PPM:1000}
+    # Re-decides rooms with devices that went quiet: camera down, no-show, abandoned desks, idle equipment.
+    watchdog:
+      enabled: ${TWIN_WATCHDOG_ENABLED:true}
+      interval: ${TWIN_WATCHDOG_INTERVAL:30s}
     status:
       no-show-grace: ${NO_SHOW_GRACE:15m}
       underuse-ratio: 0.3
