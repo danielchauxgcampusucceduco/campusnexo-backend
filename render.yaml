@@ -59,6 +59,9 @@ services:
       # No real devices in the cloud: actuator orders go to the log.
       - key: ACTUATORS_MODE
         value: log
+      # System demo: a compressed academic day over the campus, marked «Emulado» (GET /api/v1/demo).
+      - key: DEMO_SIMULATION
+        value: "true"
 
   - type: web
     name: campusnexo-ai

@@ -36,6 +36,12 @@ management:
 app:
   # local | production. Production refuses development security (SECURITY_MODE=development).
   environment: ${APP_ENVIRONMENT:local}
+  # System demo: a compressed academic day over the campus rooms (GET /api/v1/demo). While someone watches it, it
+  # feeds the twin as an emulated sensor every feed-interval.
+  demo:
+    enabled: ${DEMO_SIMULATION:false}
+    day-length: ${DEMO_DAY_LENGTH:20m}
+    feed-interval: ${DEMO_FEED_INTERVAL:15s}
   catalog:
     # The catalog and the desk regions only change with a migration: read once per this time.
     cache-ttl: ${CATALOG_CACHE_TTL:5m}
@@ -152,10 +158,6 @@ app:
       eco-setback-window-minutes: 60
       eco-setback-offset-c: 2.0
       co2-ventilation-ppm: ${CO2_ALERT_THRESHOLD_PPM:1000}
-    # Re-decides rooms with devices that went quiet: camera down, no-show, abandoned desks, idle equipment.
-    watchdog:
-      enabled: ${TWIN_WATCHDOG_ENABLED:true}
-      interval: ${TWIN_WATCHDOG_INTERVAL:30s}
     # Re-decides rooms with devices that went quiet: camera down, no-show, abandoned desks, idle equipment.
     watchdog:
       enabled: ${TWIN_WATCHDOG_ENABLED:true}
