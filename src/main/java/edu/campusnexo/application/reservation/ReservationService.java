@@ -1,5 +1,6 @@
 package edu.campusnexo.application.reservation;
 
+import edu.campusnexo.application.exception.ConflictException;
 import edu.campusnexo.application.exception.ForbiddenOperationException;
 import edu.campusnexo.application.exception.ReservationConflictException;
 import edu.campusnexo.application.exception.ResourceNotFoundException;
@@ -12,9 +13,11 @@ import edu.campusnexo.domain.catalog.CampusSpace;
 import edu.campusnexo.domain.persona.Persona;
 import edu.campusnexo.domain.port.PersonaRepository;
 import edu.campusnexo.domain.port.ReservationRepository;
+import edu.campusnexo.domain.port.SpaceRepositoryPort;
 import edu.campusnexo.domain.reservation.Reservation;
 import edu.campusnexo.domain.reservation.ReservationOverlapException;
 import edu.campusnexo.domain.shared.DomainValidationException;
+import edu.campusnexo.domain.twin.SpaceTwinState;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -36,13 +39,15 @@ public class ReservationService implements ReservationUseCase {
     private final ReservationRepository repository;
     private final CampusCatalogUseCase catalog;
     private final PersonaRepository personas;
+    private final SpaceRepositoryPort twins;
 
     public ReservationService(Clock clock, ReservationRepository repository, CampusCatalogUseCase catalog,
-                              PersonaRepository personas) {
+                              PersonaRepository personas, SpaceRepositoryPort twins) {
         this.clock = clock;
         this.repository = repository;
         this.catalog = catalog;
         this.personas = personas;
+        this.twins = twins;
     }
 
     @Override
@@ -59,6 +64,10 @@ public class ReservationService implements ReservationUseCase {
         }
         if (reservation.endsAt().isBefore(clock.instant())) {
             throw new DomainValidationException("No se pueden crear reservas que ya terminaron");
+        }
+        if (twins.findTwin(space.spaceId()).map(SpaceTwinState::maintenance).orElse(false)) {
+            throw new ConflictException("space_under_maintenance", space.spaceId()
+                    + " está en mantenimiento; termina el mantenimiento antes de reservarlo");
         }
         if (!repository.findOverlapping(space.spaceId(), reservation.startsAt(), reservation.endsAt()).isEmpty()) {
             throw new ReservationConflictException(space.spaceId());

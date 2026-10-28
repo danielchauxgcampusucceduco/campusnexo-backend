@@ -264,8 +264,8 @@ public class ApplicationConfiguration {
 
     @Bean
     ReservationUseCase reservations(Clock clock, ReservationRepository repository, CampusCatalogUseCase catalog,
-                                    PersonaRepository personas) {
-        return new ReservationService(clock, repository, catalog, personas);
+                                    PersonaRepository personas, SpaceRepositoryPort twins) {
+        return new ReservationService(clock, repository, catalog, personas, twins);
     }
 
     @Bean

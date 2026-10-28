@@ -1,5 +1,8 @@
 package edu.campusnexo.application.reservation;
 
+import edu.campusnexo.domain.twin.SpaceTwinState;
+import edu.campusnexo.domain.twin.ManualControls;
+import edu.campusnexo.application.exception.ConflictException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -17,6 +20,7 @@ import edu.campusnexo.domain.persona.Estudiante;
 import edu.campusnexo.domain.shared.DomainValidationException;
 import edu.campusnexo.support.InMemoryPersonaRepository;
 import edu.campusnexo.support.InMemoryReservationRepository;
+import edu.campusnexo.support.InMemorySpaceRepositoryPort;
 import edu.campusnexo.support.InMemorySpaceCatalogRepository;
 import edu.campusnexo.support.MutableClock;
 import edu.campusnexo.support.TestData;
@@ -28,9 +32,10 @@ import org.junit.jupiter.api.Test;
 class ReservationServiceTest {
     private final MutableClock clock = new MutableClock(TestData.NOW);
     private final InMemoryPersonaRepository personas = new InMemoryPersonaRepository();
+    private final InMemorySpaceRepositoryPort twins = new InMemorySpaceRepositoryPort();
     private final ReservationService service = new ReservationService(clock, new InMemoryReservationRepository(),
             new SpaceCatalogService(new InMemorySpaceCatalogRepository(TestData.andeanClassroom(), TestData.library())),
-            personas);
+            personas, twins);
     private final Instant start = TestData.NOW.plus(Duration.ofHours(1));
 
     private CreateReservationCommand command(Instant from, Duration duration, int attendees) {
@@ -64,7 +69,8 @@ class ReservationServiceTest {
             }
         };
         ReservationService racing = new ReservationService(new MutableClock(TestData.NOW), rows,
-                new SpaceCatalogService(new InMemorySpaceCatalogRepository(TestData.andeanClassroom())), personas);
+                new SpaceCatalogService(new InMemorySpaceCatalogRepository(TestData.andeanClassroom())), personas,
+                new InMemorySpaceRepositoryPort());
         racing.create(command(start, Duration.ofHours(2), 25));
         assertThrows(ReservationConflictException.class, () -> racing.create(command(start, Duration.ofHours(2), 25)));
     }
@@ -151,5 +157,15 @@ class ReservationServiceTest {
         Reservation legacy = service.create(command(start, Duration.ofHours(1), 10));
         assertThrows(ForbiddenOperationException.class, () -> service.cancel(legacy.reservationId(), Requester.user("ana")));
         service.cancel(legacy.reservationId(), Requester.administrator("admin"));
+    }
+
+    @Test
+    void aRoomUnderMaintenanceCannotBeBooked() {
+        twins.overwrite(SpaceTwinState.initial(TestData.andeanClassroom(), TestData.NOW).toBuilder()
+                .controls(new ManualControls(null, null, true)).build());
+
+        var error = assertThrows(ConflictException.class, () -> service.create(command(start, Duration.ofHours(2), 25)));
+
+        assertEquals("space_under_maintenance", error.code());
     }
 }

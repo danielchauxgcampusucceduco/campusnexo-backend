@@ -50,7 +50,7 @@ public final class TwinTestFixture {
     public final RecentTraceBuffer traces = new RecentTraceBuffer(50);
     public final CampusCatalogUseCase catalog = new SpaceCatalogService(new InMemorySpaceCatalogRepository(spaces()));
     public final InMemoryPersonaRepository personas = new InMemoryPersonaRepository();
-    public final ReservationService reservations = new ReservationService(clock, reservationRows, catalog, personas);
+    public final ReservationService reservations = new ReservationService(clock, reservationRows, catalog, personas, twins);
     public final EnergyAccountingPolicy energy = new EnergyAccountingPolicy(0.12, Duration.ofMinutes(15),
             LocalTime.of(7, 0), LocalTime.of(21, 0), ZoneId.of("America/Bogota"));
     public final ReadingAdmission admission = new ReadingAdmission(Duration.ofMinutes(5), Duration.ofDays(30));

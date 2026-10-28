@@ -59,7 +59,8 @@ class CampusOperationsFacadeTest {
                         new HvacStateResolver(new InMemorySpaceRepositoryPort(), clock),
                         List.of(new AndeanClimatePolicyFactory(), new TropicalClimatePolicyFactory(),
                                 new MildClimatePolicyFactory())),
-                new ReservationService(clock, reservations, catalog, new InMemoryPersonaRepository()),
+                new ReservationService(clock, reservations, catalog, new InMemoryPersonaRepository(),
+                        new InMemorySpaceRepositoryPort()),
                 new AlertQueryService(new InMemoryAlertRepository(), catalog));
     }
 
