@@ -66,7 +66,7 @@ public final class TestData {
                 room("309-A", SpaceType.SALA_COMPUTO, 24, 4, 6, 24),
                 room("3B-DE-BIOPROCESOS-LABORATORIO", SpaceType.LABORATORIO, 15, 3, 5, 3),
                 room("2B-LABORATORIO-MULTIFUNCIONAL", SpaceType.LABORATORIO, 35, 5, 7, 8),
-                room("BIBLIOTECA-2B", SpaceType.BIBLIOTECA, 120, null, null, 15).withHvacInstalled(false),
+                room("BIBLIOTECA-2A", SpaceType.BIBLIOTECA, 120, null, null, 15).withHvacInstalled(false),
                 room("301-A", SpaceType.SALA_COMPUTO, 30, 5, 6, 30),
                 room("303-A", SpaceType.AULA, 36, 6, 6, 1)).toList();
     }
