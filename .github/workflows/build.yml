@@ -9,7 +9,9 @@ permissions:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    # Pinned: on the Ubuntu 26 image (ubuntu-latest since October 2026) the mongo:8 container of
+    # MongoTwinHistoryAdapterTest prints nothing and never starts. Move on once that image runs it.
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7
