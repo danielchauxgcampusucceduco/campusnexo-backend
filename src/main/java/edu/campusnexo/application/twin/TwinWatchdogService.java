@@ -53,7 +53,7 @@ public class TwinWatchdogService implements TwinWatchdogUseCase {
             reevaluation.reevaluate(twin.spaceId(), TRIGGER, change);
             if (silent) {
                 long seconds = Duration.between(twin.sensing().lastCameraFrameAt(), now).toSeconds();
-                alerts.recordUnlessRaisedSince(Alert.raise(twin.spaceId(), AlertType.FALLO_CAMARA, AlertSeverity.CRITICA,
+                alerts.recordUnlessRaisedSince(Alert.raise(twin.spaceId(), AlertType.FALLO_CAMARA, AlertSeverity.ADVERTENCIA,
                         now, "La cámara de " + twin.spaceId() + " no envía frames hace " + seconds
                                 + " s; la ocupación se estima con CO₂ y Wi-Fi", seconds,
                         Sensing.CAMERA_SILENCE.toSeconds()), now.minus(alertCooldown));

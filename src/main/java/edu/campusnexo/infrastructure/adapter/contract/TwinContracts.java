@@ -78,7 +78,9 @@ public final class TwinContracts {
      * {@code hvacState} is the strategy, {@code hvacMode} what the unit does in it and {@code hvacReason} the
      * explanation of the rule that decided it; {@code thermal} is the predictive controller's own proposal.
      * {@code escenarios} are the operational scenarios recognized in the room at {@code updatedAt}, and
-     * {@code emulated} says the camera data did not come from a real camera.
+     * {@code emulated} says the camera data did not come from a real camera. {@code sensorsReporting}: some device of
+     * the room (camera or room board) has reported at least once; without it the room has no sensor, which is not the
+     * same as free.
      */
     public record TwinStateResponse(String spaceId, SpaceStatus status, HvacControlState hvacState,
                                     Instant hvacStateSince, HvacMode hvacMode, double hvacSetpointC, String hvacReason,
@@ -90,7 +92,7 @@ public final class TwinContracts {
                                     RoomCondition condition, boolean lightsOn, double illuminanceLux, int devicesOn,
                                     int devicesTotal, Instant emptySince, Instant equipmentShutdownAt,
                                     int teachersPresent, int studentsPresent, boolean emulated,
-                                    Instant lastCameraFrameAt, List<EscenarioResponse> escenarios) {
+                                    Instant lastCameraFrameAt, boolean sensorsReporting, List<EscenarioResponse> escenarios) {
         public static TwinStateResponse from(SpaceTwinState state) {
             return new TwinStateResponse(state.spaceId(), state.status(), state.hvacState(), state.hvacStateSince(),
                     state.hvacMode(), state.hvac().setpointC(), state.hvac().reason(), state.occupancy().people(),
@@ -103,7 +105,7 @@ public final class TwinContracts {
                     state.condition(), state.equipment().lightsOn(), state.equipment().illuminanceLux(),
                     state.equipment().devicesOn(), state.equipment().devicesTotal(), state.emptySince(),
                     state.equipmentShutdownAt(), state.presence().teachers(), state.presence().students(),
-                    state.sensing().emulated(), state.sensing().lastCameraFrameAt(),
+                    state.sensing().emulated(), state.sensing().lastCameraFrameAt(), state.sensing().reporting(),
                     ESCENARIOS.reconocer(state, state.updatedAt()).stream().map(EscenarioResponse::from).toList());
         }
     }
