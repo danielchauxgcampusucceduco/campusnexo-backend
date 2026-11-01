@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 import edu.campusnexo.application.port.in.EspacioAdminUseCase;
@@ -11,6 +12,7 @@ import edu.campusnexo.application.port.in.EstadoPuesto;
 import edu.campusnexo.application.port.in.InventarioUseCase;
 import edu.campusnexo.application.port.in.PersonaAdminUseCase;
 import edu.campusnexo.application.port.in.RegistrarActivoCommand;
+import edu.campusnexo.application.port.in.RegistrarPersonaCommand;
 import edu.campusnexo.domain.activo.Cpu;
 import edu.campusnexo.domain.activo.Mesa;
 import edu.campusnexo.domain.activo.PuestoDeTrabajo;
@@ -19,6 +21,7 @@ import edu.campusnexo.domain.catalog.SeatLayout;
 import edu.campusnexo.domain.catalog.SpaceType;
 import edu.campusnexo.domain.persona.Docente;
 import edu.campusnexo.domain.persona.TipoPersona;
+import edu.campusnexo.domain.shared.DomainValidationException;
 import edu.campusnexo.infrastructure.adapter.in.web.dto.ActivoRequest;
 import edu.campusnexo.infrastructure.adapter.in.web.dto.PersonaRequest;
 import edu.campusnexo.support.TestData;
@@ -26,6 +29,7 @@ import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.mock.web.MockMultipartFile;
 
 class AdministracionControllerTest {
     private final PersonaAdminUseCase personas = mock(PersonaAdminUseCase.class);
@@ -78,5 +82,31 @@ class AdministracionControllerTest {
         assertEquals(Set.of(TipoActivo.SILLA), puestos.getFirst().faltantes());
         assertEquals(HttpStatus.NO_CONTENT, created.getStatusCode());
         verify(inventario).registrarActivo(new RegistrarActivoCommand("301-A", 7, TipoActivo.SILLA, "S-7", 0, false));
+    }
+
+    @Test
+    void importsAFileRowByRowAndReportsTheRowsItRejects() throws Exception {
+        when(personas.registrar(any())).thenAnswer(call -> {
+            RegistrarPersonaCommand command = call.getArgument(0);
+            if (command.nombre().isBlank()) {
+                throw new DomainValidationException("nombre es obligatorio");
+            }
+            return new Docente(command.codigo(), command.nombre(), command.adscripcion());
+        });
+        String csv = "tipo;codigo;nombre;programa\n"
+                + "docente;D-1;Ana Ruiz;Software\n"
+                + ";E-2;Luis Gómez;Sistemas\n"
+                + "invitado;X-3;Sin Rol;Nada\n"
+                + "estudiante;E-4;;Sistemas\n";
+
+        var result = controller.importarPersonas(new MockMultipartFile("archivo", "lista.csv", "text/csv",
+                csv.getBytes(java.nio.charset.StandardCharsets.UTF_8)), TipoPersona.ESTUDIANTE);
+
+        assertEquals(4, result.filas());
+        assertEquals(2, result.guardadas());
+        assertEquals(List.of(4, 5), result.rechazadas().stream().map(AdministracionController.ImportacionResponse.Rechazo::fila).toList());
+        verify(personas).registrar(new RegistrarPersonaCommand(TipoPersona.DOCENTE, "D-1", "Ana Ruiz", "Software"));
+        verify(personas).registrar(new RegistrarPersonaCommand(TipoPersona.ESTUDIANTE, "E-2", "Luis Gómez", "Sistemas"));
+        verify(personas, times(3)).registrar(any());
     }
 }

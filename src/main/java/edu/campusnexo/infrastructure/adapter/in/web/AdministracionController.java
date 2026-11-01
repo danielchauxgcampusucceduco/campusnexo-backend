@@ -3,10 +3,12 @@ package edu.campusnexo.infrastructure.adapter.in.web;
 import edu.campusnexo.application.port.in.EspacioAdminUseCase;
 import edu.campusnexo.application.port.in.InventarioUseCase;
 import edu.campusnexo.application.port.in.PersonaAdminUseCase;
+import edu.campusnexo.application.port.in.RegistrarPersonaCommand;
 import edu.campusnexo.application.port.in.RegistroDePuestosUseCase;
 import edu.campusnexo.domain.activo.EmparejamientoCpu;
 import edu.campusnexo.domain.activo.PropuestaDePuestos.Alta;
 import edu.campusnexo.domain.persona.TipoPersona;
+import edu.campusnexo.domain.shared.DomainValidationException;
 import edu.campusnexo.infrastructure.adapter.in.web.dto.ActivoRequest;
 import edu.campusnexo.infrastructure.adapter.in.web.dto.PersonaRequest;
 import edu.campusnexo.infrastructure.adapter.in.web.dto.PersonaResponse;
@@ -18,8 +20,13 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import java.io.IOException;
+import java.text.Normalizer;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,6 +37,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * What only the university administration manages: the measurements of each room, the people bookings name and
@@ -100,6 +108,57 @@ class AdministracionController {
     @PostMapping("/personas")
     PersonaResponse registrarPersona(@Valid @RequestBody PersonaRequest request) {
         return PersonaResponse.from(personas.registrar(request.toCommand()));
+    }
+
+    /** Result of a bulk import: rows read, people registered or updated, and each rejected row with its reason. */
+    record ImportacionResponse(int filas, int guardadas, List<Rechazo> rechazadas) {
+        record Rechazo(int fila, String codigo, String motivo) {
+        }
+    }
+
+    static final long MAX_ARCHIVO = 2L * 1024 * 1024;
+
+    /**
+     * Registers or updates every person of a .csv or .xlsx ({@link PersonasArchivo}); an invalid row is reported with
+     * its number and reason without stopping the others. {@code tipo} applies to the rows without a tipo column.
+     */
+    @PostMapping(path = "/personas/importar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    ImportacionResponse importarPersonas(@RequestParam("archivo") MultipartFile archivo,
+                                         @RequestParam(required = false) TipoPersona tipo) throws IOException {
+        if (archivo.isEmpty() || archivo.getSize() > MAX_ARCHIVO) {
+            throw new DomainValidationException("El archivo debe tener datos y pesar como máximo 2 MB");
+        }
+        List<PersonasArchivo.Fila> filas = PersonasArchivo.leer(archivo.getOriginalFilename(), archivo.getBytes());
+        int guardadas = 0;
+        List<ImportacionResponse.Rechazo> rechazadas = new ArrayList<>();
+        for (PersonasArchivo.Fila fila : filas) {
+            String codigo = fila.get("codigo");
+            try {
+                personas.registrar(new RegistrarPersonaCommand(tipoDe(fila.get("tipo"), tipo), codigo,
+                        fila.get("nombre"), fila.get("adscripcion")));
+                guardadas++;
+            } catch (DomainValidationException invalid) {
+                rechazadas.add(new ImportacionResponse.Rechazo(fila.numero(), codigo, invalid.getMessage()));
+            }
+        }
+        return new ImportacionResponse(filas.size(), guardadas, rechazadas);
+    }
+
+    /** The type written in the row (with its usual synonyms), or the one chosen for the whole file. */
+    static TipoPersona tipoDe(String escrito, TipoPersona porDefecto) {
+        String tipo = Normalizer.normalize(escrito, Normalizer.Form.NFD).replaceAll("\\p{M}", "")
+                .trim().toLowerCase(Locale.ROOT);
+        return switch (tipo) {
+            case "docente", "profesor", "profesora", "teacher" -> TipoPersona.DOCENTE;
+            case "estudiante", "alumno", "alumna", "student" -> TipoPersona.ESTUDIANTE;
+            case "" -> {
+                if (porDefecto == null) {
+                    throw new DomainValidationException("Falta el tipo: agrega una columna tipo o elige uno al importar");
+                }
+                yield porDefecto;
+            }
+            default -> throw new DomainValidationException("Tipo desconocido «" + escrito + "»: usa docente o estudiante");
+        };
     }
 
     @DeleteMapping("/personas/{codigo}")
