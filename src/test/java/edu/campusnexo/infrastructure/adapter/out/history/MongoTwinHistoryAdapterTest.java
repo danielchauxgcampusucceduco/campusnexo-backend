@@ -25,8 +25,9 @@ import org.testcontainers.containers.wait.strategy.Wait;
 
 /** Against a real MongoDB in a container: the history is plain documents the AI evaluation reads back. */
 class MongoTwinHistoryAdapterTest {
-    // An exact version: the moving tag mongo:8 became 8.3.13 on 2026-10-27, and that image never starts in CI.
-    private static final GenericContainer<?> MONGO = new GenericContainer<>("mongo:8.0.32")
+    // MongoDB 8.x refuses to start on Linux kernel 6.19+ (the CI runners; SERVER-121912). 7.0 runs there and
+    // speaks the same protocol for these plain inserts and reads; move back to 8.x once it starts on that kernel.
+    private static final GenericContainer<?> MONGO = new GenericContainer<>("mongo:7.0.45")
             .withExposedPorts(27017)
             .waitingFor(Wait.forLogMessage(".*Waiting for connections.*", 1));
     private static MongoClient client;
