@@ -35,8 +35,8 @@ class SecurityConfiguration implements WebMvcConfigurer {
     }
 
     @Bean
-    StompAuthenticationInterceptor stompAuthenticationInterceptor(Authenticator authenticator) {
-        return new StompAuthenticationInterceptor(authenticator);
+    StompAuthenticationInterceptor stompAuthenticationInterceptor(Authenticator authenticator, Clock clock) {
+        return new StompAuthenticationInterceptor(authenticator, clock);
     }
 
     @Bean

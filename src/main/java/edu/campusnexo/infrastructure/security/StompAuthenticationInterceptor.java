@@ -1,8 +1,8 @@
 package edu.campusnexo.infrastructure.security;
 
+import java.time.Clock;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.Message;
@@ -22,12 +22,16 @@ import org.springframework.messaging.support.MessageHeaderAccessor;
 public final class StompAuthenticationInterceptor implements ChannelInterceptor {
     private static final Logger audit = LoggerFactory.getLogger("campusnexo.audit");
     private static final String SESSION_PRINCIPAL = Principal.class.getName();
-    private static final Set<String> TOPICS = Set.of("/topic/twin", "/topic/traces");
+    /** The role each topic needs, checked on every SUBSCRIBE (not only on CONNECT). */
+    private static final Map<String, Role.Access> TOPICS = Map.of("/topic/twin", Role.Access.VIEWER,
+            "/topic/traces", Role.Access.VIEWER);
 
     private final Authenticator authenticator;
+    private final Clock clock;
 
-    StompAuthenticationInterceptor(Authenticator authenticator) {
+    StompAuthenticationInterceptor(Authenticator authenticator, Clock clock) {
         this.authenticator = authenticator;
+        this.clock = clock;
     }
 
     @Override
@@ -50,11 +54,19 @@ public final class StompAuthenticationInterceptor implements ChannelInterceptor 
                 session.put(SESSION_PRINCIPAL, principal.get());
             }
         } else if (command == StompCommand.SUBSCRIBE) {
-            if (session == null || !(session.get(SESSION_PRINCIPAL) instanceof Principal)) {
+            if (session == null || !(session.get(SESSION_PRINCIPAL) instanceof Principal caller)) {
                 throw new MessageDeliveryException("Sesión STOMP sin autenticar");
             }
-            if (!TOPICS.contains(accessor.getDestination())) {
+            Role.Access required = TOPICS.get(accessor.getDestination());
+            if (required == null) {
                 throw new MessageDeliveryException("Solo se permiten /topic/twin y /topic/traces");
+            }
+            // A socket can outlive its token: each subscription checks the role and that the session has not expired.
+            if (!caller.role().satisfies(required)
+                    || (caller.expiresAt() != null && !caller.expiresAt().isAfter(clock.instant()))) {
+                audit.warn("AUDIT denegado motivo=websocket_suscripcion usuario={} destino={}", caller.name(),
+                        accessor.getDestination());
+                throw new MessageDeliveryException("La sesión venció o tu rol no permite " + accessor.getDestination());
             }
         } else if (command == StompCommand.SEND) {
             throw new MessageDeliveryException("El canal en vivo es de solo lectura");
