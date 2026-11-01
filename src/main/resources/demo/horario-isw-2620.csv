@@ -1,0 +1,105 @@
+# Ingeniería de Software 07ISW, periodo 2620 (HORARIO 2620 ING SOFTWARE 07ISW - Version Actualizada.xlsx).
+# Generado por tools/horario/horario_a_csv.py. Sin nombres de docentes. asignado=si: la clase no traía salón o
+# cruzaba con otra en el mismo salón, y la demo le asignó uno libre.
+grupo;estudiantes;curso;dia;inicio;fin;salon;asignado
+1A;35;Construcción de Algoritmos;LUNES;7;10;301-A;no
+1B;35;Contexto de la ingeniería de software;LUNES;7;10;308-A;no
+3A;38;Análisis de Software;LUNES;7;10;310-A;no
+1A;35;Contexto de la ingeniería de software;LUNES;10;13;301-A;no
+5B;40;Diseño de Interfaces de Software;LUNES;10;13;308-A;no
+3B;38;Análisis de Software;LUNES;10;13;310-A;no
+6B;40;Sistemas Distribuidos;LUNES;14;17;301-A;no
+1B;35;Idioma extranjero I;LUNES;14;16;302-B;si
+2B;38;Álgebra Lineal;LUNES;14;17;303-B;no
+4A;38;Estructuras de Datos;LUNES;14;16;308-A;no
+4B;38;Calidad del Software;LUNES;14;16;310-A;no
+2A;38;Aspectos Administrativos y Económicos;LUNES;15;17;505-B;no
+6B;40;Electiva III (programación Móvil Flutter);LUNES;17;20;301-A;no
+2B;38;Aspectos Administrativos y Económicos;LUNES;17;19;303-B;no
+7A;40;Aspectos Legales y Éticos para Ingeniería;LUNES;17;19;424-A;no
+8A;40;Optativa (Programación Móvil Flutter II);LUNES;18;20;308-A;no
+6A;40;Propuesta de trabajo de Grado;LUNES;18;20;505-B;no
+7A;40;Construcción del Trabajo Grado;LUNES;19;22;309-A;no
+8A;40;Ingeniería Web;LUNES;20;22;308-A;no
+1B;35;Construcción de Algoritmos;MARTES;7;10;301-A;no
+3A;38;Ecuaciones Diferenciales;MARTES;7;10;302-B;no
+5B;40;Formulación y Evaluación de Proyectos;MARTES;7;10;308-A;no
+5A;40;Electiva II (Cloud Computing);MARTES;7;10;310-A;no
+3B;38;Aspectos Contables para la Gestión de Proyectos;MARTES;7;10;408-B;no
+5A;40;Formulación y Evaluación de Proyectos;MARTES;10;13;301-A;no
+1A;35;Cálculo diferencial;MARTES;10;12;304-B;no
+5B;40;Electiva II (Cloud Computing);MARTES;10;13;308-A;no
+3A;38;Aspectos Contables para la Gestión de Proyectos;MARTES;10;13;505-B;no
+1A;35;Idioma extranjero I;MARTES;14;17;302-B;si
+4A;38;Cálculo Multivariado;MARTES;14;17;305-B;no
+6A;40;Computación Ubicua;MARTES;14;17;308-A;no
+2B;38;Ingeniería de Requisitos;MARTES;14;17;310-A;no
+2A;38;Física Mecánica;MARTES;14;16;408-B;no
+6B;40;Programación Orientada a Objetos;MARTES;15;17;301-A;no
+2A;38;Álgebra Lineal;MARTES;16;19;304-B;no
+4B;38;Cálculo Multivariado;MARTES;17;20;305-B;no
+6A;40;Programación Orientada a Objetos;MARTES;17;19;309-A;no
+6B;40;Computación Ubicua;MARTES;17;20;310-A;no
+7A;40;Programación Orientada a la Web;MARTES;18;21;301-A;no
+8A;40;Sistemas de Comunicación y Seguridad Informática;MARTES;18;20;308-A;no
+8A;40;Gestión de Proyectos de Software;MARTES;20;22;308-A;no
+5B;40;Arquitectura Computacional;MIERCOLES;7;9;301-A;no
+1A;35;Construcción de Algoritmos;MIERCOLES;7;10;308-A;no
+5A;40;Diseño de Interfaces de Software;MIERCOLES;7;10;310-A;no
+3B;38;Física, Electricidad y Magnetismo;MIERCOLES;8;10;408-B;no
+5A;40;Arquitectura Computacional;MIERCOLES;10;12;308-A;no
+3A;38;Física, Electricidad y Magnetismo;MIERCOLES;10;12;408-B;no
+3B;38;Probabilidad y Estadística;MIERCOLES;10;12;503-B;no
+4B;38;Diseño de Software;MIERCOLES;14;17;301-A;no
+1A;35;Humanidades I;MIERCOLES;14;16;302-B;si
+2A;38;Cálculo Integral;MIERCOLES;14;17;303-B;no
+1B;35;Humanidades I;MIERCOLES;14;16;304-B;si
+6A;40;Electiva III (programación Móvil Flutter);MIERCOLES;14;17;308-A;no
+4A;38;Calidad del Software;MIERCOLES;14;16;310-A;no
+2B;38;Física Mecánica;MIERCOLES;14;16;408-B;no
+6B;40;Propuesta de trabajo de Grado;MIERCOLES;15;17;309-A;no
+8A;40;Sistemas de Inteligencia Artificial;MIERCOLES;17;19;308-A;no
+4A;38;Diseño de Software;MIERCOLES;17;20;309-A;no
+6A;40;Sistemas Operativos;MIERCOLES;17;20;310-A;no
+7A;40;Metodologías de Software Colaborativo;MIERCOLES;17;19;5A-AULA-DE-INFORMATICA;si
+6B;40;Programación Orientada a Objetos;MIERCOLES;18;20;301-A;no
+8A;40;Programación Orientada a entornos Multimediales;MIERCOLES;19;22;308-A;no
+7A;40;Programación de Sistemas Embebidos y de Tiempo Real;MIERCOLES;19;22;5A-AULA-DE-INFORMATICA;si
+1B;35;Construcción de Algoritmos;JUEVES;7;10;301-A;no
+5A;40;Arquitecturas de Software;JUEVES;7;9;308-A;no
+5B;40;Electiva I (frameworks web);JUEVES;7;10;310-A;no
+3B;38;Ecuaciones Diferenciales;JUEVES;7;10;408-B;no
+5B;40;Arquitecturas de Software;JUEVES;10;12;301-A;no
+5A;40;Electiva I (frameworks web);JUEVES;10;13;308-A;no
+3A;38;Probabilidad y Estadística;JUEVES;10;12;408-B;no
+1B;35;Cálculo diferencial;JUEVES;10;12;601-B;no
+6A;40;Herramientas Computacionales Para interpretación de resultados;JUEVES;14;16;308-A;no
+2A;38;Física Mecánica;JUEVES;14;16;408-B;no
+4A;38;Ingeniería Económica;JUEVES;14;17;503-B;no
+6B;40;Sistemas Operativos;JUEVES;16;19;308-A;no
+2B;38;Física Mecánica;JUEVES;16;18;408-B;no
+7A;40;Inteligencia de Negocios y Minería de Datos;JUEVES;17;19;301-A;no
+4B;38;Estructuras de Datos;JUEVES;17;19;309-A;no
+6A;40;Programación Orientada a Objetos;JUEVES;17;19;310-A;no
+8A;40;Aspectos Generales del Medio Ambiente;JUEVES;18;21;408-B;no
+7A;40;Pruebas y Mantenimiento de Software;JUEVES;19;21;301-A;no
+6B;40;Herramientas Computacionales Para interpretación de resultados;JUEVES;19;21;308-A;no
+5A;40;Sistemas Transaccionales y Bases de Datos;VIERNES;7;10;301-A;no
+3B;38;Física, Electricidad y Magnetismo;VIERNES;7;9;402-B;no
+3A;38;Probabilidad y Estadística;VIERNES;7;9;501-B;no
+1B;35;Técnicas de medición de Variables Físicas;VIERNES;7;10;514-A;no
+1A;35;Cálculo diferencial;VIERNES;8;10;408-B;no
+3A;38;Física, Electricidad y Magnetismo;VIERNES;9;11;402-B;no
+3B;38;Probabilidad y Estadística;VIERNES;9;11;501-B;no
+5B;40;Sistemas Transaccionales y Bases de Datos;VIERNES;10;13;301-A;no
+1B;35;Cálculo diferencial;VIERNES;10;12;408-B;no
+1A;35;Técnicas de medición de Variables Físicas;VIERNES;10;13;514-A;no
+6A;40;Herramientas Computacionales Para interpretación de resultados;VIERNES;14;16;308-A;no
+2A;38;Ingeniería de Requisitos;VIERNES;14;17;309-A;no
+4A;38;Patrones de Software;VIERNES;14;16;310-A;no
+2B;38;Cálculo Integral;VIERNES;14;17;408-B;no
+4B;38;Ingeniería Económica;VIERNES;14;17;501-B;no
+6B;40;Herramientas Computacionales Para interpretación de resultados;VIERNES;16;18;308-A;no
+7A;40;Compiladores;VIERNES;17;19;301-A;no
+6A;40;Sistemas Distribuidos;VIERNES;17;20;309-A;no
+4B;38;Patrones de Software;VIERNES;17;19;310-A;no
