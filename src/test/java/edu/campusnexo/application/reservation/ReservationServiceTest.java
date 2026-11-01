@@ -168,4 +168,11 @@ class ReservationServiceTest {
 
         assertEquals("space_under_maintenance", error.code());
     }
+
+    @Test
+    void aReservationCannotStartInThePast() {
+        assertThrows(DomainValidationException.class,
+                () -> service.create(command(TestData.NOW.minus(Duration.ofMinutes(16)), Duration.ofHours(2), 10)));
+        service.create(command(TestData.NOW.minus(Duration.ofMinutes(5)), Duration.ofHours(1), 10));
+    }
 }

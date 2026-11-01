@@ -34,6 +34,8 @@ import java.util.UUID;
  */
 public class ReservationService implements ReservationUseCase {
     static final Duration MAX_QUERY_WINDOW = Duration.ofDays(31);
+    /** A class that has just begun can still be booked; anything that started earlier is in the past. */
+    static final Duration START_TOLERANCE = Duration.ofMinutes(15);
 
     private final Clock clock;
     private final ReservationRepository repository;
@@ -62,8 +64,9 @@ public class ReservationService implements ReservationUseCase {
         if (reservation.expectedAttendees() > space.capacity()) {
             throw new DomainValidationException("expectedAttendees supera el aforo del espacio (" + space.capacity() + ")");
         }
-        if (reservation.endsAt().isBefore(clock.instant())) {
-            throw new DomainValidationException("No se pueden crear reservas que ya terminaron");
+        if (reservation.startsAt().isBefore(clock.instant().minus(START_TOLERANCE))) {
+            throw new DomainValidationException("La reserva no puede empezar en el pasado (se aceptan hasta "
+                    + START_TOLERANCE.toMinutes() + " min antes de ahora, para una clase que acaba de comenzar)");
         }
         if (twins.findTwin(space.spaceId()).map(SpaceTwinState::maintenance).orElse(false)) {
             throw new ConflictException("space_under_maintenance", space.spaceId()
