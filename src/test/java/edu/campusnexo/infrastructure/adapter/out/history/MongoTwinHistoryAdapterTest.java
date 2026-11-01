@@ -25,7 +25,8 @@ import org.testcontainers.containers.wait.strategy.Wait;
 
 /** Against a real MongoDB in a container: the history is plain documents the AI evaluation reads back. */
 class MongoTwinHistoryAdapterTest {
-    private static final GenericContainer<?> MONGO = new GenericContainer<>("mongo:8")
+    // An exact version: the moving tag mongo:8 became 8.3.13 on 2026-10-27, and that image never starts in CI.
+    private static final GenericContainer<?> MONGO = new GenericContainer<>("mongo:8.0.32")
             .withExposedPorts(27017)
             .waitingFor(Wait.forLogMessage(".*Waiting for connections.*", 1));
     private static MongoClient client;
