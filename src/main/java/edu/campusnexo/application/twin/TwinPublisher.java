@@ -5,6 +5,7 @@ import edu.campusnexo.domain.port.HvacActuatorCommandPort;
 import edu.campusnexo.domain.port.RoomEquipmentCommandPort;
 import edu.campusnexo.domain.port.SpaceRepositoryPort;
 import edu.campusnexo.domain.trace.ArchitectureTrace;
+import edu.campusnexo.domain.trace.HexagonalLayer;
 import edu.campusnexo.domain.twin.EquipmentCommand;
 import edu.campusnexo.domain.twin.HvacCommand;
 import edu.campusnexo.domain.twin.HvacControlState;
@@ -54,12 +55,15 @@ public final class TwinPublisher {
                     (command.lightsOff() ? "apagar luces" : "") + (command.lightsOff() && command.suspendDevices() ? " y " : "")
                             + (command.suspendDevices() ? "suspender equipos" : ""));
         }
+        // Observer: one output port, as many subscribers as adapters (the dashboard by STOMP, the history in MongoDB).
+        trace.step(HexagonalLayer.OUTPUT_PORT, "TwinChangeNotifierPort.publishTwinUpdate",
+                "Observer: avisa a " + notifiers.size() + (notifiers.size() == 1 ? " suscriptor" : " suscriptores"));
         for (TwinChangeNotifierPort notifier : notifiers) {
             try {
                 notifier.publishTwinUpdate(saved);
-                trace.outbound("TwinChangeNotifierPort.publishTwinUpdate", notifier, "Gemelo actualizado");
+                trace.adapter(notifier, "Gemelo actualizado");
             } catch (RuntimeException failure) {
-                trace.outbound("TwinChangeNotifierPort.publishTwinUpdate", notifier, "Omitido: " + failure.getMessage());
+                trace.adapter(notifier, "Omitido: " + failure.getMessage());
             }
         }
 

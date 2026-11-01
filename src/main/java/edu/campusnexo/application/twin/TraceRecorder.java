@@ -39,6 +39,11 @@ public final class TraceRecorder {
         return step(HexagonalLayer.OUTBOUND_ADAPTER, adapterName(adapter), detail);
     }
 
+    /** An outbound adapter reached through the port recorded just before (the subscribers of an Observer port). */
+    public TraceRecorder adapter(Object adapter, String detail) {
+        return step(HexagonalLayer.OUTBOUND_ADAPTER, adapterName(adapter), detail);
+    }
+
     public ArchitectureTrace finish() {
         return new ArchitectureTrace(traceId, trigger, spaceId, startedAt, steps);
     }
