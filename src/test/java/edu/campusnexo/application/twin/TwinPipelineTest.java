@@ -96,18 +96,27 @@ class TwinPipelineTest {
     }
 
     @Test
-    @DisplayName("El override docente gana sobre el controlador y se acumula el ahorro entre frames")
+    @DisplayName("El override docente gana sobre el controlador y el ahorro se mide contra el uso programado")
     void overrideAndSavings() {
         fixture.pipeline.process(frame(0, 430, 22), "MQTT · prueba");
         fixture.clock.advance(Duration.ofMinutes(10));
         SpaceTwinState blocked = fixture.pipeline.process(frame(0, 430, 22), "MQTT · prueba");
         assertEquals(HvacControlState.BLOQUEO_AHORRO_VACIO, blocked.hvacState());
-        // 54 m² · 0.12 kW/m² = 6.48 kW · 10 min = 1.08 kWh (10:00 en Bogotá, dentro del horario)
-        assertEquals(1.08, blocked.energySavedKwh(), 1e-6);
+        // Empty and not booked: a conventional system would not run the unit either, so there is nothing to save.
+        assertEquals(0.0, blocked.energySavedKwh(), 1e-6);
+
+        fixture.clock.advance(Duration.ofMinutes(2));
+        SpaceTwinState ventilating = fixture.pipeline.process(frame(20, 1600, 20), "MQTT · prueba");
+        assertEquals(HvacControlState.VENTILACION_CO2_ACTIVA, ventilating.hvacState());
+        fixture.clock.advance(Duration.ofMinutes(10));
+        SpaceTwinState inUse = fixture.pipeline.process(frame(20, 1600, 20), "MQTT · prueba");
+        // In use, ventilating instead of heating: 75 % of 54 m² · 0.12 kW/m² = 6.48 kW for 10 min = 0.81 kWh.
+        assertEquals(0.81, inUse.energySavedKwh(), 1e-6);
 
         SpaceTwinState overridden = fixture.controls.manualOverride("LAB-IA-102", Duration.ofMinutes(45));
         assertEquals(HvacControlState.OVERRIDE_MANUAL_DOCENTE, overridden.hvacState());
-        assertEquals(2, fixture.actuator.commands.size());
+        // Blocked when empty, ventilating when in use, then the teacher's override: three commands to the unit.
+        assertEquals(3, fixture.actuator.commands.size());
     }
 
     private EnvironmentReading arduino(boolean lightsOn, int devicesOn) {
@@ -273,7 +282,7 @@ class TwinPipelineTest {
     @Test
     @DisplayName("Un espacio sin equipo de clima nunca se climatiza ni acumula ahorro")
     void roomWithoutUnitIsNeverClimatized() {
-        TelemetrySnapshot frame = new TelemetrySnapshot("BIBLIOTECA-2B", fixture.clock.instant(), true, List.of(), 600,
+        TelemetrySnapshot frame = new TelemetrySnapshot("BIBLIOTECA-2A", fixture.clock.instant(), true, List.of(), 600,
                 17.0, 9.0, 55, 300, 20, 1.0);
         SpaceTwinState first = fixture.pipeline.process(frame, "MQTT · prueba");
         fixture.clock.advance(Duration.ofMinutes(10));

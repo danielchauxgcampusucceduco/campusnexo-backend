@@ -98,8 +98,14 @@ public final class TwinDecisionEngine {
         trace.step(HexagonalLayer.DOMAIN_SERVICE, HvacSettingChain.class,
                 resolution.decidedBy() + " → " + hvac.state() + " / " + hvac.mode());
 
+        // Scheduled use during the interval, as a conventional timer would see it: a booking under way or about to
+        // start, or people in the room at the previous reading.
+        Reservation next = reservations.next();
+        boolean scheduledUse = active != null || previous.occupancy().people() > 0
+                || (next != null && !next.startsAt().isAfter(now.plus(EnergyAccountingPolicy.PRE_START)));
         double saved = firstFrame || !space.hvacInstalled() ? previous.energySavedKwh()
-                : previous.energySavedKwh() + energy.savedKwh(previous.hvacState(), previous.updatedAt(), now, space.areaSqm());
+                : previous.energySavedKwh() + energy.savedKwh(previous.hvacState(), scheduledUse, previous.updatedAt(), now,
+                space.areaSqm());
 
         RoomEquipment equipment = in.equipment();
         Instant emptySince = emptySince(people, previous.emptySince(), now);
