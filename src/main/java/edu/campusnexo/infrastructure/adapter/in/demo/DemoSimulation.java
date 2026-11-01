@@ -3,46 +3,58 @@ package edu.campusnexo.infrastructure.adapter.in.demo;
 import edu.campusnexo.domain.catalog.CampusSpace;
 import edu.campusnexo.domain.catalog.SeatLayout;
 import edu.campusnexo.domain.catalog.SpaceType;
+import edu.campusnexo.domain.vision.BoundingBox;
+import edu.campusnexo.domain.vision.DetectedObjectClass;
+import edu.campusnexo.domain.vision.NormalizedPoint;
+import edu.campusnexo.domain.vision.StudyZoneRoi;
+import edu.campusnexo.domain.vision.TrackedDetection;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.SplittableRandom;
-import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 
 /**
- * Compressed academic day (07:00 to 22:00) for the system demo, as a pure function of the wall clock. Each demo room
- * gets a seeded schedule per simulated day, and every instant says what the room holds (people, lights, devices) and
- * what a normal camera and an infrared camera see of it. The normal camera loses people in the dark and cannot tell
- * whether a device without a screen is on; the infrared camera sees body heat and hot equipment, even a device that
- * was turned off a few minutes ago. Situations are exaggerated on purpose (forgotten lights and projectors, labs left
- * with equipment on, classes in the dark, overcrowding, a normal camera down, reservations nobody used, maintenance)
- * so one run of the loop shows every case.
+ * Compressed academic week for the system demo, as a pure function of the wall clock: each loop is one weekday of the
+ * 2620 timetable of Software Engineering (Monday to Friday, 07:00 to 22:00, in one-hour slots), and only the rooms that
+ * timetable uses take part. Every session happens in its room with its course and group: the enrolled students arrive
+ * (most of them, as in a real class) and the teacher with them. What surrounds the timetable is simulated around it:
+ * lights, projectors and computers left on after a class, a projection in the dark, a normal camera that drops, and now
+ * and then a class nobody attends. Every instant says what each room holds and what a normal and an infrared camera
+ * see of it: the normal camera loses people in the dark and cannot tell whether a device without a screen is on; the
+ * infrared camera sees body heat and hot equipment, even a device turned off minutes ago.
  */
 public final class DemoSimulation {
     static final int DAY_START = 7 * 60;
     static final int DAY_END = 22 * 60;
-    public static final List<Franja> FRANJAS = List.of(
-            new Franja("07:00–09:00", 420, 540), new Franja("09:00–11:00", 540, 660),
-            new Franja("11:00–13:00", 660, 780), new Franja("13:00–14:00 almuerzo", 780, 840),
-            new Franja("14:00–16:00", 840, 960), new Franja("16:00–18:00", 960, 1080),
-            new Franja("18:00–20:00", 1080, 1200), new Franja("20:00–22:00", 1200, 1320));
-    private static final int LUNCH = 3;
-    private static final Pattern MEDICINE = Pattern.compile(
-            "cl[ií]nic|cuidado|morfolog|microbiolog|preclin|historias|anatom", Pattern.CASE_INSENSITIVE);
+    public static final List<Franja> FRANJAS = IntStream.range(7, 22)
+            .mapToObj(h -> new Franja(String.format(Locale.ROOT, "%02d:00–%02d:00", h, h + 1), h * 60, (h + 1) * 60))
+            .toList();
+    public static final List<String> DIAS = List.of("LUNES", "MARTES", "MIERCOLES", "JUEVES", "VIERNES");
+    private static final List<String> NOMBRES_DIA = List.of("Lunes", "Martes", "Miércoles", "Jueves", "Viernes");
+    static final String HORARIO = "/demo/horario-isw-2620.csv";
+    public static final String PROGRAMA = "Ingeniería de Software · horario 2620";
 
-    public enum Uso { CLASE, PRACTICA, RESERVA_SIN_USO, MANTENIMIENTO, LIBRE }
+    /** RESERVA_SIN_USO: a class of the timetable that nobody attended. */
+    public enum Uso { CLASE, RESERVA_SIN_USO, LIBRE }
 
-    /** What the last group left on in a free slot. */
+    /** What the group left on after its class. */
     enum Olvido { LUCES, PANTALLA, EQUIPOS }
 
-    enum Incidente { A_OSCURAS, SOBRECUPO, CAMARA_NORMAL_CAIDA }
+    enum Incidente { A_OSCURAS, CAMARA_NORMAL_CAIDA }
 
     public record Franja(String etiqueta, int desde, int hasta) {
         boolean contiene(double minuto) {
@@ -50,65 +62,71 @@ public final class DemoSimulation {
         }
     }
 
+    /**
+     * One class of the timetable, from {@code inicio} to {@code fin} (whole hours). {@code asignado}: the timetable
+     * gave it no room, or put it in a room another group was using, and the timetable conversion chose a free one.
+     */
+    public record Sesion(String grupo, int estudiantes, String curso, String dia, int inicio, int fin, String salon,
+                         boolean asignado) {
+        int desde() {
+            return inicio * 60;
+        }
+
+        int hasta() {
+            return fin * 60;
+        }
+
+        String etiqueta() {
+            return curso + " · " + grupo;
+        }
+    }
+
     /** One device, or a group of identical ones (the PCs of a room) with {@code cantidad > 1}. */
     record Equipo(String nombre, String categoria, int potenciaW, boolean pantalla, boolean siempreEncendido,
                   int cantidad, Double x, Double y) {
-        Equipo at(int cantidad, Double x, Double y) {
-            return new Equipo(nombre, categoria, potenciaW, pantalla, siempreEncendido, cantidad, x, y);
-        }
-
         double calorC() {
             return Math.min(45, 6 + potenciaW / 35.0);
         }
     }
 
-    private static Equipo medico(String nombre, int w, boolean pantalla, boolean siempre) {
-        return new Equipo(nombre, "MEDICINA", w, pantalla, siempre, 1, null, null);
-    }
-
-    private static Equipo ingenieria(String nombre, int w, boolean pantalla, boolean siempre) {
-        return new Equipo(nombre, "INGENIERIA", w, pantalla, siempre, 1, null, null);
-    }
-
-    private static final List<Equipo> MEDICINA = List.of(
-            medico("Monitor de signos vitales", 60, true, false), medico("Simulador de paciente", 250, true, false),
-            medico("Desfibrilador de entrenamiento", 40, true, false), medico("Ventilador mecánico", 150, true, false),
-            medico("Microscopio", 30, false, false), medico("Centrífuga", 400, false, false),
-            medico("Autoclave", 1500, false, false), medico("Nevera de reactivos", 200, false, true),
-            medico("Incubadora", 300, false, true), medico("Cabina de flujo laminar", 350, false, false));
-    private static final List<Equipo> INGENIERIA = List.of(
-            ingenieria("Osciloscopio", 50, true, false), ingenieria("Fuente de poder", 120, false, false),
-            ingenieria("Generador de señales", 40, true, false), ingenieria("Impresora 3D", 250, false, false),
-            ingenieria("Controlador PLC", 60, true, false), ingenieria("Espectrofotómetro", 90, true, false),
-            ingenieria("Plancha de calentamiento", 800, false, false), ingenieria("Biorreactor", 500, false, true),
-            ingenieria("Campana de extracción", 600, false, false),
-            ingenieria("Gafas de realidad mixta", 20, true, false));
-    private static final List<String> CURSOS_COMPUTO = List.of("Programación I", "Bases de datos", "Redes",
-            "Estructuras de datos", "Ingeniería de software", "Sistemas operativos");
-    private static final List<String> CURSOS_AULA = List.of("Cálculo diferencial", "Física I", "Ética", "Inglés III",
-            "Estadística", "Derecho constitucional", "Contabilidad");
-    private static final List<String> CURSOS_MEDICINA = List.of("Anatomía", "Semiología", "Microbiología",
-            "Fisiología", "Urgencias simuladas");
-    private static final List<String> CURSOS_INGENIERIA = List.of("Química general", "Electrónica", "Física II",
-            "Investigación de operaciones", "Bioprocesos");
-
     private final List<CampusSpace> salones;
+    private final List<Sesion> horario;
     private final Duration dayLength;
 
-    public DemoSimulation(List<CampusSpace> salones, Duration dayLength) {
+    public DemoSimulation(List<CampusSpace> salones, List<Sesion> horario, Duration dayLength) {
         this.salones = List.copyOf(salones);
+        this.horario = List.copyOf(horario);
         this.dayLength = dayLength;
     }
 
-    /** The demo set: computer rooms and labs (not the hardware pilots 301-A and 303-A) plus some classrooms. */
-    public static List<CampusSpace> demoRooms(List<CampusSpace> catalog, int classrooms) {
-        List<CampusSpace> rooms = new ArrayList<>();
-        catalog.stream().filter(s -> !Set.of("301-A", "303-A").contains(s.spaceId()))
-                .filter(s -> s.type() == SpaceType.SALA_COMPUTO || s.type() == SpaceType.LABORATORIO)
-                .sorted((a, b) -> a.spaceId().compareTo(b.spaceId())).forEach(rooms::add);
-        catalog.stream().filter(s -> s.type() == SpaceType.AULA && !s.spaceId().equals("303-A"))
-                .sorted((a, b) -> a.spaceId().compareTo(b.spaceId())).limit(classrooms).forEach(rooms::add);
-        return rooms;
+    /** The sessions of the timetable shipped with the backend ({@code tools/horario} regenerates it). */
+    public static List<Sesion> horario() {
+        try (InputStream in = DemoSimulation.class.getResourceAsStream(HORARIO)) {
+            if (in == null) {
+                throw new IllegalStateException("Falta el horario de la demo " + HORARIO);
+            }
+            return leer(new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8)).lines().toList());
+        } catch (IOException failure) {
+            throw new UncheckedIOException(failure);
+        }
+    }
+
+    /** Lines {@code grupo;estudiantes;curso;dia;inicio;fin;salon;asignado}, after the comments and the header. */
+    static List<Sesion> leer(List<String> lineas) {
+        return lineas.stream().filter(l -> !l.isBlank() && !l.startsWith("#") && !l.startsWith("grupo;"))
+                .map(l -> l.split(";", -1))
+                .map(c -> new Sesion(c[0], Integer.parseInt(c[1]), c[2], c[3], Integer.parseInt(c[4]),
+                        Integer.parseInt(c[5]), c[6], c[7].equals("si")))
+                .toList();
+    }
+
+    /** The demo set: the rooms of the timetable that the catalog has, computer rooms first. */
+    public static List<CampusSpace> demoRooms(List<CampusSpace> catalog, List<Sesion> horario) {
+        Set<String> usados = horario.stream().map(Sesion::salon).collect(java.util.stream.Collectors.toSet());
+        return catalog.stream().filter(s -> usados.contains(s.spaceId()))
+                .sorted(Comparator.comparing((CampusSpace s) -> s.type() == SpaceType.SALA_COMPUTO ? 0 : 1)
+                        .thenComparing(CampusSpace::spaceId))
+                .toList();
     }
 
     public List<CampusSpace> salones() {
@@ -123,10 +141,61 @@ public final class DemoSimulation {
         return new Random(new SplittableRandom(Objects.hash(parts)).nextLong());
     }
 
+    // ---- The library ------------------------------------------------------------------------------------------------
+
+    /** Reading room of the floor-2 library and its silent-study zone, watched by a corner camera (Flyway V13, V14). */
+    public static final String BIBLIOTECA = "BIBLIOTECA-2A";
+    public static final String BIBLIOTECA_ESQUINA = "BIBLIOTECA-2A-SILENCIO";
+    static final Duration VENTANA_MESA = Duration.ofMinutes(20);
+
+    /**
+     * What a library camera sees at its tables. Unlike the classrooms it runs on real time: each table keeps its
+     * state for {@link #VENTANA_MESA}, longer than the 15 minutes the twin waits before releasing a table held only by
+     * belongings, so the demo shows the whole anti-hoarding cycle. A table has students (with a laptop or a book),
+     * belongings without anyone, or nothing; the tables change at different moments.
+     */
+    public static List<TrackedDetection> mesas(List<StudyZoneRoi> rois, Instant now) {
+        List<TrackedDetection> vistas = new ArrayList<>();
+        long track = 1;
+        long ventanaS = VENTANA_MESA.toSeconds();
+        for (StudyZoneRoi roi : rois) {
+            long desfase = Math.floorMod(roi.zoneId().hashCode(), ventanaS);
+            Random rng = rng(roi.zoneId(), Math.floorDiv(now.getEpochSecond() + desfase, ventanaS));
+            double r = rng.nextDouble();
+            NormalizedPoint centro = centro(roi.polygon());
+            if (r < 0.45) {
+                int estudiantes = 1 + rng.nextInt(3);
+                for (int k = 0; k < estudiantes; k++) {
+                    vistas.add(objeto(track++, DetectedObjectClass.PERSON, centro, (k - (estudiantes - 1) / 2.0) * 0.05, 0));
+                }
+                vistas.add(objeto(track++, rng.nextBoolean() ? DetectedObjectClass.LAPTOP : DetectedObjectClass.BOOK,
+                        centro, 0, 0.04));
+            } else if (r < 0.75) {
+                vistas.add(objeto(track++, DetectedObjectClass.BACKPACK, centro, -0.03, 0));
+                vistas.add(objeto(track++, DetectedObjectClass.BOOK, centro, 0.03, 0.02));
+            }
+        }
+        return vistas;
+    }
+
+    private static NormalizedPoint centro(List<NormalizedPoint> poligono) {
+        return new NormalizedPoint(poligono.stream().mapToDouble(NormalizedPoint::x).average().orElse(0.5),
+                poligono.stream().mapToDouble(NormalizedPoint::y).average().orElse(0.5));
+    }
+
+    private static TrackedDetection objeto(long track, DetectedObjectClass clase, NormalizedPoint centro, double dx, double dy) {
+        double x = centro.x() + dx;
+        double y = centro.y() + dy;
+        return new TrackedDetection(track, clase, 0.9, new BoundingBox(Math.max(0, x - 0.015), Math.max(0, y - 0.02),
+                Math.min(1, x + 0.015), Math.min(1, y + 0.02)));
+    }
+
     // ---- Output -------------------------------------------------------------------------------------------------
 
-    public record Snapshot(Instant generadoEn, int dia, String hora, int minutoDelDia, int franjaActual,
-                           double minutosSimuladosPorMinuto, List<Franja> franjas, List<SalaVista> salones) {
+    /** {@code dia} counts the loops of the simulated week; {@code diaSemana} names the weekday it plays. */
+    public record Snapshot(Instant generadoEn, int dia, String diaSemana, String programa, String hora,
+                           int minutoDelDia, int franjaActual, double minutosSimuladosPorMinuto, List<Franja> franjas,
+                           List<SalaVista> salones) {
     }
 
     public record SalaVista(String spaceId, String nombre, SpaceType tipo, String edificio, int piso, int aforo,
@@ -160,11 +229,11 @@ public final class DemoSimulation {
         long dayMs = dayLength.toMillis();
         int dia = (int) Math.floorDiv(now.toEpochMilli(), dayMs);
         double minuto = DAY_START + (double) Math.floorMod(now.toEpochMilli(), dayMs) / dayMs * (DAY_END - DAY_START);
-        int franja = franjaDe(minuto);
         List<SalaVista> vistas = salones.stream().map(s -> vista(s, dia, minuto)).toList();
         int entero = (int) minuto;
-        return new Snapshot(now, dia, String.format(Locale.ROOT, "%02d:%02d", entero / 60, entero % 60), entero,
-                franja, (DAY_END - DAY_START) / (dayMs / 60_000.0), FRANJAS, vistas);
+        return new Snapshot(now, dia, NOMBRES_DIA.get(Math.floorMod(dia, DIAS.size())), PROGRAMA,
+                String.format(Locale.ROOT, "%02d:%02d", entero / 60, entero % 60), entero, franjaDe(minuto),
+                (DAY_END - DAY_START) / (dayMs / 60_000.0), FRANJAS, vistas);
     }
 
     static int franjaDe(double minuto) {
@@ -179,13 +248,42 @@ public final class DemoSimulation {
     // ---- The day plan of a room ---------------------------------------------------------------------------------
 
     record Sala(CampusSpace space, List<Equipo> equipos, int filas, int columnas) {
-        boolean ocupada(Uso uso) {
-            return uso == Uso.CLASE || uso == Uso.PRACTICA;
+        boolean computo() {
+            return space.type() == SpaceType.SALA_COMPUTO;
         }
     }
 
-    record Plan(List<Uso> usos, List<String> cursos, List<Integer> asistentes, List<Incidente> incidentes,
-                List<Set<Olvido>> olvidos, List<Set<Integer>> enPractica, List<Set<Integer>> olvidados) {
+    /**
+     * The sessions of the room on that weekday and, per session, who attends, what goes wrong and what the group leaves
+     * on afterwards (until {@code olvidoHasta}, in minutes of the day).
+     */
+    record Plan(List<Sesion> sesiones, List<Integer> asistentes, List<Boolean> sinAsistencia,
+                List<Incidente> incidentes, List<Set<Olvido>> olvidos, List<Integer> olvidoHasta) {
+        int sesionEn(double minuto) {
+            for (int i = 0; i < sesiones.size(); i++) {
+                if (minuto >= sesiones.get(i).desde() && minuto < sesiones.get(i).hasta()) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        /** The session whose leftovers are still on at that minute, when no class is running, or -1. */
+        int olvidoEn(double minuto) {
+            if (sesionEn(minuto) >= 0) {
+                return -1;
+            }
+            for (int i = 0; i < sesiones.size(); i++) {
+                if (minuto >= sesiones.get(i).hasta() && minuto < olvidoHasta.get(i)) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        boolean enCurso(int i) {
+            return i >= 0 && !sinAsistencia.get(i);
+        }
     }
 
     static Sala sala(CampusSpace space) {
@@ -195,174 +293,93 @@ public final class DemoSimulation {
         List<Equipo> equipos = new ArrayList<>();
         int hash = Math.abs(space.spaceId().hashCode());
         boolean computo = space.type() == SpaceType.SALA_COMPUTO;
-        boolean laboratorio = space.type() == SpaceType.LABORATORIO;
-        if (computo) {
-            // Computer rooms have one or the other, depending on the room.
-            equipos.add(new Equipo(hash % 2 == 0 ? "Video beam" : "Televisor", "PROYECCION",
-                    hash % 2 == 0 ? 280 : 150, true, false, 1, 0.5, 0.03));
-        } else if (laboratorio) {
-            if (space.capacity() >= 15) {
-                equipos.add(new Equipo("Televisor", "PROYECCION", 150, true, false, 1, 0.5, 0.03));
-            }
-        } else {
-            equipos.add(new Equipo("Video beam", "PROYECCION", 280, true, false, 1, 0.5, 0.03));
-        }
+        // Computer rooms have a video beam or a television, depending on the room; classrooms a video beam.
+        boolean videoBeam = !computo || hash % 2 == 0;
+        equipos.add(new Equipo(videoBeam ? "Video beam" : "Televisor", "PROYECCION", videoBeam ? 280 : 150, true, false,
+                1, 0.5, 0.03));
         if (space.computers() > 0) {
-            String nombre = computo ? "Computadores" : space.computers() == 1 ? "PC del docente" : "Computadores";
-            equipos.add(new Equipo(nombre, "COMPUTO", 120, true, false, space.computers(), null, null));
-        }
-        if (laboratorio) {
-            List<Equipo> kit = MEDICINE.matcher(space.name()).find() ? MEDICINA : INGENIERIA;
-            Random rng = rng(space.spaceId());
-            List<Equipo> elegidos = new ArrayList<>(kit);
-            java.util.Collections.shuffle(elegidos, rng);
-            int n = Math.min(kit.size(), 4 + (int) Math.round(Math.min(4, space.capacity() / 8.0)));
-            List<Equipo> propios = new ArrayList<>(elegidos.subList(0, n));
-            if (space.name().toLowerCase(Locale.ROOT).contains("realidad")) {
-                propios.removeIf(e -> e.nombre().startsWith("Gafas"));
-                propios.add(0, ingenieria("Gafas de realidad mixta", 20, true, false));
-            }
-            for (int i = 0; i < propios.size(); i++) {
-                double[] p = perimetro((i + 0.5) / propios.size());
-                equipos.add(propios.get(i).at(1, p[0], p[1]));
-            }
+            equipos.add(new Equipo(computo ? "Computadores" : "PC del docente", "COMPUTO", 120, true, false,
+                    space.computers(), null, null));
         }
         return new Sala(space, List.copyOf(equipos), filas, columnas);
     }
 
-    /** A point along the left wall, the back wall and the right wall, for {@code t} from 0 to 1. */
-    private static double[] perimetro(double t) {
-        double lado = 0.75;
-        double total = lado * 2 + 0.92;
-        double d = t * total;
-        if (d < lado) {
-            return new double[] {0.04, 0.2 + d};
-        }
-        if (d < lado + 0.92) {
-            return new double[] {0.04 + (d - lado), 0.96};
-        }
-        return new double[] {0.96, 0.96 - (d - lado - 0.92)};
-    }
-
-    static Plan plan(Sala sala, int dia) {
-        CampusSpace space = sala.space();
-        Random rng = rng(space.spaceId(), dia);
-        boolean laboratorio = space.type() == SpaceType.LABORATORIO;
-        List<String> cursos = cursosDe(space);
-        int n = FRANJAS.size();
-        List<Uso> usos = new ArrayList<>();
-        List<String> nombres = new ArrayList<>();
+    Plan plan(Sala sala, int dia) {
+        String weekday = DIAS.get(Math.floorMod(dia, DIAS.size()));
+        List<Sesion> sesiones = horario.stream()
+                .filter(s -> s.salon().equals(sala.space().spaceId()) && s.dia().equals(weekday))
+                .sorted(Comparator.comparingInt(Sesion::inicio)).toList();
         List<Integer> asistentes = new ArrayList<>();
+        List<Boolean> sinAsistencia = new ArrayList<>();
         List<Incidente> incidentes = new ArrayList<>();
         List<Set<Olvido>> olvidos = new ArrayList<>();
-        List<Set<Integer>> enPractica = new ArrayList<>();
-        List<Set<Integer>> olvidados = new ArrayList<>();
-        boolean mantenimiento = false;
-        for (int f = 0; f < n; f++) {
-            Uso uso = Uso.LIBRE;
-            if (f != LUNCH) {
-                double r = rng.nextDouble();
-                double ocupacion = f == n - 1 ? 0.35 : 0.55;
-                if (r < ocupacion) {
-                    uso = laboratorio ? Uso.PRACTICA : Uso.CLASE;
-                } else if (r < ocupacion + 0.12) {
-                    uso = Uso.RESERVA_SIN_USO;
-                } else if (r < ocupacion + 0.19 && !mantenimiento) {
-                    uso = Uso.MANTENIMIENTO;
-                    mantenimiento = true;
-                }
-            }
-            usos.add(uso);
-            nombres.add(uso == Uso.LIBRE || uso == Uso.MANTENIMIENTO ? null : cursos.get(rng.nextInt(cursos.size())));
+        List<Integer> olvidoHasta = new ArrayList<>();
+        for (int i = 0; i < sesiones.size(); i++) {
+            Sesion sesion = sesiones.get(i);
+            Random rng = rng(sala.space().spaceId(), dia, sesion.inicio());
+            // Most of the group comes; once in a while a class of the timetable has nobody.
+            asistentes.add(Math.max(3, (int) Math.round(sesion.estudiantes() * (0.72 + rng.nextDouble() * 0.23))));
+            sinAsistencia.add(rng.nextDouble() < 0.05);
             Incidente incidente = null;
-            int capacidad = Math.max(1, space.capacity());
-            int gente = 0;
-            if (sala.ocupada(uso)) {
-                if (rng.nextDouble() < 0.45) {
-                    Incidente[] posibles = laboratorio
-                            ? new Incidente[] {Incidente.SOBRECUPO, Incidente.CAMARA_NORMAL_CAIDA, Incidente.A_OSCURAS}
-                            : new Incidente[] {Incidente.A_OSCURAS, Incidente.A_OSCURAS, Incidente.SOBRECUPO,
-                                    Incidente.CAMARA_NORMAL_CAIDA};
-                    incidente = posibles[rng.nextInt(posibles.length)];
-                }
-                double fraccion = incidente == Incidente.SOBRECUPO ? 1.15 + rng.nextDouble() * 0.25
-                        : 0.45 + rng.nextDouble() * 0.5;
-                gente = Math.max(3, (int) Math.round(capacidad * fraccion));
+            if (rng.nextDouble() < 0.35) {
+                incidente = rng.nextDouble() < (sala.computo() ? 0.5 : 0.6) ? Incidente.A_OSCURAS
+                        : Incidente.CAMARA_NORMAL_CAIDA;
             }
             incidentes.add(incidente);
-            asistentes.add(gente);
-            Set<Integer> practica = new LinkedHashSet<>();
-            Set<Integer> dejados = new LinkedHashSet<>();
-            for (int i = 0; i < sala.equipos().size(); i++) {
-                Equipo equipo = sala.equipos().get(i);
-                if (!equipo.categoria().equals("PROYECCION") && !equipo.categoria().equals("COMPUTO")
-                        && sala.ocupada(uso) && rng.nextDouble() < 0.6) {
-                    practica.add(i);
-                }
-            }
+            int siguiente = i + 1 < sesiones.size() ? sesiones.get(i + 1).desde() : DAY_END;
             EnumSet<Olvido> dejado = EnumSet.noneOf(Olvido.class);
-            if (uso == Uso.LIBRE && f > 0 && sala.ocupada(usos.get(f - 1)) && rng.nextDouble() < 0.7) {
+            if (siguiente > sesion.hasta() && rng.nextDouble() < 0.6) {
                 if (rng.nextDouble() < 0.6) {
                     dejado.add(Olvido.LUCES);
                 }
-                if (rng.nextDouble() < 0.55 && sala.equipos().stream().anyMatch(e -> e.categoria().equals("PROYECCION"))) {
+                if (rng.nextDouble() < 0.55) {
                     dejado.add(Olvido.PANTALLA);
                 }
                 if (rng.nextDouble() < 0.5 || dejado.isEmpty()) {
                     dejado.add(Olvido.EQUIPOS);
-                    for (int i : enPractica.get(f - 1)) {
-                        if (rng.nextDouble() < 0.4) {
-                            dejados.add(i);
-                        }
-                    }
                 }
             }
             olvidos.add(dejado);
-            enPractica.add(practica);
-            olvidados.add(dejados);
+            olvidoHasta.add(dejado.isEmpty() ? sesion.hasta() : Math.min(siguiente, sesion.hasta() + 60));
         }
-        return new Plan(usos, nombres, asistentes, incidentes, olvidos, enPractica, olvidados);
-    }
-
-    private static List<String> cursosDe(CampusSpace space) {
-        return switch (space.type()) {
-            case SALA_COMPUTO -> CURSOS_COMPUTO;
-            case LABORATORIO -> MEDICINE.matcher(space.name()).find() ? CURSOS_MEDICINA : CURSOS_INGENIERIA;
-            default -> CURSOS_AULA;
-        };
+        return new Plan(sesiones, asistentes, sinAsistencia, incidentes, olvidos, olvidoHasta);
     }
 
     // ---- The room at one instant --------------------------------------------------------------------------------
 
-    /** People in the room: the class ramps up after the start and empties before the end. */
-    static int personas(Sala sala, Plan plan, double minuto) {
-        int f = franjaDe(minuto);
-        Uso uso = plan.usos().get(f);
-        if (uso == Uso.MANTENIMIENTO) {
-            return 1;
-        }
-        if (!sala.ocupada(uso)) {
-            return 0;
-        }
-        Franja franja = FRANJAS.get(f);
-        double llegada = Math.min(1, (minuto - franja.desde() + 2) / 15.0);
-        double salida = Math.min(1, (franja.hasta() - minuto) / 12.0);
-        return (int) Math.round(plan.asistentes().get(f) * Math.max(0, Math.min(llegada, salida)));
+    /** People in the room: the students plus the teacher, who also occupies the room. */
+    static int personas(Plan plan, double minuto) {
+        return estudiantes(plan, minuto) + (docente(plan, minuto) ? 1 : 0);
     }
 
-    static boolean luces(Sala sala, Plan plan, double minuto) {
-        int f = franjaDe(minuto);
-        Uso uso = plan.usos().get(f);
-        Franja franja = FRANJAS.get(f);
-        if (uso == Uso.MANTENIMIENTO) {
-            return true;
+    /** The students of the class: they arrive after the start and leave before the end. */
+    static int estudiantes(Plan plan, double minuto) {
+        int i = plan.sesionEn(minuto);
+        if (!plan.enCurso(i)) {
+            return 0;
         }
-        if (sala.ocupada(uso)) {
-            boolean proyectando = plan.incidentes().get(f) == Incidente.A_OSCURAS
-                    && minuto >= franja.desde() + 15 && minuto < franja.hasta() - 20;
-            return !proyectando && personas(sala, plan, minuto) > 0;
+        Sesion sesion = plan.sesiones().get(i);
+        double llegada = Math.min(1, (minuto - sesion.desde() + 2) / 15.0);
+        double salida = Math.min(1, (sesion.hasta() - minuto) / 12.0);
+        return (int) Math.round(plan.asistentes().get(i) * Math.max(0, Math.min(llegada, salida)));
+    }
+
+    /** The teacher is in the room from the start of the class until a few minutes before its end. */
+    static boolean docente(Plan plan, double minuto) {
+        int i = plan.sesionEn(minuto);
+        return plan.enCurso(i) && minuto < plan.sesiones().get(i).hasta() - 4;
+    }
+
+    static boolean luces(Plan plan, double minuto) {
+        int i = plan.sesionEn(minuto);
+        if (plan.enCurso(i)) {
+            Sesion sesion = plan.sesiones().get(i);
+            boolean proyectando = plan.incidentes().get(i) == Incidente.A_OSCURAS
+                    && minuto >= sesion.desde() + 15 && minuto < sesion.hasta() - 20;
+            return !proyectando && personas(plan, minuto) > 0;
         }
-        return plan.olvidos().get(f).contains(Olvido.LUCES);
+        int olvido = plan.olvidoEn(minuto);
+        return olvido >= 0 && plan.olvidos().get(olvido).contains(Olvido.LUCES);
     }
 
     /** How many of the device's units are on. */
@@ -371,23 +388,21 @@ public final class DemoSimulation {
         if (equipo.siempreEncendido()) {
             return equipo.cantidad();
         }
-        int f = franjaDe(minuto);
-        Uso uso = plan.usos().get(f);
-        Franja franja = FRANJAS.get(f);
-        Set<Olvido> olvidos = plan.olvidos().get(f);
-        boolean enClase = sala.ocupada(uso) && minuto >= franja.desde() + 3 && minuto < franja.hasta() - 6;
+        int i = plan.sesionEn(minuto);
+        boolean enClase = plan.enCurso(i) && minuto >= plan.sesiones().get(i).desde() + 3
+                && minuto < plan.sesiones().get(i).hasta() - 6;
+        int olvido = plan.olvidoEn(minuto);
+        Set<Olvido> dejado = olvido >= 0 ? plan.olvidos().get(olvido) : Set.of();
         return switch (equipo.categoria()) {
-            case "PROYECCION" -> enClase || olvidos.contains(Olvido.PANTALLA) ? 1 : 0;
+            case "PROYECCION" -> enClase || dejado.contains(Olvido.PANTALLA) ? 1 : 0;
             case "COMPUTO" -> {
                 if (enClase) {
-                    // One PC per student; the teacher is at the board.
-                    yield sala.space().type() == SpaceType.SALA_COMPUTO
-                            ? Math.min(equipo.cantidad(), Math.max(0, personas(sala, plan, minuto) - 1)) : equipo.cantidad();
+                    // One PC per student in a computer room; the teacher works at the board.
+                    yield sala.computo() ? Math.min(equipo.cantidad(), estudiantes(plan, minuto)) : equipo.cantidad();
                 }
-                yield olvidos.contains(Olvido.EQUIPOS) ? (int) Math.ceil(equipo.cantidad() * 0.4) : 0;
+                yield dejado.contains(Olvido.EQUIPOS) ? (int) Math.ceil(equipo.cantidad() * 0.4) : 0;
             }
-            default -> (enClase && minuto >= franja.desde() + 10 && plan.enPractica().get(f).contains(indice))
-                    || plan.olvidados().get(f).contains(indice) ? 1 : 0;
+            default -> 0;
         };
     }
 
@@ -399,25 +414,25 @@ public final class DemoSimulation {
     private SalaVista vista(CampusSpace space, int dia, double minuto) {
         Sala sala = sala(space);
         Plan plan = plan(sala, dia);
-        int f = franjaDe(minuto);
-        Uso uso = plan.usos().get(f);
-        Incidente incidente = plan.incidentes().get(f);
-        int personas = personas(sala, plan, minuto);
-        boolean luces = luces(sala, plan, minuto);
-        boolean camaraNormal = incidente != Incidente.CAMARA_NORMAL_CAIDA || !sala.ocupada(uso);
+        int i = plan.sesionEn(minuto);
+        Uso uso = i < 0 ? Uso.LIBRE : plan.sinAsistencia().get(i) ? Uso.RESERVA_SIN_USO : Uso.CLASE;
+        Incidente incidente = plan.enCurso(i) ? plan.incidentes().get(i) : null;
+        int personas = personas(plan, minuto);
+        boolean luces = luces(plan, minuto);
+        boolean camaraNormal = incidente != Incidente.CAMARA_NORMAL_CAIDA;
         double ambiente = ambiente(personas, space.capacity(), minuto);
 
         List<DispositivoVista> dispositivos = new ArrayList<>();
         double potenciaW = luces ? 12 * Math.max(10, space.areaSqm()) : 0;
         int encendidosTotal = 0;
-        for (int i = 0; i < sala.equipos().size(); i++) {
-            Equipo equipo = sala.equipos().get(i);
-            int on = encendidos(sala, plan, i, minuto);
+        for (int e = 0; e < sala.equipos().size(); e++) {
+            Equipo equipo = sala.equipos().get(e);
+            int on = encendidos(sala, plan, e, minuto);
             potenciaW += on * equipo.potenciaW();
             if (!equipo.siempreEncendido()) {
                 encendidosTotal += on;
             }
-            double temperatura = ambiente + (on > 0 ? equipo.calorC() : equipo.calorC() * enfriamiento(sala, plan, i, minuto));
+            double temperatura = ambiente + (on > 0 ? equipo.calorC() : equipo.calorC() * enfriamiento(sala, plan, e, minuto));
             String termico = temperatura > ambiente + 4 ? "CALIENTE" : temperatura > ambiente + 1.5 ? "TIBIO" : "FRIO";
             Boolean vistoNormal = equipo.pantalla() && camaraNormal ? Boolean.valueOf(on > 0) : null;
             dispositivos.add(new DispositivoVista(equipo.nombre(), equipo.categoria(), equipo.cantidad(), on,
@@ -425,18 +440,14 @@ public final class DemoSimulation {
                     Math.round(temperatura * 10) / 10.0, equipo.x(), equipo.y()));
         }
 
-        List<PersonaVista> vistas = ubicar(sala, plan, dia, f, personas, luces, camaraNormal, minuto);
+        List<PersonaVista> vistas = ubicar(sala, plan, dia, i, personas, luces, camaraNormal, minuto);
         Integer vistasNormal = camaraNormal ? (int) vistas.stream().filter(PersonaVista::visibleCamaraNormal).count() : null;
         double co2 = 430 + 900.0 * personas / Math.max(1, space.capacity());
 
         List<String> hallazgos = new ArrayList<>();
-        String pantalla = sala.equipos().stream().filter(e -> e.categoria().equals("PROYECCION")).map(Equipo::nombre)
-                .findFirst().orElse("proyector").toLowerCase(Locale.ROOT);
+        String pantalla = sala.equipos().getFirst().nombre().toLowerCase(Locale.ROOT);
         if (uso == Uso.RESERVA_SIN_USO) {
-            hallazgos.add("Reservado para " + plan.cursos().get(f) + " y nadie llegó");
-        }
-        if (uso == Uso.MANTENIMIENTO) {
-            hallazgos.add("En mantenimiento: un técnico trabajando");
+            hallazgos.add("Programado para " + plan.sesiones().get(i).etiqueta() + " y nadie llegó");
         }
         if (personas == 0 && luces) {
             hallazgos.add("Vacío con las luces encendidas");
@@ -463,11 +474,8 @@ public final class DemoSimulation {
             hallazgos.add("Cámara normal sin señal; la infrarroja sostiene el conteo");
         }
 
-        List<Bloque> horario = new ArrayList<>();
-        for (int i = 0; i < FRANJAS.size(); i++) {
-            horario.add(new Bloque(plan.usos().get(i), plan.cursos().get(i), detalle(plan, i)));
-        }
-        Ahora ahora = new Ahora(uso, plan.cursos().get(f), personas, vistasNormal, personas,
+        List<Bloque> horario = FRANJAS.stream().map(franja -> bloque(plan, franja)).toList();
+        Ahora ahora = new Ahora(uso, i < 0 ? null : plan.sesiones().get(i).etiqueta(), personas, vistasNormal, personas,
                 vistas.stream().anyMatch(PersonaVista::docente), luces, camaraNormal,
                 Math.round(ambiente * 10) / 10.0, Math.round(co2), Math.round(potenciaW / 10.0) / 100.0,
                 encendidosTotal, dispositivos, vistas, hallazgos);
@@ -475,24 +483,36 @@ public final class DemoSimulation {
                 space.capacity(), sala.filas(), sala.columnas(), horario, ahora);
     }
 
-    private static String detalle(Plan plan, int f) {
-        List<String> partes = new ArrayList<>();
-        Incidente incidente = plan.incidentes().get(f);
-        if (incidente == Incidente.A_OSCURAS) {
-            partes.add("proyección a oscuras");
-        } else if (incidente == Incidente.SOBRECUPO) {
-            partes.add("sobrecupo");
-        } else if (incidente == Incidente.CAMARA_NORMAL_CAIDA) {
-            partes.add("cámara normal caída");
+    /** The slot as the timetable grid shows it: the class that occupies it, or what was left on in it. */
+    private static Bloque bloque(Plan plan, Franja franja) {
+        for (int i = 0; i < plan.sesiones().size(); i++) {
+            Sesion sesion = plan.sesiones().get(i);
+            if (sesion.desde() < franja.hasta() && franja.desde() < sesion.hasta()) {
+                List<String> partes = new ArrayList<>();
+                if (plan.incidentes().get(i) == Incidente.A_OSCURAS) {
+                    partes.add("proyección a oscuras");
+                } else if (plan.incidentes().get(i) == Incidente.CAMARA_NORMAL_CAIDA) {
+                    partes.add("cámara normal caída");
+                }
+                if (sesion.asignado()) {
+                    partes.add("salón asignado por la demo");
+                }
+                return new Bloque(plan.sinAsistencia().get(i) ? Uso.RESERVA_SIN_USO : Uso.CLASE, sesion.etiqueta(),
+                        partes.isEmpty() ? null : String.join(", ", partes));
+            }
         }
-        for (Olvido olvido : plan.olvidos().get(f)) {
-            partes.add(switch (olvido) {
-                case LUCES -> "luces olvidadas";
-                case PANTALLA -> "pantalla olvidada";
-                case EQUIPOS -> "equipos olvidados";
-            });
+        for (int i = 0; i < plan.sesiones().size(); i++) {
+            Sesion sesion = plan.sesiones().get(i);
+            if (sesion.hasta() < franja.hasta() && franja.desde() < plan.olvidoHasta().get(i)) {
+                List<String> partes = plan.olvidos().get(i).stream().map(o -> switch (o) {
+                    case LUCES -> "luces olvidadas";
+                    case PANTALLA -> "pantalla olvidada";
+                    case EQUIPOS -> "equipos olvidados";
+                }).toList();
+                return new Bloque(Uso.LIBRE, null, String.join(", ", partes));
+            }
         }
-        return partes.isEmpty() ? null : String.join(", ", partes);
+        return new Bloque(Uso.LIBRE, null, null);
     }
 
     /** Residual heat of a device that is off: 1 just after turning off, fading over about 10 simulated minutes. */
@@ -512,15 +532,15 @@ public final class DemoSimulation {
      * Where the people are: the teacher in front of the board, students at their seats (extra people stand at the
      * back), with a small sway between instants. In the dark the normal camera sees about a third of them.
      */
-    private static List<PersonaVista> ubicar(Sala sala, Plan plan, int dia, int f, int personas, boolean luces,
+    private static List<PersonaVista> ubicar(Sala sala, Plan plan, int dia, int sesion, int personas, boolean luces,
                                              boolean camaraNormal, double minuto) {
         List<PersonaVista> vistas = new ArrayList<>();
         if (personas == 0) {
             return vistas;
         }
-        Random lugar = rng(sala.space().spaceId(), dia, f);
+        Random lugar = rng(sala.space().spaceId(), dia, sesion);
         Random vaiven = rng(sala.space().spaceId(), (long) minuto);
-        boolean hayDocente = sala.ocupada(plan.usos().get(f));
+        boolean hayDocente = docente(plan, minuto);
         int asientos = sala.filas() * sala.columnas();
         List<Integer> orden = new ArrayList<>();
         for (int i = 0; i < asientos; i++) {
@@ -531,14 +551,12 @@ public final class DemoSimulation {
             double x;
             double y;
             boolean docente = hayDocente && i == 0;
+            int alumno = hayDocente ? i - 1 : i;
             if (docente) {
                 x = 0.5 + 0.15 * Math.sin(minuto / 3.0);
                 y = 0.14;
-            } else if (!hayDocente) {
-                x = 0.3 + 0.4 * lugar.nextDouble();
-                y = 0.4 + 0.3 * lugar.nextDouble();
-            } else if (i - 1 < asientos) {
-                int asiento = orden.get(i - 1);
+            } else if (alumno < asientos) {
+                int asiento = orden.get(alumno);
                 x = (asiento % sala.columnas() + 0.5) / sala.columnas();
                 y = 0.3 + 0.65 * (asiento / sala.columnas() + 0.5) / sala.filas();
             } else {
