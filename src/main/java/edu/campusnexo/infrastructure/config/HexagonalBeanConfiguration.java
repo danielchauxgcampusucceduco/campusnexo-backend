@@ -6,12 +6,16 @@ import edu.campusnexo.application.port.in.CampusCatalogUseCase;
 import edu.campusnexo.application.port.in.ProcessEnvironmentReadingUseCase;
 import edu.campusnexo.application.port.in.ProcessSpaceTelemetryUseCase;
 import edu.campusnexo.application.port.in.TelemetryUseCase;
+import edu.campusnexo.application.port.in.EmulatedDataUseCase;
 import edu.campusnexo.application.port.in.TwinControlUseCase;
 import edu.campusnexo.application.port.in.TwinQueryUseCase;
 import edu.campusnexo.application.port.in.TwinWatchdogUseCase;
 import edu.campusnexo.application.port.out.OperationalMetrics;
 import edu.campusnexo.application.port.out.TwinChangeNotifierPort;
+import edu.campusnexo.application.port.out.EmulatedDataPort;
+import edu.campusnexo.application.port.out.TwinHistoryPort;
 import edu.campusnexo.application.port.out.UnitOfWork;
+import edu.campusnexo.application.twin.EmulatedDataService;
 import edu.campusnexo.application.twin.ProcessCameraFrameService;
 import edu.campusnexo.application.twin.ProcessEnvironmentReadingService;
 import edu.campusnexo.application.twin.RecentTraceBuffer;
@@ -159,6 +163,12 @@ class HexagonalBeanConfiguration {
     @Bean
     TwinControlUseCase twinControl(Clock clock, CampusCatalogUseCase catalog, SpaceReevaluationService reevaluation) {
         return new TwinControlService(clock, catalog, reevaluation);
+    }
+
+    @Bean
+    EmulatedDataUseCase emulatedData(SpaceRepositoryPort twins, EmulatedDataPort store, TwinHistoryPort history,
+                                     TwinControlUseCase controls, UnitOfWork unitOfWork) {
+        return new EmulatedDataService(twins, store, history, controls, unitOfWork);
     }
 
     @Bean

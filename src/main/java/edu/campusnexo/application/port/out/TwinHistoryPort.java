@@ -14,6 +14,10 @@ public interface TwinHistoryPort {
     /** Occupancy of the space as the twin stored it between {@code from} and {@code to}, oldest first. */
     List<OccupancySample> occupancy(String spaceId, Instant from, Instant to);
 
+    /** Deletes the entries of the space that an emulated sensor fed, and its traces; nothing without a store. */
+    default void forgetEmulated(String spaceId) {
+    }
+
     /**
      * One stored change of a room: the fused count, the people by role, the camera's own count ({@code null}
      * when the camera did not see the room) and the CO₂. {@code emulated} marks entries not fed by a real camera.

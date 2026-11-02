@@ -108,6 +108,16 @@ public final class MongoTwinHistoryAdapter implements TwinChangeNotifierPort, Tw
         return samples;
     }
 
+    @Override
+    public void forgetEmulated(String spaceId) {
+        try {
+            history.deleteMany(Filters.and(Filters.eq("spaceId", spaceId), Filters.eq("emulated", true)));
+            traces.deleteMany(Filters.eq("spaceId", spaceId));
+        } catch (MongoException failure) {
+            log.warn("No se pudo borrar de MongoDB lo emulado de {}: {}", spaceId, failure.getMessage());
+        }
+    }
+
     /** Upper bound of one query: a month of one room at one change per minute. */
     static final int MAX_SAMPLES = (int) Duration.ofDays(31).toMinutes();
 
