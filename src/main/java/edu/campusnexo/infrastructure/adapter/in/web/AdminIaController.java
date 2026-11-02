@@ -3,7 +3,6 @@ package edu.campusnexo.infrastructure.adapter.in.web;
 import edu.campusnexo.application.port.in.AiToolsUseCase;
 import edu.campusnexo.application.port.out.AiAdvisorPort.AssignmentPlan;
 import edu.campusnexo.application.port.out.AiAdvisorPort.CourseDemand;
-import edu.campusnexo.application.port.out.AiAdvisorPort.Forecast;
 import edu.campusnexo.application.port.out.AiAdvisorPort.SensorAnomaly;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
@@ -29,7 +28,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** The AI tools of the administration: assignment of rooms, sensor health, forecast and the evaluation dataset. */
+/** The AI tools of the administration: assignment of rooms, sensor health and the evaluation dataset. */
 @RestController
 @Validated
 @RequestMapping(ApiPaths.BASE + "/admin")
@@ -57,11 +56,6 @@ class AdminIaController {
     @GetMapping("/ia/sensores")
     List<SensorAnomaly> sensores(@RequestParam(defaultValue = "24") @Min(1) @Max(168) int horas) {
         return tools.saludDeSensores(Duration.ofHours(horas));
-    }
-
-    @GetMapping("/spaces/{spaceId}/pronostico")
-    Forecast pronostico(@PathVariable String spaceId, @RequestParam(defaultValue = "12") int horas) {
-        return tools.pronostico(spaceId, horas);
     }
 
     @GetMapping(value = "/spaces/{spaceId}/historial.csv", produces = "text/csv")

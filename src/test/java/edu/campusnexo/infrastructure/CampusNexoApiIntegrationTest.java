@@ -173,11 +173,12 @@ class CampusNexoApiIntegrationTest {
         assertEquals(401, client.get().uri("/api/v1/spaces").retrieve().toEntity(OBJECT).getStatusCode().value());
         List<Map<String, Object>> spaces = list("/api/v1/spaces");
         assertNotNull(spaces);
-        assertEquals(109, spaces.size(), "107 salones del plano y los 2 salones piloto");
+        assertEquals(118, spaces.size(), "107 salones del plano, los 2 pilotos, la cámara esquinera y 8 salones del horario de Ingeniería de Software");
         List<Map<String, Object>> libraries = list("/api/v1/spaces?type=BIBLIOTECA");
         assertNotNull(libraries);
-        assertEquals(4, libraries.size());
-        assertTrue(libraries.stream().anyMatch(space -> "BIBLIOTECA-2B".equals(space.get("spaceId"))));
+        assertEquals(5, libraries.size());
+        assertTrue(libraries.stream().anyMatch(space -> "BIBLIOTECA-2A".equals(space.get("spaceId"))));
+        assertTrue(libraries.stream().anyMatch(space -> "BIBLIOTECA-2A-SILENCIO".equals(space.get("spaceId"))));
     }
 
     @Test
@@ -370,7 +371,7 @@ class CampusNexoApiIntegrationTest {
         List<Map<String, Object>> escenarios = (List<Map<String, Object>>) response.getBody().get("escenarios");
         assertTrue(escenarios.stream().anyMatch(e -> "CLASE_EN_CURSO".equals(e.get("escenario"))));
 
-        assertEquals(109, list("/api/v1/twin/spaces").size());
+        assertEquals(118, list("/api/v1/twin/spaces").size());
         assertNotNull(object("/api/v1/twin/savings").get("totalKwh"));
         assertFalse(list("/api/v1/twin/traces?limit=5").isEmpty());
     }
@@ -474,7 +475,8 @@ class CampusNexoApiIntegrationTest {
     @Test
     @DisplayName("Sin historial configurado el pronóstico responde 409 con un código estable")
     void forecastWithoutHistory() {
-        ResponseEntity<Map<String, Object>> forecast = get("/api/v1/admin/spaces/301-A/pronostico", admin, OBJECT);
+        // A query, not administration: a viewer asks for it too.
+        ResponseEntity<Map<String, Object>> forecast = get("/api/v1/spaces/301-A/pronostico", viewer, OBJECT);
         assertEquals(409, forecast.getStatusCode().value());
         assertEquals("history_not_available", forecast.getBody().get("code"));
     }
