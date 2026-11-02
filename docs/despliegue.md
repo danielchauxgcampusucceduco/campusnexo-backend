@@ -33,7 +33,7 @@ aws cloudformation describe-stacks --stack-name campusnexo-vpn --query "Stacks[0
 
 ## 3. Render
 
-1. *New → Blueprint* con este repositorio. `render.yaml` crea `campusnexo-backend` y `campusnexo-ai`. Si los repositorios cambian de dueño, actualiza la línea `repo:` de la IA.
+1. *New → Blueprint* con este repositorio. `render.yaml` crea `campusnexo-backend`, `campusnexo-ai` y el tablero `campusnexo-dashboard` (sitio estático con sus cabeceras de seguridad). Si los repositorios cambian de dueño, actualiza las líneas `repo:`.
 2. Variables `sync: false` del backend:
 
    | Variable | Valor |
@@ -46,7 +46,8 @@ aws cloudformation describe-stacks --stack-name campusnexo-vpn --query "Stacks[0
    | `AI_SERVICE_URL` | URL pública de `campusnexo-ai` |
    | `CORS_ALLOWED_ORIGINS` | `https://campusnexo*.vercel.app` y el dominio final |
 
-3. Para la piloto se pueden acortar los temporizadores: `NO_SHOW_GRACE=2m`, `DESK_ABANDON_THRESHOLD=2m`, `EQUIPMENT_IDLE_SHUTDOWN=1m`, `EMPAREJAMIENTO_ANTICIPACION=20s` y `EMPAREJAMIENTO_RANURA=3s`. Si el ajuste del repo de IA lo calculó, también `KALMAN_CAMERA_VARIANCE`.
+3. La demo (`DEMO_SIMULATION=true`, activa en `render.yaml`) recorre la semana del horario 2620 de Ingeniería de Software en sus salones: cada día hábil de 7:00 a 22:00 pasa en `DEMO_DAY_LENGTH` (20 min por defecto), con las clases reales de cada grupo, y alimenta también las dos cámaras de la biblioteca. El horario vive en `src/main/resources/demo/horario-isw-2620.csv`; con un horario nuevo se regenera con `python tools/horario/horario_a_csv.py <horario.xlsx> src/main/resources/demo/horario-isw-2620.csv`, que no copia nombres de docentes y asigna un salón libre a las clases que no lo traen.
+4. Para la piloto se pueden acortar los temporizadores: `NO_SHOW_GRACE=2m`, `DESK_ABANDON_THRESHOLD=2m`, `EQUIPMENT_IDLE_SHUTDOWN=1m`, `EMPAREJAMIENTO_ANTICIPACION=20s` y `EMPAREJAMIENTO_RANURA=3s`. Si el ajuste del repo de IA lo calculó, también `KALMAN_CAMERA_VARIANCE`.
 
 ## 4. Vercel
 

@@ -31,7 +31,7 @@ Cualquier ruta nueva que no esté en la tabla exige VIEWER para leer y ADMIN par
 | `GET /api/v1/spaces?type=BIBLIOTECA` | Lista los espacios (filtro opcional por `AULA`, `SALA_ESTUDIO`, `AUDITORIO`, `ADMINISTRATIVA`, `LOGISTICA`, `BIBLIOTECA`, `CAFETERIA`, `LABORATORIO`, `SALA_COMPUTO` o `ZONA_COMUN`). Incluye edificio, sede, perfil climático, temperatura exterior promedio y tarifa de energía (COP/kWh). |
 | `GET /api/v1/spaces/{spaceId}` | Un espacio. `404 space_not_found` si no existe. |
 
-Espacios: los 107 salones del campus Pasto tomados del plano institucional, por ejemplo `421-A`, `402-B` o `BIBLIOTECA-2B` (ver `docs/gemelo-digital.md`).
+Espacios: los 107 salones del campus Pasto tomados del plano institucional, por ejemplo `421-A`, `402-B` o `BIBLIOTECA-2A` (ver `docs/gemelo-digital.md`).
 
 ## Telemetría
 

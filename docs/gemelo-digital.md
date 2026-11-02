@@ -5,7 +5,7 @@
 Un solo campus: Universidad Cooperativa de Colombia, campus Pasto (Calle 18 # 47-150, Torobajo). Los salones salen del plano institucional **PLANOS_UCC_2025_-_B.dwg** (actualización de planimetría 2025-B, pisos 0 a 5): la migración `V9` carga los 107 espacios que se reconocen en ese plano, con el área medida sobre él, y `V10` agrega los salones piloto 301-A (sala de cómputo, 30 puestos) y 303-A (aula, 36 pupitres), que no figuran en ese plano y tienen medidas ilustrativas.
 
 - Los salones con código en el plano lo conservan: `AULA 420 A` → `420-A`, `AULA No 402 B` → `402-B`, las salas de informática 1 a 5 → `308-A` a `312-A`, el auditorio Urcunina → `608-B`.
-- Los espacios sin código reciben uno con su piso, bloque y nombre (`4A-SALA-DE-JUNTAS-GALERAS`); la biblioteca, la hemeroteca, la cafetería y el auditorio del bloque A tienen códigos cortos (`BIBLIOTECA-2B`, `HEMEROTECA-3B`, `CAFETERIA-1B`, `AUDITORIO-0A`).
+- Los espacios sin código reciben uno con su piso, bloque y nombre (`4A-SALA-DE-JUNTAS-GALERAS`); la biblioteca, la hemeroteca, la cafetería y el auditorio del bloque A tienen códigos cortos (`BIBLIOTECA-2A`, `HEMEROTECA-3A`, `CAFETERIA-1A`, `AUDITORIO-0A`).
 - **Bloque A**: salones con pupitres, salas de estudio, auditorio, oficinas y logística. **Bloque B**: biblioteca, cafetería, laboratorios, salas de cómputo y el auditorio Urcunina. Los espacios sin letra en el plano se asignan a un bloque según ese criterio.
 
 **Salones de clase**: todos tienen **36 pupitres** (6 filas × 6), dato confirmado del campus. **Equipo de clima** (`hvac_installed`): por supuesto del prototipo, que debe confirmar la planta física, lo tienen los salones, laboratorios, salas de cómputo y auditorios; los demás nunca se climatizan (`SIN_CLIMATIZACION`) ni acumulan ahorro. Para los demás espacios, el aforo, la cuadrícula y los computadores se **estiman** a partir de su tipo y su área (2 m² por equipo en una sala de cómputo…): son valores ilustrativos, no el inventario oficial. Las salas de informática `308-A` a `312-A` son del bloque A.
@@ -76,7 +76,7 @@ Tópico: `ucc/pasto/bloque_b/piso_2/{space_id}/camara` (suscripción `ucc/+/+/+/
 
 ```json
 {
-  "space_id": "BIBLIOTECA-2B",
+  "space_id": "BIBLIOTECA-2A",
   "timestamp": "2026-10-20T15:00:00Z",
   "camera_online": true,
   "detections": [
