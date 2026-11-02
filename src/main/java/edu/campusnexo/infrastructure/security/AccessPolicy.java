@@ -35,6 +35,8 @@ final class AccessPolicy {
             // Staff operations.
             rule("POST", API + "/spaces/[^/]+/(reservations|evaluations|occupancy-estimates|climate-recommendations)/?", Access.OPERATOR),
             rule("DELETE", API + "/reservations/[^/]+/?", Access.OPERATOR),
+            // Leaving the demo erases the emulated data; the staff runs the demo.
+            rule("DELETE", API + "/demo/?", Access.OPERATOR),
             rule("POST", API + "/twin/spaces/[^/]+/(override|popup|maintenance)/?", Access.OPERATOR),
             rule("POST", API + "/(occupancy/estimate|climate/recommendations)/?", Access.OPERATOR),
             // Everything else under the API: reading needs a viewer, changing needs an administrator.
