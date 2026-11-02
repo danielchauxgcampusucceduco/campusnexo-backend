@@ -74,3 +74,40 @@ services:
       # Every route but /health and /ready requires it in X-API-Key; the backend reads the same value.
       - key: AI_API_KEY
         generateValue: true
+
+  # The dashboard (repository campusnexo-frontend) as a static site, with the protection headers of a browser app:
+  # it cannot be framed by another site (clickjacking), loads scripts only from itself and talks only to the backend.
+  # The styles allow 'unsafe-inline' because React and the charts set style attributes.
+  - type: web
+    name: campusnexo-dashboard
+    runtime: static
+    repo: https://github.com/danielchauxgcampusucceduco/campusnexo-frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    headers:
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://campusnexo-backend.onrender.com wss://campusnexo-backend.onrender.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: no-referrer
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=()
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+    envVars:
+      # Public URLs of campusnexo-backend (baked into the bundle at build time), e.g.
+      # https://campusnexo-backend.onrender.com/api/v1 and wss://campusnexo-backend.onrender.com/ws.
+      - key: VITE_API_URL
+        sync: false
+      - key: VITE_WS_URL
+        sync: false
+
