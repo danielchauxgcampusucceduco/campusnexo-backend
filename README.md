@@ -55,6 +55,8 @@ docker compose --profile sistema up -d     # además el servicio de IA (repo her
 python tools/e2e/e2e_admin.py              # pruebas de sistema como ADMIN (credenciales por variables de entorno)
 ```
 
+Recorrido de punta a punta para demostrar la arquitectura (un frame, sus consumidores, las seis capas y la caída de la IA): [WALKING-SKELETON.md](WALKING-SKELETON.md).
+
 ## Pruebas
 
 Se necesitan Java 21, Maven 3.9+ y Docker (Testcontainers con PostgreSQL 17 y MongoDB 8).
