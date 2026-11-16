@@ -151,7 +151,7 @@ Cada propuesta declara su modo (calentar o enfriar). Después decide la **cadena
 
 **Puestos.** El algoritmo de ray casting (regla par-impar) asigna cada objeto a su puesto según el centro de su caja. Una persona en el puesto lo deja `OCUPADO_VERIFICADO`. Pertenencias sin persona lo pasan a `ALERTA_ACAPARAMIENTO` y arranca el cronómetro; a los 15 minutos el puesto queda `LIBERADO_POR_ABANDONO`.
 
-**Ahorro.** Solo en espacios con equipo de clima. Se compara contra una línea base declarada, la climatización al 100 % entre las 07:00 y las 21:00 (hora de Bogotá), con potencia nominal de 0,12 kW/m²: es un contrafactual de modelo, no una medición de contador. Fuera de ese horario, encender el equipo cuenta como consumo adicional. Las conversiones usan la tarifa del campus (COP/kWh) y un factor de emisión configurable (`EMISSION_FACTOR_KG_CO2_PER_KWH`).
+**Ahorro.** Solo en espacios con equipo de clima. Se compara contra una línea base declarada, la de un temporizador convencional: la climatización al 100 % mientras el salón está en uso programado (una reserva en curso o que empieza en 30 min, o personas dentro), a cualquier hora, con potencia nominal de 0,12 kW/m². Es un contrafactual de modelo, no una medición de contador. Climatizar fuera del uso programado (precalentar antes de lo que lo haría el temporizador) cuenta como consumo adicional. Las conversiones usan la tarifa del campus (COP/kWh) y un factor de emisión configurable (`EMISSION_FACTOR_KG_CO2_PER_KWH`).
 
 Todos los parámetros están en `app.twin.*` y son **ilustrativos**: no son mediciones calibradas.
 
