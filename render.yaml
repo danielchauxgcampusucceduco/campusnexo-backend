@@ -62,6 +62,9 @@ services:
       # System demo: a compressed academic day over the campus, marked «Emulado» (GET /api/v1/demo).
       - key: DEMO_SIMULATION
         value: "true"
+      # On the free plan (0.1 CPU) a batch of every demo room each 15 s kept the backend busy: half as often.
+      - key: DEMO_FEED_INTERVAL
+        value: 30s
 
   - type: web
     name: campusnexo-ai
