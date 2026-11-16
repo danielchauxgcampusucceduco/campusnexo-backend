@@ -60,6 +60,9 @@ class DemoController {
     private volatile DemoSimulation simulation;
     private volatile Instant lastViewed = Instant.EPOCH;
     private volatile Instant leftAt = Instant.EPOCH;
+    /** Set while someone leaves: a batch under way stops after its current frame instead of holding the exit. */
+    private volatile boolean leaving;
+    private final Object feeding = new Object();
 
     DemoController(CampusCatalogUseCase catalog, ProcessSpaceTelemetryUseCase pipeline, TwinQueryUseCase twins,
                    EmulatedDataUseCase emulated, Clock clock, @Value("${app.demo.day-length:20m}") Duration dayLength) {
@@ -82,21 +85,38 @@ class DemoController {
 
     /** Leaves the demo: it stops, and the rooms it fed start again with no emulated data left. */
     @DeleteMapping
-    synchronized Map<String, List<String>> leave() {
+    Map<String, List<String>> leave() {
         lastViewed = Instant.EPOCH;
         leftAt = clock.instant();
-        simulation = null;
-        return Map.of("salonesLimpiados", emulated.purge());
+        leaving = true;
+        // Waits only for the frame in progress, so no emulated frame lands after the purge.
+        synchronized (feeding) {
+            try {
+                simulation = null;
+                return Map.of("salonesLimpiados", emulated.purge());
+            } finally {
+                leaving = false;
+            }
+        }
     }
 
     @Scheduled(fixedDelayString = "${app.demo.feed-interval:15s}", initialDelayString = "${app.demo.feed-interval:15s}")
-    synchronized void feedTwin() {
+    void feedTwin() {
+        synchronized (feeding) {
+            feed();
+        }
+    }
+
+    private void feed() {
         Instant now = clock.instant();
         if (Duration.between(lastViewed, now).compareTo(WATCHED_FOR) > 0) {
             return;
         }
         Set<String> real = withRealCamera();
         for (SalaVista sala : simulation().snapshot(now).salones()) {
+            if (leaving) {
+                return;
+            }
             if (real.contains(sala.spaceId())) {
                 continue;
             }
@@ -110,6 +130,9 @@ class DemoController {
             }
         }
         for (String library : List.of(DemoSimulation.BIBLIOTECA, DemoSimulation.BIBLIOTECA_ESQUINA)) {
+            if (leaving) {
+                return;
+            }
             if (real.contains(library)) {
                 continue;
             }
