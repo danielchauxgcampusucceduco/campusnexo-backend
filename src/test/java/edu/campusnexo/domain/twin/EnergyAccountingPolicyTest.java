@@ -5,15 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalTime;
-import java.time.ZoneId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class EnergyAccountingPolicyTest {
-    private final EnergyAccountingPolicy policy = new EnergyAccountingPolicy(0.12, Duration.ofMinutes(15),
-            LocalTime.of(7, 0), LocalTime.of(21, 0), ZoneId.of("America/Bogota"));
-    /** 10:00 en Bogotá, dentro del horario. */
+    private final EnergyAccountingPolicy policy = new EnergyAccountingPolicy(0.12, Duration.ofMinutes(15));
+    /** 10:00 en Bogotá. */
     private final Instant morning = Instant.parse("2026-10-20T15:00:00Z");
     private final Instant tenMinutes = morning.plus(Duration.ofMinutes(10));
 
@@ -39,11 +36,13 @@ class EnergyAccountingPolicyTest {
     }
 
     @Test
-    @DisplayName("Los huecos sin datos se limitan; climatizar fuera de uso programado o de horario sí cuenta como extra")
+    @DisplayName("Los huecos sin datos se limitan; climatizar fuera de uso programado cuenta como extra, a cualquier hora")
     void capsGapsAndCountsUnscheduledUse() {
         assertEquals(1.5, policy.savedKwh(HvacControlState.APAGADO, true, morning, morning.plus(Duration.ofHours(3)), 50), 1e-9);
         assertEquals(-1.0, policy.savedKwh(HvacControlState.PRE_CALENTAMIENTO_IA, false, morning, tenMinutes, 50), 1e-9);
         Instant night = Instant.parse("2026-10-21T03:00:00Z");
-        assertEquals(-1.0, policy.savedKwh(HvacControlState.CONFORT_ACTIVO, true, night, night.plus(Duration.ofMinutes(10)), 50), 1e-9);
+        // A class at 22:00 in Bogotá: the conventional unit runs too, so comfort is neither saving nor extra.
+        assertEquals(0.0, policy.savedKwh(HvacControlState.CONFORT_ACTIVO, true, night, night.plus(Duration.ofMinutes(10)), 50), 1e-9);
+        assertEquals(-1.0, policy.savedKwh(HvacControlState.CONFORT_ACTIVO, false, night, night.plus(Duration.ofMinutes(10)), 50), 1e-9);
     }
 }

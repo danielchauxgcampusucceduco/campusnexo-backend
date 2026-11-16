@@ -176,8 +176,6 @@ app:
     energy:
       rated-kw-per-sqm: 0.12
       max-reading-interval: 15m
-      schedule-start-hour: 7
-      schedule-end-hour: 21
       time-zone: America/Bogota
       # kg CO2 per kWh of the grid; illustrative default, set the official factor of the year.
       emission-factor-kg-co2-per-kwh: ${EMISSION_FACTOR_KG_CO2_PER_KWH:0.126}

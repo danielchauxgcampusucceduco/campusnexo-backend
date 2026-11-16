@@ -21,8 +21,6 @@ import edu.campusnexo.support.MutableClock;
 import edu.campusnexo.support.TestData;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -38,8 +36,7 @@ class AiToolsServiceTest {
             new InMemorySpaceCatalogRepository(TestData.room("301-A", SpaceType.SALA_COMPUTO, 30, 5, 6, 30),
                     TestData.room("303-A", SpaceType.AULA, 36, 6, 6, 1),
                     TestData.room("1A-RECTORIA", SpaceType.ADMINISTRATIVA, 4, null, null, 4))),
-            telemetry, new History(), advisor, new EnergyAccountingPolicy(0.12, Duration.ofMinutes(15),
-            LocalTime.of(7, 0), LocalTime.of(21, 0), ZoneId.of("America/Bogota")), new AlertRecorder(alerts),
+            telemetry, new History(), advisor, new EnergyAccountingPolicy(0.12, Duration.ofMinutes(15)), new AlertRecorder(alerts),
             Duration.ofMinutes(30), "America/Bogota");
 
     @Test

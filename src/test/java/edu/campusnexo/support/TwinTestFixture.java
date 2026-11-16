@@ -29,8 +29,6 @@ import edu.campusnexo.domain.twin.ThermalInertiaMpcDomainService;
 import edu.campusnexo.domain.twin.ThermalParameters;
 import edu.campusnexo.domain.twin.hvac.HvacSettingChain;
 import java.time.Duration;
-import java.time.LocalTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -51,8 +49,7 @@ public final class TwinTestFixture {
     public final CampusCatalogUseCase catalog = new SpaceCatalogService(new InMemorySpaceCatalogRepository(spaces()));
     public final InMemoryPersonaRepository personas = new InMemoryPersonaRepository();
     public final ReservationService reservations = new ReservationService(clock, reservationRows, catalog, personas, twins);
-    public final EnergyAccountingPolicy energy = new EnergyAccountingPolicy(0.12, Duration.ofMinutes(15),
-            LocalTime.of(7, 0), LocalTime.of(21, 0), ZoneId.of("America/Bogota"));
+    public final EnergyAccountingPolicy energy = new EnergyAccountingPolicy(0.12, Duration.ofMinutes(15));
     public final ReadingAdmission admission = new ReadingAdmission(Duration.ofMinutes(5), Duration.ofDays(30));
     public final TwinWriter writer = new TwinWriter(twins, UnitOfWork.direct(), metrics);
     public final TwinDecisionEngine engine = new TwinDecisionEngine(new SpaceStatusPolicy(Duration.ofMinutes(15), 0.3),

@@ -45,8 +45,6 @@ import edu.campusnexo.domain.twin.ThermalParameters;
 import edu.campusnexo.domain.twin.hvac.HvacSettingChain;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.LocalTime;
-import java.time.ZoneId;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -91,8 +89,7 @@ class HexagonalBeanConfiguration {
     @Bean
     EnergyAccountingPolicy energyAccountingPolicy(TwinProperties properties) {
         TwinProperties.Energy e = properties.energy();
-        return new EnergyAccountingPolicy(e.ratedKwPerSqm(), e.maxReadingInterval(), LocalTime.of(e.scheduleStartHour(), 0),
-                LocalTime.of(e.scheduleEndHour(), 0), ZoneId.of(e.timeZone()));
+        return new EnergyAccountingPolicy(e.ratedKwPerSqm(), e.maxReadingInterval());
     }
 
     @Bean

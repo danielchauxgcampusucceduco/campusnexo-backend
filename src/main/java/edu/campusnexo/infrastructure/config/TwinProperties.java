@@ -22,7 +22,6 @@ record TwinProperties(Kalman kalman, Thermal thermal, Status status, Energy ener
     record Status(Duration noShowGrace, double underuseRatio, Duration deskAbandonThreshold, Duration equipmentIdleShutdown) {
     }
 
-    record Energy(double ratedKwPerSqm, Duration maxReadingInterval, int scheduleStartHour, int scheduleEndHour,
-                  String timeZone, double emissionFactorKgCo2PerKwh) {
+    record Energy(double ratedKwPerSqm, Duration maxReadingInterval, String timeZone, double emissionFactorKgCo2PerKwh) {
     }
 }
