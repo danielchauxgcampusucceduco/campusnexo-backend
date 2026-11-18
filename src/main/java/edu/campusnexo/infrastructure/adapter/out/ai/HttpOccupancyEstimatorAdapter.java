@@ -1,5 +1,6 @@
 package edu.campusnexo.infrastructure.adapter.out.ai;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import edu.campusnexo.domain.occupancy.OccupancyEstimate;
 import edu.campusnexo.domain.occupancy.OccupancyEstimatorInvalidResponseException;
@@ -68,8 +69,8 @@ class HttpOccupancyEstimatorAdapter implements OccupancyEstimator {
         try {
             response = client.post()
                     .uri("/v1/occupancy/estimate")
-                    .body(new EstimateRequest(query.spaceId(), query.cameraPeople(), query.co2Ppm(),
-                            query.wifiDevices(), query.outdoorCo2Ppm(), query.areaSqm(), query.capacity()))
+                    .body(new EstimateRequest(query.spaceId(), query.cameraPeople(), query.wifiDevices(),
+                            query.areaSqm(), query.capacity()))
                     .retrieve()
                     .body(EstimateResponse.class);
         } catch (ResourceAccessException failure) {
@@ -110,13 +111,12 @@ class HttpOccupancyEstimatorAdapter implements OccupancyEstimator {
         }
     }
 
-    /** Raw measurements of the room; the service fuses them with the same model as the twin. */
+    /** Raw measurements of the room (camera and, if any, Wi-Fi); the service fuses them like the twin. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private record EstimateRequest(
             @JsonProperty("space_id") String spaceId,
             @JsonProperty("yolo_people") Integer yoloPeople,
-            @JsonProperty("co2_ppm") double co2Ppm,
-            @JsonProperty("wifi_devices") int wifiDevices,
-            @JsonProperty("outdoor_co2_ppm") double outdoorCo2Ppm,
+            @JsonProperty("wifi_devices") Integer wifiDevices,
             @JsonProperty("area_sqm") double areaSqm,
             @JsonProperty("capacity") int capacity) {
     }

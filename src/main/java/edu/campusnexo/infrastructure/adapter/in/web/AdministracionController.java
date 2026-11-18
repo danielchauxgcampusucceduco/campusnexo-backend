@@ -64,14 +64,13 @@ class AdministracionController {
     record EspacioRequest(@NotNull @Min(1) @Max(5_000) Integer capacity,
                           @NotNull @DecimalMin("0.1") @DecimalMax("100000") Double areaSqm,
                           @Min(1) @Max(40) Integer seatRows, @Min(1) @Max(40) Integer seatColumns,
-                          @NotNull @Min(0) @Max(1_000) Integer computers, boolean hvacInstalled) {
+                          @NotNull @Min(0) @Max(1_000) Integer computers) {
     }
 
     @PutMapping("/spaces/{spaceId}")
     SpaceResponse ajustarEspacio(@PathVariable String spaceId, @Valid @RequestBody EspacioRequest request) {
         return SpaceResponse.from(espacios.ajustar(spaceId, new EspacioAdminUseCase.Medidas(request.capacity(),
-                request.areaSqm(), request.seatRows(), request.seatColumns(), request.computers(),
-                request.hvacInstalled())));
+                request.areaSqm(), request.seatRows(), request.seatColumns(), request.computers())));
     }
 
     record ConfirmacionRequest(Set<String> descartar) {

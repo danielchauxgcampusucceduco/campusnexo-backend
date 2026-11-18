@@ -1,6 +1,5 @@
 package edu.campusnexo.infrastructure.adapter.out.persistence.twin;
 
-import edu.campusnexo.domain.twin.HvacControlState;
 import edu.campusnexo.domain.twin.SpaceStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -12,8 +11,8 @@ import jakarta.persistence.Version;
 import java.time.Instant;
 
 /**
- * Latest twin state per space. Status and HVAC state are columns (queryable from SQL); the full state,
- * including the Kalman and thermal traces, is a versioned JSON document ({@link TwinDocument}). The
+ * Latest twin state per space. The status is a column (queryable from SQL); the full state, including the Kalman
+ * trace, is a versioned JSON document ({@link TwinDocument}). The
  * {@code revision} column makes concurrent writes of the same room fail instead of overwriting each other.
  */
 @Entity
@@ -26,10 +25,6 @@ class SpaceTwinStateEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 32)
     private SpaceStatus status;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "hvac_state", nullable = false, length = 32)
-    private HvacControlState hvacState;
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
@@ -45,17 +40,15 @@ class SpaceTwinStateEntity {
     protected SpaceTwinStateEntity() {
     }
 
-    SpaceTwinStateEntity(String spaceId, SpaceStatus status, HvacControlState hvacState, Instant updatedAt, String document) {
+    SpaceTwinStateEntity(String spaceId, SpaceStatus status, Instant updatedAt, String document) {
         this.spaceId = spaceId;
         this.status = status;
-        this.hvacState = hvacState;
         this.updatedAt = updatedAt;
         this.document = document;
     }
 
-    void update(SpaceStatus status, HvacControlState hvacState, Instant updatedAt, String document) {
+    void update(SpaceStatus status, Instant updatedAt, String document) {
         this.status = status;
-        this.hvacState = hvacState;
         this.updatedAt = updatedAt;
         this.document = document;
     }

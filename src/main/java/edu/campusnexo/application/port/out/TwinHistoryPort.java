@@ -19,11 +19,11 @@ public interface TwinHistoryPort {
     }
 
     /**
-     * One stored change of a room: the fused count, the people by role, the camera's own count ({@code null}
-     * when the camera did not see the room) and the CO₂. {@code emulated} marks entries not fed by a real camera.
+     * One stored change of a room: the fused count, the people by role, and the camera's own count
+     * ({@code null} when the camera did not see the room). {@code emulated} marks entries not fed by a real camera.
      */
     record OccupancySample(Instant at, String spaceId, int people, double estimate, double stdDev, int teachers,
-                           int students, Integer cameraPeople, double co2Ppm, boolean cameraOnline, boolean emulated,
+                           int students, Integer cameraPeople, boolean cameraOnline, boolean emulated,
                            List<String> escenarios) {
         public OccupancySample {
             escenarios = List.copyOf(escenarios);

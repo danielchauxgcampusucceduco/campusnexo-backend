@@ -56,21 +56,14 @@ public final class MongoTwinHistoryAdapter implements TwinChangeNotifierPort, Tw
         Document entry = new Document("spaceId", state.spaceId())
                 .append("at", Date.from(state.updatedAt()))
                 .append("status", state.status().name())
-                .append("condition", state.condition().name())
-                .append("hvacState", state.hvacState().name())
                 .append("people", state.occupancy().people())
                 .append("estimate", state.occupancy().estimate())
                 .append("stdDev", state.occupancy().standardDeviation())
                 .append("teachers", state.presence().teachers())
                 .append("students", state.presence().students())
                 .append("cameraPeople", cameraPeople(state))
-                .append("co2Ppm", state.co2Ppm())
-                .append("indoorTemperatureC", state.indoorTemperatureC())
-                .append("lightsOn", state.equipment().lightsOn())
-                .append("devicesOn", state.equipment().devicesOn())
                 .append("cameraOnline", state.cameraOnline())
                 .append("emulated", state.sensing().emulated())
-                .append("energySavedKwh", state.energySavedKwh())
                 .append("escenarios", ESCENARIOS.reconocer(state, state.updatedAt()).stream().map(Enum::name).toList());
         insert(history, entry);
     }
@@ -103,7 +96,7 @@ public final class MongoTwinHistoryAdapter implements TwinChangeNotifierPort, Tw
                 .forEach(doc -> samples.add(new OccupancySample(doc.getDate("at").toInstant(), spaceId,
                         doc.getInteger("people", 0), number(doc, "estimate"), number(doc, "stdDev"),
                         doc.getInteger("teachers", 0), doc.getInteger("students", 0), doc.getInteger("cameraPeople"),
-                        number(doc, "co2Ppm"), doc.getBoolean("cameraOnline", false), doc.getBoolean("emulated", false),
+                        doc.getBoolean("cameraOnline", false), doc.getBoolean("emulated", false),
                         doc.getList("escenarios", String.class, List.of()))));
         return samples;
     }

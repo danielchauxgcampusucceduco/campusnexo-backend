@@ -25,13 +25,6 @@ public class TwinControlService implements TwinControlUseCase {
     }
 
     @Override
-    public SpaceTwinState manualOverride(String spaceId, Duration duration) {
-        Instant until = clock.instant().plus(validated(duration));
-        return reevaluation.reevaluate(spaceId, TRIGGER,
-                twin -> twin.withControls(twin.controls().withOverrideUntil(until)));
-    }
-
-    @Override
     public SpaceTwinState openPopUpStudyRoom(String spaceId, Duration duration) {
         Instant until = clock.instant().plus(validated(duration));
         return reevaluation.reevaluate(spaceId, TRIGGER, twin -> twin.withControls(twin.controls().withPopUpUntil(until)));

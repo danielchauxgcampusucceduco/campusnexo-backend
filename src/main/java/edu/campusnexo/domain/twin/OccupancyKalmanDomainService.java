@@ -7,12 +7,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * One-dimensional Kalman filter that fuses the camera count, a CO2 mass-balance estimate and the
- * Wi-Fi device count into a single occupancy belief. Random-walk model: occupancy is assumed constant
- * between frames, with uncertainty growing linearly with the elapsed time. Pure and stateless.
+ * One-dimensional Kalman filter that fuses the camera count and, when the campus Wi-Fi reports the room, its device
+ * count into a single occupancy belief. Random-walk model: occupancy is assumed constant between frames, with
+ * uncertainty growing linearly with the elapsed time, so a camera that stops reporting leaves the last estimate with a
+ * growing margin of error. Pure and stateless.
  */
 public final class OccupancyKalmanDomainService {
     private static final double MIN_MEASUREMENT_VARIANCE = 1.0;
+    /**
+     * Variance of a fusion without any source: σ = 5000 people, the largest capacity accepted, so the confidence is 0 in
+     * any room. The AI service uses the same value ({@code NO_DATA_SIGMA}).
+     */
+    static final double UNINFORMED_VARIANCE = 5000.0 * 5000.0;
 
     private final KalmanParameters parameters;
 
@@ -43,19 +49,21 @@ public final class OccupancyKalmanDomainService {
     }
 
     private List<Observation> observations(TelemetrySnapshot snapshot, CampusSpace space) {
-        return observations(snapshot.cameraPeopleCount(), snapshot.co2Ppm(), snapshot.wifiDevices(), space.areaSqm(),
-                parameters.outdoorCo2Ppm());
+        return observations(snapshot.cameraPeopleCount(), snapshot.wifiDevices());
     }
 
     /**
      * Fuses one set of raw measurements without a prior: the inverse-variance weighted mean of the available
      * sources, which is the Kalman update from an uninformed prior. Used where no history of the room is
      * kept (the local fallback of the occupancy estimator); the AI service implements the same model and both
-     * are checked against the same reference cases.
+     * are checked against the same reference cases. Without any source (camera down, no Wi-Fi) the result is an
+     * uninformed estimate of 0 people with {@link #UNINFORMED_VARIANCE}.
      */
-    public FusedOccupancy fuse(Integer cameraPeople, double co2Ppm, int wifiDevices, double areaSqm,
-                               double outdoorCo2Ppm) {
-        List<Observation> sources = observations(cameraPeople, co2Ppm, wifiDevices, areaSqm, outdoorCo2Ppm);
+    public FusedOccupancy fuse(Integer cameraPeople, Integer wifiDevices) {
+        List<Observation> sources = observations(cameraPeople, wifiDevices);
+        if (sources.isEmpty()) {
+            return new FusedOccupancy(0, UNINFORMED_VARIANCE, List.of());
+        }
         double information = 0;
         double weighted = 0;
         List<KalmanMeasurement> measurements = new ArrayList<>(sources.size());
@@ -70,19 +78,16 @@ public final class OccupancyKalmanDomainService {
         return new FusedOccupancy(Math.max(0, weighted / information), 1 / information, measurements);
     }
 
-    private List<Observation> observations(Integer cameraPeople, double co2Ppm, int wifiDevices, double areaSqm,
-                                           double outdoorCo2Ppm) {
-        List<Observation> observations = new ArrayList<>(3);
+    private List<Observation> observations(Integer cameraPeople, Integer wifiDevices) {
+        List<Observation> observations = new ArrayList<>(2);
         if (cameraPeople != null) {
             observations.add(new Observation(MeasurementSource.CAMARA_YOLO, cameraPeople, parameters.cameraVariance()));
         }
-        double co2Excess = Math.max(0, co2Ppm - outdoorCo2Ppm);
-        double fromCo2 = co2Excess * areaSqm / parameters.co2PpmPerPersonSqm();
-        observations.add(new Observation(MeasurementSource.CO2_BALANCE_MASICO, fromCo2,
-                relativeVariance(fromCo2, parameters.co2RelativeError())));
-        double fromWifi = wifiDevices * parameters.peoplePerDevice();
-        observations.add(new Observation(MeasurementSource.WIFI_DISPOSITIVOS, fromWifi,
-                relativeVariance(fromWifi, parameters.wifiRelativeError())));
+        if (wifiDevices != null) {
+            double fromWifi = wifiDevices * parameters.peoplePerDevice();
+            observations.add(new Observation(MeasurementSource.WIFI_DISPOSITIVOS, fromWifi,
+                    relativeVariance(fromWifi, parameters.wifiRelativeError())));
+        }
         return observations;
     }
 

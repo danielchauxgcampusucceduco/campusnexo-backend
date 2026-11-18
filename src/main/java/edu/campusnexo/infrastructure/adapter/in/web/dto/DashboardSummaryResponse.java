@@ -13,14 +13,11 @@ public record DashboardSummaryResponse(
         long alertsLast24h,
         Map<AlertType, Long> alertsByType,
         Double averageOccupancyPct,
-        int saturatedSpaces,
-        double estimatedEmptySpaceEnergyKwh,
-        double estimatedEmptySpaceEnergyCostCop) {
+        int saturatedSpaces) {
 
     public static DashboardSummaryResponse from(DashboardSummary summary) {
         return new DashboardSummaryResponse(summary.monitoredSpaces(), summary.readingsLast24h(), summary.since(),
                 summary.alertsLast24h(), summary.alertsByType(), summary.averageOccupancyPct(),
-                summary.saturatedSpaces(), summary.estimatedEmptySpaceEnergyKwh(),
-                summary.estimatedEmptySpaceEnergyCostCop());
+                summary.saturatedSpaces());
     }
 }

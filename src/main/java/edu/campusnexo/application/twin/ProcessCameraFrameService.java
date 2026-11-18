@@ -10,11 +10,9 @@ import edu.campusnexo.domain.catalog.CampusSpace;
 import edu.campusnexo.domain.port.ReservationRepository;
 import edu.campusnexo.domain.telemetry.ReadingAdmission;
 import edu.campusnexo.domain.trace.HexagonalLayer;
-import edu.campusnexo.domain.twin.Environment;
 import edu.campusnexo.domain.twin.KalmanStep;
 import edu.campusnexo.domain.twin.OccupancyKalmanDomainService;
 import edu.campusnexo.domain.twin.Presence;
-import edu.campusnexo.domain.twin.RoomEquipment;
 import edu.campusnexo.domain.twin.SpaceTwinState;
 import edu.campusnexo.domain.twin.TelemetrySnapshot;
 import edu.campusnexo.domain.vision.DeskObservation;
@@ -29,9 +27,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * A camera frame (YOLO + ByteTrack detections and the room sensors) updates the room: the Kalman filter
- * fuses camera, CO₂ and Wi-Fi, every desk region is evaluated by ray casting, the policies decide, and the
- * aggregated reading is recorded for the alert observers.
+ * A camera frame (YOLO + ByteTrack detections) updates the room: the Kalman filter fuses the camera count (and the
+ * Wi-Fi when it reports), every desk region is evaluated by ray casting, the policies decide whether the room is free,
+ * booked or in use, and the reading is recorded for the alert observers.
  *
  * <p>Order matters: the capture time is validated first, so a rejected frame changes nothing; a frame that
  * is not newer than the room's last frame (an MQTT redelivery) is ignored, which makes the use case
@@ -102,9 +100,8 @@ public class ProcessCameraFrameService implements ProcessSpaceTelemetryUseCase {
     /** The reading of this frame, with the camera's own count kept apart from the fused estimate. */
     private void record(TelemetrySnapshot snapshot, SpaceTwinState updated) {
         telemetry.ingest(new RecordTelemetryCommand(snapshot.spaceId(), snapshot.capturedAt(),
-                updated.occupancy().people(), snapshot.belongingsCount(), snapshot.wifiDevices(), snapshot.co2Ppm(),
-                snapshot.indoorTemperatureC(), snapshot.humidityPct(), snapshot.illuminanceLux(),
-                snapshot.activePowerKw(), snapshot.cameraPeopleCount()));
+                updated.occupancy().people(), snapshot.belongingsCount(), snapshot.wifiDevices(),
+                snapshot.cameraPeopleCount()));
     }
 
     private TwinOutcome decide(CampusSpace space, SpaceTwinState previous, TelemetrySnapshot snapshot,
@@ -114,7 +111,7 @@ public class ProcessCameraFrameService implements ProcessSpaceTelemetryUseCase {
                 .step(HexagonalLayer.INBOUND_ADAPTER, inboundAdapter,
                         snapshot.detections().size() + " detecciones, cámara " + (snapshot.cameraOnline() ? "en línea" : "caída"))
                 .step(HexagonalLayer.INPUT_PORT, ProcessSpaceTelemetryUseCase.class, "process(TelemetrySnapshot)")
-                .step(HexagonalLayer.USE_CASE, ProcessCameraFrameService.class, "Orquesta Kalman → ROI → estado → MPC");
+                .step(HexagonalLayer.USE_CASE, ProcessCameraFrameService.class, "Orquesta Kalman → ROI → estado del salón");
 
         KalmanStep step = kalman.update(previous.occupancy(), snapshot, space);
         trace.step(HexagonalLayer.DOMAIN_SERVICE, OccupancyKalmanDomainService.class, String.format(Locale.ROOT,
@@ -134,15 +131,8 @@ public class ProcessCameraFrameService implements ProcessSpaceTelemetryUseCase {
                                 + " con pertenencias sin estudiante; " + presence.teachers() + " en la zona docente");
             }
         }
-        RoomEquipment equipment = snapshot.lightsOn() == null ? previous.equipment()
-                : TwinDecisionEngine.equipment(space, snapshot.lightsOn(), snapshot.illuminanceLux(),
-                snapshot.devicesOn() == null ? previous.equipment().devicesOn() : snapshot.devicesOn());
-        double outdoorC = snapshot.outdoorTemperatureC() == null ? space.averageOutsideTempC() : snapshot.outdoorTemperatureC();
-        Environment environment = new Environment(snapshot.indoorTemperatureC(), outdoorC, snapshot.co2Ppm(),
-                snapshot.humidityPct());
         return engine.decide(space, previous, new TwinDecisionEngine.Inputs(step.posterior(), step, desks, presence,
-                environment, previous.sensing().cameraFrame(snapshot.cameraOnline(), now, snapshot.emulated()),
-                equipment, now), context, trace);
+                previous.sensing().cameraFrame(snapshot.cameraOnline(), now, snapshot.emulated()), now), context, trace);
     }
 
     private List<DeskObservation> evaluateDesks(List<StudyZoneRoi> seats, TelemetrySnapshot snapshot,

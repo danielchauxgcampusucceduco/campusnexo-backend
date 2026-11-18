@@ -9,17 +9,11 @@ public record TelemetryResponse(
         Instant recordedAt,
         int peopleCount,
         int objectCount,
-        int wifiDevices,
-        double co2Ppm,
-        double temperatureC,
-        double humidityPct,
-        double illuminanceLux,
-        double activePowerKw,
+        Integer wifiDevices,
         Integer cameraPeople) {
 
     public static TelemetryResponse from(Telemetry telemetry) {
         return new TelemetryResponse(telemetry.spaceId(), telemetry.recordedAt(), telemetry.peopleCount(),
-                telemetry.objectCount(), telemetry.wifiDevices(), telemetry.co2Ppm(), telemetry.temperatureC(),
-                telemetry.humidityPct(), telemetry.illuminanceLux(), telemetry.activePowerKw(), telemetry.cameraPeople());
+                telemetry.objectCount(), telemetry.wifiDevices(), telemetry.cameraPeople());
     }
 }

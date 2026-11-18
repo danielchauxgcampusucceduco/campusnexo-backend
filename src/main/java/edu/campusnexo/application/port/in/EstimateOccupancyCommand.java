@@ -1,10 +1,8 @@
 package edu.campusnexo.application.port.in;
 
-/** {@code cameraPeople} and {@code outdoorCo2Ppm} are optional. */
+/** The camera count and the Wi-Fi devices of a room; both are optional. */
 public record EstimateOccupancyCommand(
         String spaceId,
         Integer cameraPeople,
-        double co2Ppm,
-        int wifiDevices,
-        Double outdoorCo2Ppm) {
+        Integer wifiDevices) {
 }

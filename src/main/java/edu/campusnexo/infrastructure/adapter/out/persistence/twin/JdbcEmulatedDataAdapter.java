@@ -11,7 +11,6 @@ class JdbcEmulatedDataAdapter implements EmulatedDataPort {
     private static final List<String> DELETES = List.of(
             "DELETE FROM telemetry_stream WHERE space_id = :space",
             "DELETE FROM occupancy_estimates WHERE space_id = :space",
-            "DELETE FROM climate_recommendations WHERE space_id = :space",
             "DELETE FROM alerts WHERE space_id = :space",
             "DELETE FROM propuestas_puestos WHERE space_id = :space AND emulada");
 

@@ -4,7 +4,6 @@ package edu.campusnexo.domain.twin;
 public record KalmanMeasurement(MeasurementSource source, double value, double variance, double gain) {
     public enum MeasurementSource {
         CAMARA_YOLO,
-        CO2_BALANCE_MASICO,
         WIFI_DISPOSITIVOS
     }
 }

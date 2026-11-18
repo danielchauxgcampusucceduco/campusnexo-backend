@@ -20,8 +20,6 @@ import edu.campusnexo.domain.port.PersonaRepository;
 import edu.campusnexo.domain.port.RegistroDePuestosRepository;
 import edu.campusnexo.domain.port.SpaceCatalogRepository;
 import edu.campusnexo.domain.port.SpaceRepositoryPort;
-import edu.campusnexo.domain.port.TelemetryRepository;
-import edu.campusnexo.domain.twin.EnergyAccountingPolicy;
 import java.time.Clock;
 import java.time.Duration;
 import org.springframework.beans.factory.annotation.Value;
@@ -64,10 +62,8 @@ class AdministracionConfiguration {
     }
 
     @Bean
-    AiToolsUseCase aiTools(Clock clock, CampusCatalogUseCase catalog, TelemetryRepository telemetry,
-                           TwinHistoryPort history, AiAdvisorPort advisor, EnergyAccountingPolicy energy,
-                           AlertRecorder alerts, AlertThresholds thresholds, TwinProperties properties) {
-        return new AiToolsService(clock, catalog, telemetry, history, advisor, energy, alerts, thresholds.cooldown(),
-                properties.energy().timeZone());
+    AiToolsUseCase aiTools(Clock clock, CampusCatalogUseCase catalog, TwinHistoryPort history, AiAdvisorPort advisor,
+                           TwinProperties properties) {
+        return new AiToolsService(clock, catalog, history, advisor, properties.timeZone());
     }
 }

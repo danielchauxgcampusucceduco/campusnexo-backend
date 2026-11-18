@@ -76,10 +76,6 @@ app:
     # CIDR networks (the administration VPN's public address) allowed on /api/v1/admin/**; empty = any network,
     # accepted only outside production (OperationalSafetyCheck).
     admin-networks: ${ADMIN_ALLOWED_NETWORKS:}
-  actuators:
-    # log (default): HVAC and Arduino orders only go to the log and the dashboard.
-    # mqtt: they are published to the real devices (requires MQTT_ENABLED=true and SIMULATION_ENABLED=false).
-    mode: ${ACTUATORS_MODE:log}
   telemetry:
     max-future-skew: ${TELEMETRY_MAX_FUTURE_SKEW:5m}
     max-age: ${TELEMETRY_MAX_AGE:30d}
@@ -104,13 +100,10 @@ app:
       failure-threshold: ${AI_CIRCUIT_FAILURE_THRESHOLD:3}
       open-duration: ${AI_CIRCUIT_OPEN_DURATION:30s}
     fallback-enabled: ${AI_FALLBACK_ENABLED:true}
-    # Assignment, sensor health and forecast are asked on demand and take longer than an occupancy estimate.
+    # Assignment and forecast are asked on demand and take longer than an occupancy estimate.
     tools-read-timeout: ${AI_TOOLS_READ_TIMEOUT:20s}
-    default-outdoor-co2-ppm: ${OUTDOOR_CO2_PPM:420}
   occupancy:
     stale-after: ${OCCUPANCY_STALE_AFTER:30m}
-  dashboard:
-    max-reading-interval: ${DASHBOARD_MAX_READING_INTERVAL:15m}
   history:
     # MongoDB (Atlas in production) for the append-only twin history and the traces; empty = no history.
     mongodb-uri: ${MONGODB_URI:}
@@ -137,33 +130,18 @@ app:
     qos: ${MQTT_QOS:1}
     # ucc/{sede}/{bloque}/{piso}/{space_id}/{canal}, e.g. ucc/pasto/bloque_a/piso_2/201-A/camara
     telemetry-topic-filter: ${MQTT_TELEMETRY_TOPIC_FILTER:ucc/+/+/+/+/camara}
-    environment-topic-filter: ${MQTT_ENVIRONMENT_TOPIC_FILTER:ucc/+/+/+/+/ambiente}
-    # {bloque} and {piso} come from the room code (201-A → bloque_a, piso_2).
-    hvac-command-topic-template: ${MQTT_HVAC_TOPIC_TEMPLATE:ucc/pasto/{bloque}/{piso}/{space_id}/clima/comando}
-    equipment-command-topic-template: ${MQTT_EQUIPMENT_TOPIC_TEMPLATE:ucc/pasto/{bloque}/{piso}/{space_id}/equipos/comando}
   twin:
     # Illustrative parameters: calibrate with campus measurements before real use.
     trace-history: 50
+    # Zone of the campus: the academic timetable and the hours of the day are read in it.
+    time-zone: America/Bogota
     kalman:
       process-noise-per-minute: 0.8
       # Tuned from emulated or measured sessions by entrenamiento/ajustar_parametros.py of the AI service.
       camera-variance: ${KALMAN_CAMERA_VARIANCE:0.64}
-      co2-relative-error: 0.35
       wifi-relative-error: 0.30
       people-per-device: 0.8
-      outdoor-co2-ppm: ${OUTDOOR_CO2_PPM:420}
-      co2-ppm-per-person-sqm: 1000
-    thermal:
-      time-constant-minutes: 120
-      occupant-gain-c-per-hour: 0.06
-      hvac-rate-c-per-minute: 0.08
-      step-minutes: 5
-      default-occupied-minutes: 45
-      pre-conditioning-lead-minutes: 30
-      eco-setback-window-minutes: 60
-      eco-setback-offset-c: 2.0
-      co2-ventilation-ppm: ${CO2_ALERT_THRESHOLD_PPM:1000}
-    # Re-decides rooms with devices that went quiet: camera down, no-show, abandoned desks, idle equipment.
+    # Re-decides rooms whose camera went quiet: camera down, no-show, abandoned desks.
     watchdog:
       enabled: ${TWIN_WATCHDOG_ENABLED:true}
       interval: ${TWIN_WATCHDOG_INTERVAL:30s}
@@ -171,17 +149,7 @@ app:
       no-show-grace: ${NO_SHOW_GRACE:15m}
       underuse-ratio: 0.3
       desk-abandon-threshold: ${DESK_ABANDON_THRESHOLD:15m}
-      # An empty room with lights or computers on for this long gets a shutdown order.
-      equipment-idle-shutdown: ${EQUIPMENT_IDLE_SHUTDOWN:5m}
-    energy:
-      rated-kw-per-sqm: 0.12
-      max-reading-interval: 15m
-      time-zone: America/Bogota
-      # kg CO2 per kWh of the grid; illustrative default, set the official factor of the year.
-      emission-factor-kg-co2-per-kwh: ${EMISSION_FACTOR_KG_CO2_PER_KWH:0.126}
   alerts:
     # Demo thresholds: calibrate with the campus baseline before real use.
-    co2-threshold-ppm: ${CO2_ALERT_THRESHOLD_PPM:1000}
-    empty-space-power-threshold-kw: ${EMPTY_SPACE_POWER_THRESHOLD_KW:0.15}
     cooldown: ${ALERT_COOLDOWN:15m}
     # The no-show grace of the alert is app.twin.status.no-show-grace: one rule, one value.

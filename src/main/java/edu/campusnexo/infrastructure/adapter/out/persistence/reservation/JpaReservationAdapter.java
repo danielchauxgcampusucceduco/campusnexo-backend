@@ -59,6 +59,12 @@ class JpaReservationAdapter implements ReservationRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public List<Reservation> findOverlappingForAll(Instant from, Instant to) {
+        return data.findOverlappingForAll(from, to).stream().map(ReservationEntity::toDomain).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<Reservation> findActiveAt(String spaceId, Instant instant) {
         return data.findFirstBySpaceIdAndStartsAtLessThanEqualAndEndsAtGreaterThanOrderByStartsAtDesc(
                 spaceId, instant, instant).map(ReservationEntity::toDomain);

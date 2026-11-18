@@ -15,14 +15,13 @@ import java.util.List;
 public interface AiAdvisorPort {
     AssignmentPlan assignRooms(List<CourseDemand> courses, List<RoomOption> rooms, double safetyMargin);
 
-    List<SensorAnomaly> detectAnomalies(List<Telemetry> readings);
-
     Forecast forecastOccupancy(String spaceId, int capacity, List<OccupancySample> history, int horizonHours,
                                String timeZone);
 
     record CourseDemand(String courseId, int attendance) {
     }
 
+    /** {@code powerKw} is the cost the service minimizes; the backend sends the capacity of the room. */
     record RoomOption(String roomId, int capacity, double powerKw) {
     }
 
@@ -35,10 +34,6 @@ public interface AiAdvisorPort {
         public AssignmentPlan {
             assignments = List.copyOf(assignments);
         }
-    }
-
-    /** {@code kind}: FUERA_DE_RANGO, VALOR_PEGADO or SALTO. */
-    record SensorAnomaly(String spaceId, String sensor, Instant at, String kind, double value, String detail) {
     }
 
     record ForecastPoint(Instant at, double people, double low, double high) {

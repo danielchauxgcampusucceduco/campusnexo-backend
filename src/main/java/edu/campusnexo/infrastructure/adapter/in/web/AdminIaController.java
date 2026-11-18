@@ -3,7 +3,6 @@ package edu.campusnexo.infrastructure.adapter.in.web;
 import edu.campusnexo.application.port.in.AiToolsUseCase;
 import edu.campusnexo.application.port.out.AiAdvisorPort.AssignmentPlan;
 import edu.campusnexo.application.port.out.AiAdvisorPort.CourseDemand;
-import edu.campusnexo.application.port.out.AiAdvisorPort.SensorAnomaly;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -51,11 +50,6 @@ class AdminIaController {
         return tools.asignarSalones(request.cursos().stream()
                         .map(curso -> new CourseDemand(curso.cursoId().strip(), curso.asistentes())).toList(),
                 request.margenSeguridad() == null ? 1.10 : request.margenSeguridad());
-    }
-
-    @GetMapping("/ia/sensores")
-    List<SensorAnomaly> sensores(@RequestParam(defaultValue = "24") @Min(1) @Max(168) int horas) {
-        return tools.saludDeSensores(Duration.ofHours(horas));
     }
 
     @GetMapping(value = "/spaces/{spaceId}/historial.csv", produces = "text/csv")

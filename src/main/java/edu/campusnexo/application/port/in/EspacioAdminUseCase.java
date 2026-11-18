@@ -10,7 +10,6 @@ public interface EspacioAdminUseCase {
     CampusSpace ajustar(String spaceId, Medidas medidas);
 
     /** {@code seatRows} and {@code seatColumns} go together: both null for a room without a seat grid. */
-    record Medidas(int capacity, double areaSqm, Integer seatRows, Integer seatColumns, int computers,
-                   boolean hvacInstalled) {
+    record Medidas(int capacity, double areaSqm, Integer seatRows, Integer seatColumns, int computers) {
     }
 }

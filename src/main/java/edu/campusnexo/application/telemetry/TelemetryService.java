@@ -52,8 +52,7 @@ public class TelemetryService implements TelemetryUseCase {
         Instant recordedAt = command.recordedAt() == null ? now : command.recordedAt();
         admission.check(recordedAt, now);
         Telemetry telemetry = new Telemetry(space.spaceId(), recordedAt, command.peopleCount(), command.objectCount(),
-                command.wifiDevices(), command.co2Ppm(), command.temperatureC(), command.humidityPct(),
-                command.illuminanceLux(), command.activePowerKw(), command.cameraPeople());
+                command.wifiDevices(), command.cameraPeople());
 
         Optional<Telemetry> duplicate = repository.findBySpaceAndRecordedAt(space.spaceId(), recordedAt);
         if (duplicate.isPresent()) {

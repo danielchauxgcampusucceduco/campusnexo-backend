@@ -57,20 +57,6 @@ class HttpAiAdvisorAdapter implements AiAdvisorPort {
     }
 
     @Override
-    public List<SensorAnomaly> detectAnomalies(List<Telemetry> readings) {
-        AnomaliesResponse response = post("/v1/sensors/anomalies", new AnomaliesRequest(readings.stream()
-                .map(r -> new ReadingJson(r.spaceId(), r.recordedAt(), r.co2Ppm(), r.temperatureC(), r.humidityPct(),
-                        r.illuminanceLux(), r.activePowerKw()))
-                .toList()), AnomaliesResponse.class);
-        if (response.anomalies() == null) {
-            throw invalid("anomalías sin la lista anomalies");
-        }
-        return response.anomalies().stream()
-                .map(a -> new SensorAnomaly(a.spaceId(), a.sensor(), a.timestamp(), a.kind(), a.value(), a.detail()))
-                .toList();
-    }
-
-    @Override
     public Forecast forecastOccupancy(String spaceId, int capacity, List<OccupancySample> history, int horizonHours,
                                       String timeZone) {
         ForecastResponse response = post("/v1/occupancy/forecast", new ForecastRequest(spaceId, capacity, timeZone,
@@ -127,16 +113,6 @@ class HttpAiAdvisorAdapter implements AiAdvisorPort {
                                       String reason) {
     }
 
-    private record ReadingJson(@JsonProperty("space_id") String spaceId, Instant timestamp,
-                               @JsonProperty("co2_ppm") double co2Ppm,
-                               @JsonProperty("temperature_c") double temperatureC,
-                               @JsonProperty("humidity_pct") double humidityPct,
-                               @JsonProperty("illuminance_lux") double illuminanceLux,
-                               @JsonProperty("active_power_kw") double activePowerKw) {
-    }
-
-    private record AnomaliesRequest(List<ReadingJson> readings) {
-    }
 
     private record AnomalyJson(@JsonProperty("space_id") String spaceId, String sensor, Instant timestamp, String kind,
                                double value, String detail) {

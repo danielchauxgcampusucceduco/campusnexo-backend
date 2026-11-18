@@ -49,8 +49,6 @@ class CampusSpaceEntity {
     @Column(nullable = false)
     private int computers;
 
-    @Column(name = "hvac_installed", nullable = false)
-    private boolean hvacInstalled;
 
     protected CampusSpaceEntity() {
     }
@@ -62,15 +60,12 @@ class CampusSpaceEntity {
         seatRows = space.seatLayout() == null ? null : space.seatLayout().rows();
         seatColumns = space.seatLayout() == null ? null : space.seatLayout().columns();
         computers = space.computers();
-        hvacInstalled = space.hvacInstalled();
     }
 
     CampusSpace toDomain() {
         CampusBranchEntity branch = building.getBranch();
         return new CampusSpace(spaceId, name, type, capacity, areaSqm, building.getBuildingId(), building.getName(),
-                branch.getBranchId(), branch.getName(), branch.getCity(), branch.getClimateProfile(),
-                branch.getAverageOutsideTempC(), branch.getKwhTariffCop().doubleValue(), floor,
-                seatRows == null || seatColumns == null ? null : new SeatLayout(seatRows, seatColumns), computers,
-                hvacInstalled);
+                branch.getBranchId(), branch.getName(), branch.getCity(), floor,
+                seatRows == null || seatColumns == null ? null : new SeatLayout(seatRows, seatColumns), computers);
     }
 }

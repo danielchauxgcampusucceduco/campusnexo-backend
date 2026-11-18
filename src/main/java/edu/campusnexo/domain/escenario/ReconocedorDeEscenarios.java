@@ -18,9 +18,8 @@ public final class ReconocedorDeEscenarios {
     /** One detector per scenario. */
     public static ReconocedorDeEscenarios estandar() {
         return new ReconocedorDeEscenarios(List.of(
-                new ClaseEnCurso(), new Co2Alto(), new FalloCamara(), new Sobrecupo(), new NoShow(),
-                new Subutilizado(), new PopupParciales(), new LucesEncendidas(), new EquiposEncendidos(),
-                new OverrideDocente(), new Mantenimiento(), new Acaparamiento()));
+                new ClaseEnCurso(), new FalloCamara(), new Sobrecupo(), new NoShow(), new Subutilizado(),
+                new PopupParciales(), new Mantenimiento(), new Acaparamiento()));
     }
 
     public List<EscenarioOperativo> reconocer(SpaceTwinState estado, Instant ahora) {

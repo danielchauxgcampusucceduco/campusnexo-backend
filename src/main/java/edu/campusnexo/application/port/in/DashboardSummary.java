@@ -5,8 +5,7 @@ import java.time.Instant;
 import java.util.Map;
 
 /**
- * Operational indicators of the last 24 hours. Energy values are estimates computed from the
- * demo readings; they are not a metered energy audit.
+ * Operational indicators of the last 24 hours.
  */
 public record DashboardSummary(
         Instant since,
@@ -15,7 +14,5 @@ public record DashboardSummary(
         long alertsLast24h,
         Map<AlertType, Long> alertsByType,
         Double averageOccupancyPct,
-        int saturatedSpaces,
-        double estimatedEmptySpaceEnergyKwh,
-        double estimatedEmptySpaceEnergyCostCop) {
+        int saturatedSpaces) {
 }

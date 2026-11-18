@@ -14,14 +14,12 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
-/** {@code yoloPeople} (camera count) and {@code outdoorCo2Ppm} are optional; ranges come from the domain limits. */
+/** {@code yoloPeople} (camera count) and {@code wifiDevices} are optional; ranges come from the domain limits. */
 public record OccupancyEstimateRequest(
         @Min(0) @Max(MAX_PEOPLE) Integer yoloPeople,
-        @NotNull @DecimalMin("" + MIN_CO2_PPM) @DecimalMax("" + MAX_CO2_PPM) Double co2Ppm,
-        @NotNull @Min(0) @Max(MAX_DEVICES) Integer wifiDevices,
-        @DecimalMin("" + MIN_OUTDOOR_CO2_PPM) @DecimalMax("" + MAX_OUTDOOR_CO2_PPM) Double outdoorCo2Ppm) {
+        @Min(0) @Max(MAX_DEVICES) Integer wifiDevices) {
 
     public EstimateOccupancyCommand toCommand(String spaceId) {
-        return new EstimateOccupancyCommand(spaceId, yoloPeople, co2Ppm, wifiDevices, outdoorCo2Ppm);
+        return new EstimateOccupancyCommand(spaceId, yoloPeople, wifiDevices);
     }
 }

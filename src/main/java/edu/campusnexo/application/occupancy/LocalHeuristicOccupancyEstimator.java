@@ -11,7 +11,7 @@ import java.util.Locale;
 
 /**
  * Local estimate used when the AI service is down or its circuit is open. It is the same fusion model as the
- * digital twin and the AI service (inverse-variance fusion of camera, CO₂ mass balance and Wi-Fi with the
+ * digital twin and the AI service (inverse-variance fusion of the camera and, if it reports, the Wi-Fi with the
  * same noise parameters), so the answer does not change model when the service fails, only where it is
  * computed. Parameters are illustrative until measured against campus counts.
  */
@@ -28,8 +28,7 @@ public class LocalHeuristicOccupancyEstimator implements OccupancyEstimator {
 
     @Override
     public OccupancyEstimate estimate(OccupancyQuery query) {
-        FusedOccupancy fused = fusion.fuse(query.cameraPeople(), query.co2Ppm(), query.wifiDevices(), query.areaSqm(),
-                query.outdoorCo2Ppm());
+        FusedOccupancy fused = fusion.fuse(query.cameraPeople(), query.wifiDevices());
         int people = (int) Math.min(query.capacity() * 3L, Math.round(fused.estimate()));
         return new OccupancyEstimate(query.spaceId(), people, fused.confidencePct(query.capacity()),
                 query.cameraPeople() != null, true, OccupancySource.RESPALDO_LOCAL, String.format(Locale.ROOT,

@@ -8,7 +8,5 @@ public interface TwinQueryUseCase {
 
     SpaceTwinView space(String spaceId);
 
-    SavingsReport savings();
-
     List<ArchitectureTrace> recentTraces(int limit);
 }

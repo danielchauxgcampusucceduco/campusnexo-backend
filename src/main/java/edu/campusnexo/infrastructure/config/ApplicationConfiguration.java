@@ -1,19 +1,14 @@
 package edu.campusnexo.infrastructure.config;
 
-import edu.campusnexo.application.alert.AirQualityAlertObserver;
 import edu.campusnexo.application.alert.AlertQueryService;
 import edu.campusnexo.application.alert.AlertRecorder;
 import edu.campusnexo.application.alert.AlertThresholds;
 import edu.campusnexo.application.alert.CapacityAlertObserver;
-import edu.campusnexo.application.alert.EnergyWasteAlertObserver;
 import edu.campusnexo.application.alert.ReservationNoShowObserver;
 import edu.campusnexo.application.caching.CachingSeatRegionRepository;
 import edu.campusnexo.application.caching.CachingSpaceCatalogRepository;
 import edu.campusnexo.application.catalog.SpaceCatalogService;
-import edu.campusnexo.application.climate.ClimateRecommendationService;
-import edu.campusnexo.application.climate.HvacStateResolver;
 import edu.campusnexo.application.dashboard.DashboardSummaryService;
-import edu.campusnexo.application.dashboard.EmptySpaceEnergyEstimator;
 import edu.campusnexo.application.occupancy.CircuitBreakerOccupancyEstimator;
 import edu.campusnexo.application.occupancy.FallbackOccupancyEstimator;
 import edu.campusnexo.application.occupancy.LiveOccupancyService;
@@ -24,7 +19,6 @@ import edu.campusnexo.application.occupancy.Sleeper;
 import edu.campusnexo.application.operations.CampusOperationsFacade;
 import edu.campusnexo.application.port.in.AlertQueryUseCase;
 import edu.campusnexo.application.port.in.CampusCatalogUseCase;
-import edu.campusnexo.application.port.in.ClimateRecommendationUseCase;
 import edu.campusnexo.application.port.in.DashboardQueryUseCase;
 import edu.campusnexo.application.port.in.LiveOccupancyUseCase;
 import edu.campusnexo.application.port.in.OccupancyEstimationUseCase;
@@ -38,13 +32,7 @@ import edu.campusnexo.application.port.out.UnitOfWork;
 import edu.campusnexo.application.reservation.ReservationService;
 import edu.campusnexo.application.telemetry.TelemetryEventPublisher;
 import edu.campusnexo.application.telemetry.TelemetryService;
-import edu.campusnexo.domain.climate.policy.AndeanClimatePolicyFactory;
-import edu.campusnexo.domain.climate.policy.ClimateFamilies;
-import edu.campusnexo.domain.climate.policy.ClimatePolicyFactory;
-import edu.campusnexo.domain.climate.policy.MildClimatePolicyFactory;
-import edu.campusnexo.domain.climate.policy.TropicalClimatePolicyFactory;
 import edu.campusnexo.domain.port.AlertRepository;
-import edu.campusnexo.domain.port.ClimateRecommendationRepository;
 import edu.campusnexo.domain.port.OccupancyEstimateRepository;
 import edu.campusnexo.domain.port.OccupancyEstimator;
 import edu.campusnexo.domain.port.PersonaRepository;
@@ -155,10 +143,8 @@ public class ApplicationConfiguration {
 
     /** The no-show grace is the twin's own ({@code app.twin.status.no-show-grace}): one rule, one value. */
     @Bean
-    AlertThresholds alertThresholds(@Value("${app.alerts.co2-threshold-ppm}") double co2Ppm,
-                                    @Value("${app.alerts.empty-space-power-threshold-kw}") double emptySpacePowerKw,
-                                    @Value("${app.alerts.cooldown}") Duration cooldown, SpaceStatusPolicy statusPolicy) {
-        return new AlertThresholds(co2Ppm, emptySpacePowerKw, cooldown, statusPolicy.noShowGrace());
+    AlertThresholds alertThresholds(@Value("${app.alerts.cooldown}") Duration cooldown, SpaceStatusPolicy statusPolicy) {
+        return new AlertThresholds(cooldown, statusPolicy.noShowGrace());
     }
 
     @Bean
@@ -167,18 +153,8 @@ public class ApplicationConfiguration {
     }
 
     @Bean
-    TelemetryObserver airQualityAlertObserver(AlertRecorder recorder, AlertThresholds thresholds) {
-        return new AirQualityAlertObserver(recorder, thresholds);
-    }
-
-    @Bean
     TelemetryObserver capacityAlertObserver(AlertRecorder recorder, AlertThresholds thresholds) {
         return new CapacityAlertObserver(recorder, thresholds);
-    }
-
-    @Bean
-    TelemetryObserver energyWasteAlertObserver(AlertRecorder recorder, AlertThresholds thresholds) {
-        return new EnergyWasteAlertObserver(recorder, thresholds);
     }
 
     @Bean
@@ -219,45 +195,14 @@ public class ApplicationConfiguration {
     @Bean
     OccupancyEstimationUseCase occupancyEstimation(Clock clock, OccupancyEstimator estimator,
                                                    OccupancyEstimateRepository repository,
-                                                   CampusCatalogUseCase catalog,
-                                                   @Value("${app.ai.default-outdoor-co2-ppm}") double outdoorCo2Ppm) {
-        return new OccupancyEstimationService(clock, estimator, repository, catalog, outdoorCo2Ppm);
+                                                   CampusCatalogUseCase catalog) {
+        return new OccupancyEstimationService(clock, estimator, repository, catalog);
     }
 
     @Bean
     LiveOccupancyUseCase liveOccupancy(Clock clock, CampusCatalogUseCase catalog, TelemetryRepository telemetry,
                                        @Value("${app.occupancy.stale-after}") Duration staleAfter) {
         return new LiveOccupancyService(clock, catalog, telemetry, staleAfter);
-    }
-
-    // ---- Climate (Abstract Factory + Strategy + Builder) -----------------------------------
-
-    @Bean
-    ClimatePolicyFactory andeanClimatePolicyFactory() {
-        return new AndeanClimatePolicyFactory();
-    }
-
-    @Bean
-    ClimatePolicyFactory tropicalClimatePolicyFactory() {
-        return new TropicalClimatePolicyFactory();
-    }
-
-    @Bean
-    ClimatePolicyFactory mildClimatePolicyFactory() {
-        return new MildClimatePolicyFactory();
-    }
-
-    /** One family per climate profile, shared by the climate recommendation and the digital twin. */
-    @Bean
-    ClimateFamilies climateFamilies(List<ClimatePolicyFactory> factories) {
-        return new ClimateFamilies(factories);
-    }
-
-    @Bean
-    ClimateRecommendationUseCase climateRecommendations(Clock clock, CampusCatalogUseCase catalog,
-                                                        ClimateRecommendationRepository repository,
-                                                        SpaceRepositoryPort twins, ClimateFamilies families) {
-        return new ClimateRecommendationService(clock, catalog, repository, new HvacStateResolver(twins, clock), families);
     }
 
     // ---- Reservations, dashboard and Facade ------------------------------------------------
@@ -270,17 +215,14 @@ public class ApplicationConfiguration {
 
     @Bean
     DashboardQueryUseCase dashboard(Clock clock, TelemetryRepository telemetry, AlertRepository alerts,
-                                    CampusCatalogUseCase catalog, LiveOccupancyUseCase liveOccupancy,
-                                    @Value("${app.dashboard.max-reading-interval}") Duration maxReadingInterval) {
-        return new DashboardSummaryService(clock, telemetry, alerts, catalog, liveOccupancy,
-                new EmptySpaceEnergyEstimator(maxReadingInterval));
+                                    CampusCatalogUseCase catalog, LiveOccupancyUseCase liveOccupancy) {
+        return new DashboardSummaryService(clock, telemetry, alerts, catalog, liveOccupancy);
     }
 
     @Bean
     SpaceEvaluationUseCase spaceEvaluation(CampusCatalogUseCase catalog, TelemetryUseCase telemetry,
-                                           OccupancyEstimationUseCase occupancy,
-                                           ClimateRecommendationUseCase climate,
-                                           ReservationUseCase reservations, AlertQueryUseCase alerts) {
-        return new CampusOperationsFacade(catalog, telemetry, occupancy, climate, reservations, alerts);
+                                           OccupancyEstimationUseCase occupancy, ReservationUseCase reservations,
+                                           AlertQueryUseCase alerts) {
+        return new CampusOperationsFacade(catalog, telemetry, occupancy, reservations, alerts);
     }
 }

@@ -30,8 +30,7 @@ public class EspacioAdminService implements EspacioAdminUseCase {
             throw new DomainValidationException("seatRows y seatColumns van juntos: ambos o ninguno");
         }
         SeatLayout layout = medidas.seatRows() == null ? null : new SeatLayout(medidas.seatRows(), medidas.seatColumns());
-        CampusSpace ajustado = actual.conMedidas(medidas.capacity(), medidas.areaSqm(), layout, medidas.computers(),
-                medidas.hvacInstalled());
+        CampusSpace ajustado = actual.conMedidas(medidas.capacity(), medidas.areaSqm(), layout, medidas.computers());
         int seats = layout == null ? 0 : layout.seats();
         for (PuestoDeTrabajo puesto : activos.findPuestos(spaceId)) {
             if (puesto.numero() > seats) {

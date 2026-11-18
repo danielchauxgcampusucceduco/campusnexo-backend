@@ -4,15 +4,13 @@ import static edu.campusnexo.domain.shared.DomainChecks.requireRange;
 import static edu.campusnexo.domain.shared.DomainChecks.requireText;
 import static edu.campusnexo.domain.telemetry.MeasurementLimits.*;
 
-/** Aggregated signals sent to an occupancy estimator. {@code cameraPeople} is optional. */
+/** Signals sent to an occupancy estimator: the camera count and the Wi-Fi devices, both optional. */
 public record OccupancyQuery(
         String spaceId,
         int capacity,
         double areaSqm,
         Integer cameraPeople,
-        double co2Ppm,
-        int wifiDevices,
-        double outdoorCo2Ppm) {
+        Integer wifiDevices) {
 
     public OccupancyQuery {
         requireText(spaceId, "spaceId");
@@ -21,8 +19,8 @@ public record OccupancyQuery(
         if (cameraPeople != null) {
             requireRange(cameraPeople, 0, MAX_PEOPLE, "cameraPeople");
         }
-        requireRange(co2Ppm, MIN_CO2_PPM, MAX_CO2_PPM, "co2Ppm");
-        requireRange(wifiDevices, 0, MAX_DEVICES, "wifiDevices");
-        requireRange(outdoorCo2Ppm, MIN_OUTDOOR_CO2_PPM, MAX_OUTDOOR_CO2_PPM, "outdoorCo2Ppm");
+        if (wifiDevices != null) {
+            requireRange(wifiDevices, 0, MAX_DEVICES, "wifiDevices");
+        }
     }
 }

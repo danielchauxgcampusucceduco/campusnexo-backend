@@ -28,23 +28,13 @@ class TelemetryEntity {
     @Column(name = "object_count", nullable = false)
     private int objectCount;
 
-    @Column(name = "wifi_devices", nullable = false)
-    private int wifiDevices;
+    @Column(name = "wifi_devices")
+    private Integer wifiDevices;
 
-    @Column(name = "co2_ppm", nullable = false)
-    private double co2Ppm;
 
-    @Column(name = "temperature_c", nullable = false)
-    private double temperatureC;
 
-    @Column(name = "humidity_pct", nullable = false)
-    private double humidityPct;
 
-    @Column(name = "illuminance_lux", nullable = false)
-    private double illuminanceLux;
 
-    @Column(name = "active_power_kw", nullable = false)
-    private double activePowerKw;
 
     /** The camera's own count in that frame; {@code null} when no camera saw the room. */
     @Column(name = "camera_people")
@@ -59,16 +49,10 @@ class TelemetryEntity {
         peopleCount = telemetry.peopleCount();
         objectCount = telemetry.objectCount();
         wifiDevices = telemetry.wifiDevices();
-        co2Ppm = telemetry.co2Ppm();
-        temperatureC = telemetry.temperatureC();
-        humidityPct = telemetry.humidityPct();
-        illuminanceLux = telemetry.illuminanceLux();
-        activePowerKw = telemetry.activePowerKw();
         cameraPeople = telemetry.cameraPeople();
     }
 
     Telemetry toDomain() {
-        return new Telemetry(spaceId, recordedAt, peopleCount, objectCount, wifiDevices, co2Ppm, temperatureC,
-                humidityPct, illuminanceLux, activePowerKw, cameraPeople);
+        return new Telemetry(spaceId, recordedAt, peopleCount, objectCount, wifiDevices, cameraPeople);
     }
 }

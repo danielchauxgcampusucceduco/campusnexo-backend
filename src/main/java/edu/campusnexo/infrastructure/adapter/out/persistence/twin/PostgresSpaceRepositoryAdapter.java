@@ -45,13 +45,13 @@ class PostgresSpaceRepositoryAdapter implements SpaceRepositoryPort {
                 if (states.existsById(spaceId)) {
                     throw new ConcurrentTwinUpdateException(spaceId);
                 }
-                entity = new SpaceTwinStateEntity(spaceId, state.status(), state.hvacState(), state.updatedAt(), document);
+                entity = new SpaceTwinStateEntity(spaceId, state.status(), state.updatedAt(), document);
             } else {
                 entity = states.findById(spaceId).orElseThrow(() -> new ConcurrentTwinUpdateException(spaceId));
                 if (entity.getRevision() != expectedRevision) {
                     throw new ConcurrentTwinUpdateException(spaceId);
                 }
-                entity.update(state.status(), state.hvacState(), state.updatedAt(), document);
+                entity.update(state.status(), state.updatedAt(), document);
             }
             return new StoredTwin(state, states.saveAndFlush(entity).getRevision());
         } catch (OptimisticLockingFailureException | DataIntegrityViolationException raced) {

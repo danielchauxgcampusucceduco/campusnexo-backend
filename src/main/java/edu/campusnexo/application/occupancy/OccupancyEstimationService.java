@@ -20,23 +20,20 @@ public class OccupancyEstimationService implements OccupancyEstimationUseCase {
     private final OccupancyEstimator estimator;
     private final OccupancyEstimateRepository repository;
     private final CampusCatalogUseCase catalog;
-    private final double defaultOutdoorCo2Ppm;
 
     public OccupancyEstimationService(Clock clock, OccupancyEstimator estimator, OccupancyEstimateRepository repository,
-                                      CampusCatalogUseCase catalog, double defaultOutdoorCo2Ppm) {
+                                      CampusCatalogUseCase catalog) {
         this.clock = clock;
         this.estimator = estimator;
         this.repository = repository;
         this.catalog = catalog;
-        this.defaultOutdoorCo2Ppm = defaultOutdoorCo2Ppm;
     }
 
     @Override
     public OccupancyRecord estimate(EstimateOccupancyCommand command) {
         CampusSpace space = catalog.getRequiredSpace(command.spaceId());
-        double outdoor = command.outdoorCo2Ppm() == null ? defaultOutdoorCo2Ppm : command.outdoorCo2Ppm();
         OccupancyQuery query = new OccupancyQuery(space.spaceId(), space.capacity(), space.areaSqm(),
-                command.cameraPeople(), command.co2Ppm(), command.wifiDevices(), outdoor);
+                command.cameraPeople(), command.wifiDevices());
         OccupancyEstimate estimate = estimator.estimate(query);
         return repository.save(new OccupancyRecord(UUID.randomUUID(), clock.instant(), estimate));
     }

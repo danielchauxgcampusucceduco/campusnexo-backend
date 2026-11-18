@@ -48,14 +48,12 @@ public class SpaceReevaluationService implements SpaceReevaluationUseCase {
             TraceRecorder trace = new TraceRecorder(trigger, spaceId, now)
                     .step(HexagonalLayer.INBOUND_ADAPTER, trigger, "Cambio de control manual")
                     .step(HexagonalLayer.INPUT_PORT, SpaceReevaluationUseCase.class, "reevaluate(" + spaceId + ")")
-                    .step(HexagonalLayer.USE_CASE, SpaceReevaluationService.class, "Recalcula estado y estrategia HVAC");
+                    .step(HexagonalLayer.USE_CASE, SpaceReevaluationService.class, "Recalcula el estado del salón");
             Instant evaluationTime = now.isBefore(previous.updatedAt()) ? previous.updatedAt() : now;
             TwinOutcome decided = engine.decide(space, previous, new TwinDecisionEngine.Inputs(previous.occupancy(),
-                    previous.lastKalmanStep(), previous.desks(), previous.presence(), previous.environment(),
-                    previous.sensing(),
-                    previous.equipment(), evaluationTime), context, trace);
-            return new Change<>(decided.state(), new TwinOutcome(stored, decided.state(), decided.equipmentCommand(),
-                    decided.trace()));
+                    previous.lastKalmanStep(), previous.desks(), previous.presence(), previous.sensing(), evaluationTime),
+                    context, trace);
+            return new Change<>(decided.state(), new TwinOutcome(stored, decided.state(), decided.trace()));
         });
         return publisher.publish(outcome);
     }
