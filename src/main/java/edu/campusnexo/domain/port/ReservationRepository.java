@@ -21,6 +21,9 @@ public interface ReservationRepository {
     /** Reservations of the space that overlap the half-open interval [from, to). */
     List<Reservation> findOverlapping(String spaceId, Instant from, Instant to);
 
+    /** Reservations of every space that overlap [from, to), in one query, ordered by space and start. */
+    List<Reservation> findOverlappingForAll(Instant from, Instant to);
+
     Optional<Reservation> findActiveAt(String spaceId, Instant instant);
 
     /** The reservation in progress at {@code instant} of every space that has one, in one query. */

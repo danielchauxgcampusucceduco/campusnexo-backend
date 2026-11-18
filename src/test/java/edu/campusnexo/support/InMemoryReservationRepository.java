@@ -34,6 +34,12 @@ public class InMemoryReservationRepository implements ReservationRepository {
         return overlapping(spaceId, from, to);
     }
 
+    @Override
+    public synchronized List<Reservation> findOverlappingForAll(Instant from, Instant to) {
+        return rows.stream().filter(row -> row.startsAt().isBefore(to) && row.endsAt().isAfter(from))
+                .sorted(Comparator.comparing(Reservation::spaceId).thenComparing(Reservation::startsAt)).toList();
+    }
+
     /** What the database exclusion constraint checks, independent of what callers query first. */
     private List<Reservation> overlapping(String spaceId, Instant from, Instant to) {
         return rows.stream().filter(row -> row.spaceId().equals(spaceId))

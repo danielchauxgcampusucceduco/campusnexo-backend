@@ -18,6 +18,13 @@ interface SpringDataReservationRepository extends JpaRepository<ReservationEntit
     List<ReservationEntity> findOverlapping(@Param("spaceId") String spaceId, @Param("startsAt") Instant startsAt,
                                             @Param("endsAt") Instant endsAt);
 
+    @Query("""
+            select r from ReservationEntity r
+            where r.startsAt < :endsAt and r.endsAt > :startsAt
+            order by r.spaceId, r.startsAt
+            """)
+    List<ReservationEntity> findOverlappingForAll(@Param("startsAt") Instant startsAt, @Param("endsAt") Instant endsAt);
+
     Optional<ReservationEntity> findFirstBySpaceIdAndStartsAtLessThanEqualAndEndsAtGreaterThanOrderByStartsAtDesc(
             String spaceId, Instant startsAtOrBefore, Instant endsAfter);
 

@@ -1,6 +1,6 @@
-"""Convierte el horario de Ingeniería de Software (xlsx) en las sesiones que usa la demo del backend.
+"""Convierte el horario de Ingeniería de Software (xlsx) en las sesiones que usan la disponibilidad y la demo del backend.
 
-    python -I tools/horario/horario_a_csv.py <horario.xlsx> src/main/resources/demo/horario-isw-2620.csv
+    python -I tools/horario/horario_a_csv.py <horario.xlsx> src/main/resources/horario/horario-isw-2620.csv
 
 Solo biblioteca estándar. No copia los nombres de los docentes.
 
