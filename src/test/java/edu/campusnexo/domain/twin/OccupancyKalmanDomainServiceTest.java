@@ -26,40 +26,40 @@ class OccupancyKalmanDomainServiceTest {
         return detections;
     }
 
-    private static TelemetrySnapshot snapshot(Instant at, boolean camera, int people, double co2, int wifi) {
-        return new TelemetrySnapshot("AULA-301", at, camera, people(people), co2, 22, 14.0, 55, 300, wifi, 2);
+    private static TelemetrySnapshot snapshot(Instant at, boolean camera, int people, int wifi) {
+        return new TelemetrySnapshot("AULA-301", at, camera, people(people), wifi, false);
     }
 
     @Test
-    @DisplayName("La cámara, con menor varianza, domina la fusión con CO2 y Wi-Fi")
+    @DisplayName("La cámara, con menor varianza, domina la fusión con el Wi-Fi")
     void cameraDominates() {
         OccupancyBelief prior = OccupancyBelief.uninformed(T0, 32);
-        // CO2: (820 − 420)·48/1000 = 19.2 ; Wi-Fi: 22·0.8 = 17.6 ; cámara: 24
-        KalmanStep step = kalman.update(prior, snapshot(T0.plusSeconds(60), true, 24, 820, 22), TestData.andeanClassroom());
-        assertEquals(3, step.measurements().size());
+        // Wi-Fi: 22·0.8 = 17.6 ; cámara: 24
+        KalmanStep step = kalman.update(prior, snapshot(T0.plusSeconds(60), true, 24, 22), TestData.andeanClassroom());
+        assertEquals(2, step.measurements().size());
         assertEquals(MeasurementSource.CAMARA_YOLO, step.measurements().get(0).source());
         assertTrue(Math.abs(step.posterior().estimate() - 24) < 1.0, "estimación " + step.posterior().estimate());
         assertTrue(step.posterior().variance() < KalmanParameters.defaults().cameraVariance());
     }
 
     @Test
-    @DisplayName("Con la cámara caída se usan CO2 y Wi-Fi, con mayor incertidumbre")
+    @DisplayName("Con la cámara caída se usa el Wi-Fi, con mayor incertidumbre")
     void cameraOfflineIncreasesUncertainty() {
         OccupancyBelief prior = OccupancyBelief.uninformed(T0, 32);
-        KalmanStep online = kalman.update(prior, snapshot(T0, true, 18, 820, 22), TestData.andeanClassroom());
-        KalmanStep offline = kalman.update(prior, snapshot(T0, false, 18, 820, 22), TestData.andeanClassroom());
-        assertEquals(2, offline.measurements().size());
+        KalmanStep online = kalman.update(prior, snapshot(T0, true, 18, 22), TestData.andeanClassroom());
+        KalmanStep offline = kalman.update(prior, snapshot(T0, false, 18, 22), TestData.andeanClassroom());
+        assertEquals(1, offline.measurements().size());
         assertTrue(offline.posterior().variance() > online.posterior().variance());
         double estimate = offline.posterior().estimate();
-        // Sin cámara la estimación queda entre las señales indirectas (CO2: 19.2 ; Wi-Fi: 17.6) y el prior vacío.
-        assertTrue(estimate > 15 && estimate < 19.2, "estimación " + estimate);
+        // Sin cámara la estimación queda entre el Wi-Fi (17.6) y el prior vacío.
+        assertTrue(estimate > 10 && estimate < 17.6, "estimación " + estimate);
     }
 
     @Test
     @DisplayName("La predicción aumenta la varianza con el tiempo transcurrido")
     void processNoiseGrowsWithTime() {
         OccupancyBelief prior = new OccupancyBelief(10, 1.0, T0);
-        KalmanStep step = kalman.update(prior, snapshot(T0.plusSeconds(600), true, 10, 650, 12), TestData.andeanClassroom());
+        KalmanStep step = kalman.update(prior, snapshot(T0.plusSeconds(600), true, 10, 12), TestData.andeanClassroom());
         assertEquals(10.0, step.elapsedMinutes());
         assertEquals(1.0 + 0.8 * 10, step.predictedVariance(), 1e-9);
     }

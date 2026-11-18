@@ -162,7 +162,7 @@ class ReservationServiceTest {
     @Test
     void aRoomUnderMaintenanceCannotBeBooked() {
         twins.overwrite(SpaceTwinState.initial(TestData.andeanClassroom(), TestData.NOW).toBuilder()
-                .controls(new ManualControls(null, null, true)).build());
+                .controls(new ManualControls(null, true)).build());
 
         var error = assertThrows(ConflictException.class, () -> service.create(command(start, Duration.ofHours(2), 25)));
 

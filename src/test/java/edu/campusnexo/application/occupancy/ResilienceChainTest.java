@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 
 /** The decorators in the order the composition root stacks them: fallback → breaker → retry → adapter. */
 class ResilienceChainTest {
-    private static final OccupancyQuery QUERY = new OccupancyQuery("AULA-301", 32, 48, 12, 820, 20, 420);
+    private static final OccupancyQuery QUERY = new OccupancyQuery("AULA-301", 32, 48, 12, 20);
 
     @Test
     @DisplayName("La espera entre reintentos crece exponencialmente con jitter acotado")

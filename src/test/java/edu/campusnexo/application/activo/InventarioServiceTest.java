@@ -55,7 +55,7 @@ class InventarioServiceTest {
     private void twin(int people, int seatedAtFirstDesk) {
         SpaceTwinState state = SpaceTwinState.initial(lab, clock.instant()).toBuilder()
                 .occupancy(new OccupancyBelief(people, 0.5, clock.instant()))
-                .sensing(new Sensing(true, clock.instant(), null, false))
+                .sensing(new Sensing(true, clock.instant(), false))
                 .desks(List.of(new DeskObservation("301-A-P01", seatedAtFirstDesk > 0 ? ZoneDeskState.OCUPADO_VERIFICADO
                         : ZoneDeskState.DISPONIBLE, seatedAtFirstDesk, 0, null, clock.instant())))
                 .build();

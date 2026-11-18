@@ -1,13 +1,12 @@
 package edu.campusnexo.application.operations;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import edu.campusnexo.application.alert.AlertQueryService;
 import edu.campusnexo.application.catalog.SpaceCatalogService;
-import edu.campusnexo.application.climate.ClimateRecommendationService;
-import edu.campusnexo.application.climate.HvacStateResolver;
 import edu.campusnexo.application.exception.NoTelemetryException;
 import edu.campusnexo.application.occupancy.FallbackOccupancyEstimator;
 import edu.campusnexo.application.occupancy.LocalHeuristicOccupancyEstimator;
@@ -17,16 +16,11 @@ import edu.campusnexo.application.port.in.SpaceEvaluation;
 import edu.campusnexo.application.reservation.ReservationService;
 import edu.campusnexo.application.telemetry.TelemetryEventPublisher;
 import edu.campusnexo.application.telemetry.TelemetryService;
-import edu.campusnexo.domain.climate.HvacMode;
-import edu.campusnexo.domain.climate.policy.AndeanClimatePolicyFactory;
-import edu.campusnexo.domain.climate.policy.MildClimatePolicyFactory;
-import edu.campusnexo.domain.climate.policy.TropicalClimatePolicyFactory;
 import edu.campusnexo.domain.occupancy.OccupancyEstimatorUnavailableException;
 import edu.campusnexo.domain.occupancy.OccupancySource;
 import edu.campusnexo.domain.port.OccupancyEstimator;
 import edu.campusnexo.domain.telemetry.Telemetry;
 import edu.campusnexo.support.InMemoryAlertRepository;
-import edu.campusnexo.support.InMemoryClimateRecommendationRepository;
 import edu.campusnexo.support.InMemoryOccupancyEstimateRepository;
 import edu.campusnexo.support.InMemoryPersonaRepository;
 import edu.campusnexo.support.InMemoryReservationRepository;
@@ -44,7 +38,6 @@ class CampusOperationsFacadeTest {
     private final MutableClock clock = new MutableClock(TestData.NOW);
     private final InMemoryTelemetryRepository telemetryRepository = new InMemoryTelemetryRepository();
     private final InMemoryOccupancyEstimateRepository estimates = new InMemoryOccupancyEstimateRepository();
-    private final InMemoryClimateRecommendationRepository recommendations = new InMemoryClimateRecommendationRepository();
     private final CampusCatalogUseCase catalog = new SpaceCatalogService(
             new InMemorySpaceCatalogRepository(TestData.andeanClassroom()));
 
@@ -54,21 +47,16 @@ class CampusOperationsFacadeTest {
                 new TelemetryService(clock, telemetryRepository, catalog,
                         new TelemetryEventPublisher(List.of(), (observer, event, failure) -> { }),
                         Duration.ofMinutes(5), Duration.ofDays(30)),
-                new OccupancyEstimationService(clock, estimator, estimates, catalog, 420),
-                new ClimateRecommendationService(clock, catalog, recommendations,
-                        new HvacStateResolver(new InMemorySpaceRepositoryPort(), clock),
-                        List.of(new AndeanClimatePolicyFactory(), new TropicalClimatePolicyFactory(),
-                                new MildClimatePolicyFactory())),
+                new OccupancyEstimationService(clock, estimator, estimates, catalog),
                 new ReservationService(clock, reservations, catalog, new InMemoryPersonaRepository(),
                         new InMemorySpaceRepositoryPort()),
                 new AlertQueryService(new InMemoryAlertRepository(), catalog));
     }
 
     @Test
-    @DisplayName("Evalúa el espacio desde la última lectura: IA (con respaldo) → recomendación trazable")
+    @DisplayName("Evalúa el espacio desde la última lectura de la cámara: la IA (con respaldo) estima la ocupación")
     void evaluatesFromLatestTelemetry() {
-        telemetryRepository.save(new Telemetry("AULA-301", TestData.NOW.minusSeconds(60), 22, 0, 24, 900, 17.0, 60, 250, 2.1,
-                22));
+        telemetryRepository.save(new Telemetry("AULA-301", TestData.NOW.minusSeconds(60), 22, 0, null, 22));
         OccupancyEstimator aiDown = query -> {
             throw new OccupancyEstimatorUnavailableException(new RuntimeException("timeout"));
         };
@@ -78,10 +66,9 @@ class CampusOperationsFacadeTest {
 
         assertEquals(OccupancySource.RESPALDO_LOCAL, evaluation.occupancy().estimate().source());
         assertEquals(22, evaluation.occupancy().estimate().occupancyEstimate());
-        assertEquals(HvacMode.CALEFACCION, evaluation.recommendation().hvac().mode());
-        assertEquals(OccupancySource.RESPALDO_LOCAL, evaluation.recommendation().occupancySource());
-        assertEquals(TestData.NOW.minusSeconds(60), evaluation.recommendation().sourceTelemetryAt());
-        assertNotNull(evaluation.recommendation().inputs());
+        assertTrue(evaluation.occupancy().estimate().cameraAvailable());
+        assertEquals(TestData.NOW.minusSeconds(60), evaluation.telemetry().recordedAt());
+        assertNull(evaluation.activeReservation());
         assertEquals(1, estimates.rows().size());
     }
 

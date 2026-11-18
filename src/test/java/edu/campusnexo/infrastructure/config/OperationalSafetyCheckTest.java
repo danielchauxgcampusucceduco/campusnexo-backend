@@ -7,39 +7,23 @@ import org.junit.jupiter.api.Test;
 
 class OperationalSafetyCheckTest {
     @Test
-    void allowsRealMqttActuatorsWithEnforcedSecurity() {
-        assertDoesNotThrow(() -> check("MQTT", true, "enforced", "local"));
-        assertDoesNotThrow(() -> check("log", true, "enforced", "local"));
-    }
-
-    @Test
-    void rejectsAnUnknownActuatorModeAtStartup() {
-        assertThrows(IllegalStateException.class, () -> check("physical", false, "enforced", "local"));
-    }
-
-    @Test
-    void forbidsDevelopmentSecurityWithRealActuators() {
-        assertThrows(IllegalStateException.class, () -> check("mqtt", true, "development", "local"));
-        assertDoesNotThrow(() -> check("log", false, "development", "local"));
-    }
-
-    @Test
     void forbidsDevelopmentSecurityInProduction() {
-        assertThrows(IllegalStateException.class, () -> check("log", false, "development", "production"));
-        assertDoesNotThrow(() -> check("log", false, "enforced", "production"));
+        assertThrows(IllegalStateException.class, () -> check("development", "production"));
+        assertDoesNotThrow(() -> check("enforced", "production"));
+        assertDoesNotThrow(() -> check("development", "local"));
     }
 
     @Test
     void productionNeedsTheAdministrationNetwork() {
         assertThrows(IllegalStateException.class,
-                () -> new OperationalSafetyCheck("log", false, "enforced", "production", ""));
+                () -> new OperationalSafetyCheck("enforced", "production", ""));
         assertThrows(IllegalStateException.class,
-                () -> new OperationalSafetyCheck("log", false, "enforced", "production", "  "));
-        assertDoesNotThrow(() -> new OperationalSafetyCheck("log", false, "enforced", "local", ""),
+                () -> new OperationalSafetyCheck("enforced", "production", "  "));
+        assertDoesNotThrow(() -> new OperationalSafetyCheck("enforced", "local", ""),
                 "en local, sin red configurada, la administración solo exige el rol");
     }
 
-    private static OperationalSafetyCheck check(String actuators, boolean mqtt, String security, String environment) {
-        return new OperationalSafetyCheck(actuators, mqtt, security, environment, "203.0.113.7/32");
+    private static OperationalSafetyCheck check(String security, String environment) {
+        return new OperationalSafetyCheck(security, environment, "203.0.113.7/32");
     }
 }

@@ -24,7 +24,7 @@ class AlertObserversTest {
     private final InMemoryAlertRepository alerts = new InMemoryAlertRepository();
     private final InMemoryReservationRepository reservations = new InMemoryReservationRepository();
     private final AlertThresholds thresholds =
-            new AlertThresholds(1000, 0.15, Duration.ofMinutes(15), Duration.ofMinutes(15));
+            new AlertThresholds(Duration.ofMinutes(15), Duration.ofMinutes(15));
     private final AlertRecorder recorder = new AlertRecorder(alerts);
 
     private static TelemetryRecorded event(Telemetry reading) {
@@ -32,27 +32,16 @@ class AlertObserversTest {
     }
 
     @Test
-    @DisplayName("CO2 alto genera una alerta y no se repite dentro del periodo de enfriamiento")
-    void co2AlertWithCooldown() {
-        AirQualityAlertObserver observer = new AirQualityAlertObserver(recorder, thresholds);
-        observer.onTelemetryRecorded(event(TestData.reading("AULA-301", TestData.NOW, 20, 1600, 2)));
-        observer.onTelemetryRecorded(event(TestData.reading("AULA-301", TestData.NOW.plusSeconds(300), 20, 1700, 2)));
+    @DisplayName("El sobrecupo genera una alerta crítica y no se repite dentro del periodo de enfriamiento")
+    void capacityAlertWithCooldown() {
+        CapacityAlertObserver observer = new CapacityAlertObserver(recorder, thresholds);
+        observer.onTelemetryRecorded(event(TestData.reading("AULA-301", TestData.NOW, 40)));
+        observer.onTelemetryRecorded(event(TestData.reading("AULA-301", TestData.NOW.plusSeconds(300), 40)));
         assertEquals(1, alerts.rows().size());
-        assertEquals(AlertSeverity.CRITICA, alerts.rows().get(0).severity());
-        observer.onTelemetryRecorded(event(TestData.reading("AULA-301", TestData.NOW.plusSeconds(1200), 20, 1100, 2)));
-        assertEquals(2, alerts.rows().size());
-    }
-
-    @Test
-    @DisplayName("Sobrecupo y consumo en espacio vacío se detectan por separado")
-    void capacityAndEnergyWaste() {
-        new CapacityAlertObserver(recorder, thresholds)
-                .onTelemetryRecorded(event(TestData.reading("AULA-301", TestData.NOW, 40, 800, 2)));
-        new EnergyWasteAlertObserver(recorder, thresholds)
-                .onTelemetryRecorded(event(TestData.reading("AULA-301", TestData.NOW, 0, 450, 1.2)));
         assertEquals(AlertType.SOBRECUPO, alerts.rows().get(0).type());
         assertEquals(AlertSeverity.CRITICA, alerts.rows().get(0).severity());
-        assertEquals(AlertType.CONSUMO_ESPACIO_VACIO, alerts.rows().get(1).type());
+        observer.onTelemetryRecorded(event(TestData.reading("AULA-301", TestData.NOW.plusSeconds(1200), 40)));
+        assertEquals(2, alerts.rows().size());
     }
 
     @Test
@@ -65,10 +54,10 @@ class AlertObserversTest {
                 .status(SpaceStatus.LIBERADO_POR_NO_SHOW).build());
         ReservationNoShowObserver observer = new ReservationNoShowObserver(recorder, reservations, twins, thresholds);
 
-        observer.onTelemetryRecorded(event(TestData.reading("AULA-301", start.plus(Duration.ofMinutes(5)), 0, 450, 0.1)));
+        observer.onTelemetryRecorded(event(TestData.reading("AULA-301", start.plus(Duration.ofMinutes(5)), 0)));
         assertTrue(alerts.rows().isEmpty());
-        observer.onTelemetryRecorded(event(TestData.reading("AULA-301", TestData.NOW, 0, 450, 0.1)));
-        observer.onTelemetryRecorded(event(TestData.reading("AULA-301", TestData.NOW.plus(Duration.ofMinutes(30)), 0, 450, 0.1)));
+        observer.onTelemetryRecorded(event(TestData.reading("AULA-301", TestData.NOW, 0)));
+        observer.onTelemetryRecorded(event(TestData.reading("AULA-301", TestData.NOW.plus(Duration.ofMinutes(30)), 0)));
         assertEquals(1, alerts.rows().size());
         assertEquals(AlertType.RESERVA_SIN_USO, alerts.rows().get(0).type());
     }
@@ -82,7 +71,7 @@ class AlertObserversTest {
         twins.overwrite(SpaceTwinState.initial(TestData.andeanClassroom(), start).toBuilder()
                 .status(SpaceStatus.LIBRE).build());
         new ReservationNoShowObserver(recorder, reservations, twins, thresholds)
-                .onTelemetryRecorded(event(TestData.reading("AULA-301", TestData.NOW, 0, 450, 0.1)));
+                .onTelemetryRecorded(event(TestData.reading("AULA-301", TestData.NOW, 0)));
 
         assertTrue(alerts.rows().isEmpty());
     }

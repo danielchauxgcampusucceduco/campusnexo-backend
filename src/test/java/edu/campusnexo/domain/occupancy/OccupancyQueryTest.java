@@ -11,7 +11,7 @@ class OccupancyQueryTest {
 
     @Test
     void supportsAQueryWhenTheCameraIsUnavailable() {
-        OccupancyQuery query = new OccupancyQuery("AULA-301", 36, 48, null, 500, 12, 415);
+        OccupancyQuery query = new OccupancyQuery("AULA-301", 36, 48, null, 12);
 
         assertNull(query.cameraPeople());
         assertEquals(36, query.capacity());
@@ -20,6 +20,6 @@ class OccupancyQueryTest {
     @Test
     void rejectsCameraCountsAboveTheSpaceCapacityRange() {
         assertThrows(DomainValidationException.class,
-                () -> new OccupancyQuery("AULA-301", 36, 48, 5_001, 500, 12, 415));
+                () -> new OccupancyQuery("AULA-301", 36, 48, 5_001, 12));
     }
 }

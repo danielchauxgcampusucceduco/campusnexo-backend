@@ -1,8 +1,10 @@
 package edu.campusnexo.domain.catalog;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import edu.campusnexo.domain.shared.DomainValidationException;
 import edu.campusnexo.support.TestData;
@@ -21,14 +23,21 @@ class CampusSpaceTest {
     }
 
     @Test
-    void rejectsZeroCapacityAndMissingClimateProfile() {
+    void rejectsZeroCapacityAndMissingType() {
         assertThrows(DomainValidationException.class,
                 () -> new CampusSpace("201-A", "Aula", SpaceType.AULA, 0, 48,
-                        "BLOQUE-A", "Bloque A", "UCC", "Pasto", "Pasto",
-                        ClimateProfile.SEDE_ANDINA, 14, 865));
+                        "BLOQUE-A", "Bloque A", "UCC", "Pasto", "Pasto"));
         assertThrows(DomainValidationException.class,
-                () -> new CampusSpace("201-A", "Aula", SpaceType.AULA, 36, 48,
-                        "BLOQUE-A", "Bloque A", "UCC", "Pasto", "Pasto",
-                        null, 14, 865));
+                () -> new CampusSpace("201-A", "Aula", null, 36, 48,
+                        "BLOQUE-A", "Bloque A", "UCC", "Pasto", "Pasto"));
+    }
+
+    @Test
+    void onlyAcademicAndStudySpacesAreForStudents() {
+        assertTrue(TestData.andeanClassroom().accesibleParaEstudiantes());
+        assertTrue(TestData.library().accesibleParaEstudiantes());
+        assertTrue(TestData.lab().accesibleParaEstudiantes());
+        assertFalse(TestData.office().accesibleParaEstudiantes());
+        assertFalse(SpaceType.LOGISTICA.accesibleParaEstudiantes());
     }
 }

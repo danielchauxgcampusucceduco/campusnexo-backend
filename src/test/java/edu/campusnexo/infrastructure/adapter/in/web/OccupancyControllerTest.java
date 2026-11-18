@@ -28,7 +28,7 @@ class OccupancyControllerTest {
         when(estimates.estimate(any())).thenReturn(new OccupancyRecord(id, Instant.EPOCH, result));
         OccupancyController controller = new OccupancyController(estimates, live);
 
-        var response = controller.estimate("A-301", new OccupancyEstimateRequest(null, 700.0, 20, 420.0));
+        var response = controller.estimate("A-301", new OccupancyEstimateRequest(null, 20));
 
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertEquals("/api/v1/occupancy-estimates/" + id, response.getHeaders().getLocation().getPath());

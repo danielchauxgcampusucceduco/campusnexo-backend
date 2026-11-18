@@ -20,16 +20,16 @@ class AlertQueryServiceTest {
     void filtersByKnownSpaceAndTypeAndHonorsTheKeysetCursor() {
         InMemoryAlertRepository repository = new InMemoryAlertRepository();
         Instant firstAt = Instant.parse("2026-10-21T10:00:00Z");
-        Alert first = alert(AlertType.CO2_ALTO, firstAt);
-        Alert second = alert(AlertType.CO2_ALTO, firstAt.plusSeconds(60));
+        Alert first = alert(AlertType.FALLO_CAMARA, firstAt);
+        Alert second = alert(AlertType.FALLO_CAMARA, firstAt.plusSeconds(60));
         repository.save(first);
         repository.save(second);
         repository.save(alert(AlertType.SOBRECUPO, firstAt.plusSeconds(120)));
         AlertQueryService service = new AlertQueryService(repository,
                 new SpaceCatalogService(new InMemorySpaceCatalogRepository(TestData.andeanClassroom())));
 
-        assertEquals(java.util.List.of(second, first), service.recent("AULA-301", AlertType.CO2_ALTO, 10, null));
-        assertEquals(java.util.List.of(first), service.recent("AULA-301", AlertType.CO2_ALTO, 10,
+        assertEquals(java.util.List.of(second, first), service.recent("AULA-301", AlertType.FALLO_CAMARA, 10, null));
+        assertEquals(java.util.List.of(first), service.recent("AULA-301", AlertType.FALLO_CAMARA, 10,
                 new PageCursor(second.detectedAt(), second.alertId().toString())));
     }
 

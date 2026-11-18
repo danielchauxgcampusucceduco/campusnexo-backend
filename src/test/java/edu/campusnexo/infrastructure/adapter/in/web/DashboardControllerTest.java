@@ -15,7 +15,7 @@ class DashboardControllerTest {
     void mapsTheDashboardUseCaseSummaryToTheReadOnlyResponse() {
         DashboardQueryUseCase query = mock(DashboardQueryUseCase.class);
         DashboardSummary summary = new DashboardSummary(Instant.EPOCH, 4, 120, 3,
-                Map.of(), 42.5, 1, 2.4, 35_000);
+                Map.of(), 42.5, 1);
         when(query.summarizeLast24Hours()).thenReturn(summary);
 
         var response = new DashboardController(query).summary();
@@ -23,6 +23,6 @@ class DashboardControllerTest {
         assertEquals(4, response.monitoredSpaces());
         assertEquals(120, response.readingsLast24h());
         assertEquals(42.5, response.averageOccupancyPct());
-        assertEquals(2.4, response.estimatedEmptySpaceEnergyKwh());
+        assertEquals(1, response.saturatedSpaces());
     }
 }

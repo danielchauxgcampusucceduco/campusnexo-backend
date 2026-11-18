@@ -41,15 +41,15 @@ class AdministracionControllerTest {
     @Test
     void adjustsARoomAndAnswersWithItsSeatGrid() {
         var room = TestData.room("301-A", SpaceType.SALA_COMPUTO, 30, 5, 6, 30);
-        when(espacios.ajustar(any(), any())).thenReturn(room.conMedidas(28, 58.5, new SeatLayout(4, 7), 28, true));
+        when(espacios.ajustar(any(), any())).thenReturn(room.conMedidas(28, 58.5, new SeatLayout(4, 7), 28));
 
         var response = controller.ajustarEspacio("301-A",
-                new AdministracionController.EspacioRequest(28, 58.5, 4, 7, 28, true));
+                new AdministracionController.EspacioRequest(28, 58.5, 4, 7, 28));
 
         assertEquals(28, response.capacity());
         assertEquals(4, response.seatRows());
         assertEquals(7, response.seatColumns());
-        verify(espacios).ajustar("301-A", new EspacioAdminUseCase.Medidas(28, 58.5, 4, 7, 28, true));
+        verify(espacios).ajustar("301-A", new EspacioAdminUseCase.Medidas(28, 58.5, 4, 7, 28));
     }
 
     @Test

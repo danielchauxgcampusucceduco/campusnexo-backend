@@ -161,10 +161,9 @@ class CampusNexoApiIntegrationTest {
         return alerts;
     }
 
-    private static Map<String, Object> reading(String spaceId, Instant at, int people, double co2, double powerKw) {
+    private static Map<String, Object> reading(String spaceId, Instant at, int people) {
         return Map.of("spaceId", spaceId, "recordedAt", at.toString(), "peopleCount", people, "objectCount", 0,
-                "wifiDevices", people, "co2Ppm", co2, "temperatureC", 17.0, "humidityPct", 60.0,
-                "illuminanceLux", 250.0, "activePowerKw", powerKw);
+                "wifiDevices", people);
     }
 
     @Test
@@ -173,28 +172,32 @@ class CampusNexoApiIntegrationTest {
         assertEquals(401, client.get().uri("/api/v1/spaces").retrieve().toEntity(OBJECT).getStatusCode().value());
         List<Map<String, Object>> spaces = list("/api/v1/spaces");
         assertNotNull(spaces);
-        assertEquals(118, spaces.size(), "107 salones del plano, los 2 pilotos, la cámara esquinera y 8 salones del horario de Ingeniería de Software");
+        assertEquals(120, spaces.size(), "107 salones del plano, los 2 pilotos, la cámara esquinera, 8 salones del "
+                + "horario de Ingeniería de Software y las 2 salas de la hemeroteca");
         List<Map<String, Object>> libraries = list("/api/v1/spaces?type=BIBLIOTECA");
         assertNotNull(libraries);
         assertEquals(5, libraries.size());
         assertTrue(libraries.stream().anyMatch(space -> "BIBLIOTECA-2A".equals(space.get("spaceId"))));
         assertTrue(libraries.stream().anyMatch(space -> "BIBLIOTECA-2A-SILENCIO".equals(space.get("spaceId"))));
+        List<Map<String, Object>> study = list("/api/v1/spaces?type=SALA_ESTUDIO");
+        assertTrue(study.stream().anyMatch(space -> "HEMEROTECA-3A-ASESORIAS".equals(space.get("spaceId"))));
+        assertTrue(study.stream().anyMatch(space -> "HEMEROTECA-3A-ESTUDIO".equals(space.get("spaceId"))));
+        assertEquals(233.4, ((Number) object("/api/v1/spaces/HEMEROTECA-3A").get("areaSqm")).doubleValue(), 0.01);
     }
 
     @Test
-    @DisplayName("Flujo completo: ingesta protegida → alertas → evaluación con IA caída → historial")
+    @DisplayName("Flujo completo: ingesta protegida → alerta de sobrecupo → evaluación con IA caída")
     void endToEndFlow() throws InterruptedException {
         Instant at = Instant.now().truncatedTo(ChronoUnit.SECONDS).minusSeconds(30);
-        Map<String, Object> body = reading("421-A", at, 40, 1600, 2.5);
+        Map<String, Object> body = reading("421-A", at, 40);
 
         assertEquals(401, post("/api/v1/telemetry", body, Credentials.NONE).getStatusCode().value());
         assertEquals(403, post("/api/v1/telemetry", body, viewer).getStatusCode().value());
         assertEquals(201, post("/api/v1/telemetry", body, SENSOR).getStatusCode().value());
         assertEquals(200, post("/api/v1/telemetry", body, SENSOR).getStatusCode().value());
 
-        List<Map<String, Object>> alerts = awaitAlerts("421-A", 2);
+        List<Map<String, Object>> alerts = awaitAlerts("421-A", 1);
         assertNotNull(alerts);
-        assertTrue(alerts.stream().anyMatch(alert -> "CO2_ALTO".equals(alert.get("type"))));
         assertTrue(alerts.stream().anyMatch(alert -> "SOBRECUPO".equals(alert.get("type"))));
 
         assertEquals(403, post("/api/v1/spaces/421-A/evaluations", Map.of(), viewer).getStatusCode().value());
@@ -203,26 +206,18 @@ class CampusNexoApiIntegrationTest {
         @SuppressWarnings("unchecked")
         Map<String, Object> occupancy = (Map<String, Object>) evaluation.getBody().get("occupancy");
         assertEquals("RESPALDO_LOCAL", occupancy.get("source"));
-        @SuppressWarnings("unchecked")
-        Map<String, Object> recommendation = (Map<String, Object>) evaluation.getBody().get("recommendation");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> hvac = (Map<String, Object>) recommendation.get("hvac");
-        assertEquals("CALEFACCION", hvac.get("mode"));
-
-        List<Map<String, Object>> history = list("/api/v1/spaces/421-A/climate-recommendations?limit=5");
-        assertNotNull(history);
-        assertFalse(history.isEmpty());
+        assertNotNull(evaluation.getBody().get("telemetry"));
 
         Map<String, Object> summary = object("/api/v1/dashboard/summary");
         assertNotNull(summary);
-        assertTrue(((Number) summary.get("alertsLast24h")).longValue() >= 2);
+        assertTrue(((Number) summary.get("alertsLast24h")).longValue() >= 1);
     }
 
     @Test
     @DisplayName("Ruta anterior del dashboard React sigue respondiendo con los mismos campos")
     void legacyOccupancyRoute() {
         ResponseEntity<Map<String, Object>> response = post("/api/v1/occupancy/estimate?spaceId=402-B",
-                Map.of("co2Ppm", 820, "wifiDevices", 20), operator);
+                Map.of("wifiDevices", 20), operator);
         assertEquals(200, response.getStatusCode().value());
         assertNotNull(response.getBody().get("occupancyEstimate"));
         assertNotNull(response.getBody().get("confidencePct"));
@@ -254,7 +249,7 @@ class CampusNexoApiIntegrationTest {
         assertEquals("invalid_request", badLimit.getBody().get("code"));
 
         ResponseEntity<Map<String, Object>> outOfRange = post("/api/v1/telemetry",
-                reading("421-A", Instant.now().minusSeconds(5), 5, 20000, 1), SENSOR);
+                reading("421-A", Instant.now().minusSeconds(5), -5), SENSOR);
         assertEquals(400, outOfRange.getStatusCode().value());
 
         ResponseEntity<Map<String, Object>> missingField = post("/api/v1/telemetry", Map.of("spaceId", "421-A"), SENSOR);
@@ -274,9 +269,7 @@ class CampusNexoApiIntegrationTest {
         Map<String, Object> umbrella = Map.of("track_id", 2, "class", "umbrella", "confidence", 0.60,
                 "bbox", List.of(0.30, 0.30, 0.35, 0.40));
         Map<String, Object> frame = Map.of("space_id", "316-B", "camera_online", true,
-                "detections", List.of(person, umbrella),
-                "sensors", Map.of("co2_ppm", 520, "temperature_c", 22.0, "humidity_pct", 55, "illuminance_lux", 300,
-                        "wifi_devices", 1, "active_power_kw", 1.1));
+                "detections", List.of(person, umbrella));
 
         assertEquals(401, post("/api/v1/twin/telemetry", frame, Credentials.NONE).getStatusCode().value());
         assertEquals(403, post("/api/v1/twin/telemetry", frame, operator).getStatusCode().value());
@@ -284,7 +277,7 @@ class CampusNexoApiIntegrationTest {
         assertEquals(200, response.getStatusCode().value());
         assertEquals("OCUPADO_OPTIMO", response.getBody().get("status"));
         assertNotNull(response.getBody().get("kalman"));
-        assertNotNull(response.getBody().get("thermal"));
+        assertEquals(true, response.getBody().get("sensorsReporting"));
     }
 
     private static Map<String, Object> person(int id, double x, double y) {
@@ -294,9 +287,7 @@ class CampusNexoApiIntegrationTest {
 
     private static Map<String, Object> frame(String spaceId, Instant at, List<Map<String, Object>> detections) {
         return Map.of("space_id", spaceId, "timestamp", at.toString(), "camera_online", true, "emulated", true,
-                "detections", detections,
-                "sensors", Map.of("co2_ppm", 650, "temperature_c", 18.0, "humidity_pct", 55, "illuminance_lux", 400,
-                        "wifi_devices", detections.size(), "active_power_kw", 1.5));
+                "detections", detections);
     }
 
     private static boolean workstationsRegistered;
@@ -371,8 +362,7 @@ class CampusNexoApiIntegrationTest {
         List<Map<String, Object>> escenarios = (List<Map<String, Object>>) response.getBody().get("escenarios");
         assertTrue(escenarios.stream().anyMatch(e -> "CLASE_EN_CURSO".equals(e.get("escenario"))));
 
-        assertEquals(118, list("/api/v1/twin/spaces").size());
-        assertNotNull(object("/api/v1/twin/savings").get("totalKwh"));
+        assertEquals(120, list("/api/v1/twin/spaces").size());
         assertFalse(list("/api/v1/twin/traces?limit=5").isEmpty());
     }
 
@@ -386,7 +376,7 @@ class CampusNexoApiIntegrationTest {
     @DisplayName("Administración: las medidas tomadas en sitio ajustan el salón sin dejar puestos fuera de la rejilla")
     void administrationAdjustsARoom() {
         Map<String, Object> medidas = new java.util.HashMap<>(Map.of("capacity", 38, "areaSqm", 56.5, "seatRows", 6,
-                "seatColumns", 6, "computers", 0, "hvacInstalled", true));
+                "seatColumns", 6, "computers", 0));
         ResponseEntity<Map<String, Object>> adjusted = client.put().uri("/api/v1/admin/spaces/303-A")
                 .header("Authorization", "Bearer " + admin).contentType(MediaType.APPLICATION_JSON).body(medidas)
                 .retrieve().toEntity(OBJECT);
@@ -482,26 +472,25 @@ class CampusNexoApiIntegrationTest {
     }
 
     @Test
-    @DisplayName("Lectura del Arduino por HTTP: luces encendidas en un salón vacío")
-    void arduinoReadingOverHttp() {
-        Map<String, Object> reading = Map.of("space_id", "512-A", "temperature_c", 19.2, "humidity_pct", 53,
-                "illuminance_lux", 390, "lights_on", true, "devices_on", 0);
-        assertEquals(401, post("/api/v1/twin/environment", reading, Credentials.NONE).getStatusCode().value());
-        ResponseEntity<Map<String, Object>> response = post("/api/v1/twin/environment", reading, SENSOR);
-        assertEquals(200, response.getStatusCode().value());
-        assertEquals("LUCES_SIN_OCUPACION", response.getBody().get("condition"));
-        assertEquals(true, response.getBody().get("lightsOn"));
-        assertEquals(19.2, ((Number) response.getBody().get("indoorTemperatureC")).doubleValue(), 1e-9);
-
-        Map<String, Object> twin = object("/api/v1/twin/spaces/512-A");
+    @DisplayName("Disponibilidad: espacios de estudiantes por hora, con el horario académico y sin oficinas")
+    void availability() {
+        assertEquals(401, client.get().uri("/api/v1/disponibilidad").retrieve().toEntity(OBJECT).getStatusCode().value());
+        Map<String, Object> today = get("/api/v1/disponibilidad", viewer, OBJECT).getBody();
         @SuppressWarnings("unchecked")
-        Map<String, Object> space = (Map<String, Object>) twin.get("space");
-        assertEquals(5, ((Number) space.get("floor")).intValue());
-        assertEquals("BLOQUE-A", space.get("buildingId"));
-        assertEquals(36, ((List<?>) twin.get("rois")).size());
+        List<Map<String, Object>> espacios = (List<Map<String, Object>>) today.get("espacios");
+        assertTrue(espacios.stream().anyMatch(e -> "HEMEROTECA-3A-ESTUDIO".equals(e.get("spaceId"))));
+        assertTrue(espacios.stream().noneMatch(e -> "4A-GESTION-HUMANA".equals(e.get("spaceId"))), "las oficinas no");
+        assertTrue(espacios.stream().allMatch(e -> ((List<?>) e.get("franjas")).size() == 15));
 
-        Map<String, Object> missing = Map.of("space_id", "512-A", "temperature_c", 19.2);
-        assertEquals(400, post("/api/v1/twin/environment", missing, SENSOR).getStatusCode().value());
+        // A Monday of the 2620 timetable: 301-A has a class of group 1A from 7:00 to 10:00 and is free from 13:00 to 14:00.
+        Map<String, Object> monday = get("/api/v1/disponibilidad?fecha=2026-11-23", viewer, OBJECT).getBody();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rooms = (List<Map<String, Object>>) monday.get("espacios");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> pilot = (List<Map<String, Object>>) rooms.stream()
+                .filter(e -> "301-A".equals(e.get("spaceId"))).findFirst().orElseThrow().get("franjas");
+        assertEquals("CLASE", pilot.getFirst().get("estado"));
+        assertTrue(pilot.stream().anyMatch(f -> "LIBRE".equals(f.get("estado"))));
     }
 
     @Test
@@ -554,7 +543,7 @@ class CampusNexoApiIntegrationTest {
     void telemetryPagination() {
         Instant at = Instant.now().truncatedTo(ChronoUnit.SECONDS).minusSeconds(600);
         for (int i = 0; i < 5; i++) {
-            assertEquals(201, post("/api/v1/telemetry", reading("422-A", at.plusSeconds(i * 10L), 3, 600, 1), SENSOR)
+            assertEquals(201, post("/api/v1/telemetry", reading("422-A", at.plusSeconds(i * 10L), 3), SENSOR)
                     .getStatusCode().value());
         }
         ResponseEntity<List<Map<String, Object>>> first = get("/api/v1/spaces/422-A/telemetry?limit=3", viewer, LIST);
@@ -626,9 +615,7 @@ class CampusNexoApiIntegrationTest {
         Instant capturedAt = Instant.now().truncatedTo(ChronoUnit.SECONDS).minusSeconds(20);
         Map<String, Object> frame = Map.of("space_id", "318-B", "timestamp", capturedAt.toString(), "camera_online", true,
                 "detections", List.of(Map.of("track_id", 1, "class", "person", "confidence", 0.9,
-                        "bbox", List.of(0.10, 0.10, 0.15, 0.20))),
-                "sensors", Map.of("co2_ppm", 520, "temperature_c", 21.5, "humidity_pct", 55, "illuminance_lux", 300,
-                        "wifi_devices", 1, "active_power_kw", 1.0));
+                        "bbox", List.of(0.10, 0.10, 0.15, 0.20))));
 
         ResponseEntity<Map<String, Object>> first = post("/api/v1/twin/telemetry", frame, SENSOR);
         ResponseEntity<Map<String, Object>> again = post("/api/v1/twin/telemetry", frame, SENSOR);
@@ -636,7 +623,7 @@ class CampusNexoApiIntegrationTest {
         assertEquals(200, first.getStatusCode().value());
         assertEquals(200, again.getStatusCode().value());
         assertEquals(first.getBody().get("updatedAt"), again.getBody().get("updatedAt"));
-        assertNotNull(first.getBody().get("hvacMode"));
+        assertEquals(Boolean.TRUE, first.getBody().get("cameraOnline"));
         List<Map<String, Object>> readings = list("/api/v1/spaces/318-B/telemetry?limit=10");
         assertEquals(1, readings.size());
         assertEquals(1, ((Number) readings.get(0).get("cameraPeople")).intValue());

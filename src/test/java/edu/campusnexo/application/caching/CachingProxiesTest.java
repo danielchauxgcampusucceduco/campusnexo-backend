@@ -65,7 +65,7 @@ class CachingProxiesTest {
         CachingSpaceCatalogRepository catalog = new CachingSpaceCatalogRepository(subject, clock, Duration.ofMinutes(5));
         CampusSpace room = catalog.findById("AULA-301").orElseThrow();
 
-        catalog.save(room.conMedidas(40, 60, room.seatLayout(), room.computers(), room.hvacInstalled()));
+        catalog.save(room.conMedidas(40, 60, room.seatLayout(), room.computers()));
 
         assertEquals(40, subject.findById("AULA-301").orElseThrow().capacity());
         assertEquals(40, catalog.findById("AULA-301").orElseThrow().capacity(), "sin esperar el tiempo de vida");

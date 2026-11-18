@@ -58,6 +58,6 @@ class EmulatedDataServiceTest {
     }
 
     private static TelemetrySnapshot frame(String spaceId, Instant at, boolean emulated) {
-        return new TelemetrySnapshot(spaceId, at, true, List.of(), 600, 21, null, 50, 400, 3, 0.2, true, 0, emulated);
+        return new TelemetrySnapshot(spaceId, at, true, List.of(), null, emulated);
     }
 }

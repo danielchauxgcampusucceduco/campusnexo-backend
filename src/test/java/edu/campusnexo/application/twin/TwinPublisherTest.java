@@ -30,13 +30,11 @@ class TwinPublisherTest {
             }
         };
         RecordingOutboundAdapters.Notifier dashboard = new RecordingOutboundAdapters.Notifier();
-        TwinPublisher publisher = new TwinPublisher(new InMemorySpaceRepositoryPort(),
-                new RecordingOutboundAdapters.Actuator(), new RecordingOutboundAdapters.EquipmentActuator(),
-                List.of(broken, dashboard), new RecentTraceBuffer(10));
+        TwinPublisher publisher = new TwinPublisher(new InMemorySpaceRepositoryPort(), List.of(broken, dashboard),
+                new RecentTraceBuffer(10));
         SpaceTwinState previous = SpaceTwinState.initial(TestData.room("303-A", SpaceType.AULA, 36, 6, 6, 1), TestData.NOW);
 
-        publisher.publish(new TwinOutcome(previous, previous, null,
-                new TraceRecorder("prueba", "303-A", TestData.NOW)));
+        publisher.publish(new TwinOutcome(previous, previous, new TraceRecorder("prueba", "303-A", TestData.NOW)));
 
         assertEquals(1, dashboard.updates.size());
         assertEquals(1, dashboard.traces.size());

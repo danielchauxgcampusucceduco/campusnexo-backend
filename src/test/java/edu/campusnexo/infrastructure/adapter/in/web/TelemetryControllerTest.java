@@ -16,12 +16,11 @@ class TelemetryControllerTest {
     @Test
     void distinguishesNewReadingsFromIdempotentRetries() {
         TelemetryUseCase telemetry = mock(TelemetryUseCase.class);
-        Telemetry recorded = new Telemetry("A-301", Instant.EPOCH, 12, 2, 8, 650, 22, 50, 300, 1.5);
+        Telemetry recorded = new Telemetry("A-301", Instant.EPOCH, 12, 2, 8, null);
         when(telemetry.ingest(any())).thenReturn(new TelemetryUseCase.IngestResult(recorded, true))
                 .thenReturn(new TelemetryUseCase.IngestResult(recorded, false));
         TelemetryController controller = new TelemetryController(telemetry);
-        TelemetryRequest request = new TelemetryRequest("A-301", Instant.EPOCH, 12, 2, 8,
-                650.0, 22.0, 50.0, 300.0, 1.5);
+        TelemetryRequest request = new TelemetryRequest("A-301", Instant.EPOCH, 12, 2, 8);
 
         var created = controller.ingest(request);
         var duplicate = controller.ingest(request);

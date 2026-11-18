@@ -33,8 +33,7 @@ class HttpOccupancyEstimatorAdapterTest {
         server.expect(requestTo("http://ai.test/v1/occupancy/estimate"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(content().json("""
-                        {"space_id":"A-301","yolo_people":12,"co2_ppm":720.0,"wifi_devices":10,"outdoor_co2_ppm":420.0,
-                         "area_sqm":48.0,"capacity":32}
+                        {"space_id":"A-301","yolo_people":12,"wifi_devices":10,"area_sqm":48.0,"capacity":32}
                         """))
                 .andRespond(withSuccess("""
                         {"space_id":"A-301","occupancy_estimate":14,"confidence_pct":82.5,
@@ -43,7 +42,7 @@ class HttpOccupancyEstimatorAdapterTest {
         HttpOccupancyEstimatorAdapter adapter = new HttpOccupancyEstimatorAdapter(
                 builder.baseUrl("http://ai.test").build());
 
-        var result = adapter.estimate(new OccupancyQuery("A-301", 32, 48, 12, 720, 10, 420));
+        var result = adapter.estimate(new OccupancyQuery("A-301", 32, 48, 12, 10));
 
         server.verify();
         assertEquals("A-301", result.spaceId());
@@ -68,7 +67,7 @@ class HttpOccupancyEstimatorAdapterTest {
                 builder.baseUrl("http://ai.test").build());
 
         org.junit.jupiter.api.Assertions.assertThrows(OccupancyEstimatorInvalidResponseException.class,
-                () -> adapter.estimate(new OccupancyQuery("A-301", 32, 48, null, 720, 10, 420)));
+                () -> adapter.estimate(new OccupancyQuery("A-301", 32, 48, null, 10)));
         server.verify();
     }
 
@@ -82,7 +81,7 @@ class HttpOccupancyEstimatorAdapterTest {
                 builder.baseUrl("http://ai.test").build());
 
         org.junit.jupiter.api.Assertions.assertThrows(OccupancyEstimatorUnavailableException.class,
-                () -> adapter.estimate(new OccupancyQuery("A-301", 32, 48, null, 720, 10, 420)));
+                () -> adapter.estimate(new OccupancyQuery("A-301", 32, 48, null, 10)));
         server.verify();
     }
 
@@ -96,7 +95,7 @@ class HttpOccupancyEstimatorAdapterTest {
                 builder.baseUrl("http://ai.test").build());
 
         org.junit.jupiter.api.Assertions.assertThrows(OccupancyEstimatorInvalidResponseException.class,
-                () -> adapter.estimate(new OccupancyQuery("A-301", 32, 48, null, 720, 10, 420)));
+                () -> adapter.estimate(new OccupancyQuery("A-301", 32, 48, null, 10)));
         server.verify();
     }
 
@@ -110,7 +109,7 @@ class HttpOccupancyEstimatorAdapterTest {
                 builder.baseUrl("http://ai.test").build());
 
         org.junit.jupiter.api.Assertions.assertThrows(OccupancyEstimatorUnavailableException.class,
-                () -> adapter.estimate(new OccupancyQuery("A-301", 32, 48, null, 720, 10, 420)));
+                () -> adapter.estimate(new OccupancyQuery("A-301", 32, 48, null, 10)));
         server.verify();
     }
 
@@ -126,7 +125,7 @@ class HttpOccupancyEstimatorAdapterTest {
         HttpOccupancyEstimatorAdapter adapter = new HttpOccupancyEstimatorAdapter(
                 HttpOccupancyEstimatorAdapter.withApiKey(builder, "clave-de-prueba").baseUrl("http://ai.test").build());
 
-        adapter.estimate(new OccupancyQuery("A-301", 32, 48, null, 720, 10, 420));
+        adapter.estimate(new OccupancyQuery("A-301", 32, 48, null, 10));
         server.verify();
     }
 
@@ -143,7 +142,7 @@ class HttpOccupancyEstimatorAdapterTest {
 
         OccupancyEstimatorUnavailableException limited = org.junit.jupiter.api.Assertions.assertThrows(
                 OccupancyEstimatorUnavailableException.class,
-                () -> adapter.estimate(new OccupancyQuery("A-301", 32, 48, null, 720, 10, 420)));
+                () -> adapter.estimate(new OccupancyQuery("A-301", 32, 48, null, 10)));
         assertEquals(java.util.Optional.of(java.time.Duration.ofSeconds(120)), limited.retryAfter());
         server.verify();
     }

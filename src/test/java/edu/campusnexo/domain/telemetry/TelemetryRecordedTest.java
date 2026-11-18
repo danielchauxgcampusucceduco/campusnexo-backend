@@ -11,7 +11,7 @@ class TelemetryRecordedTest {
 
     @Test
     void couplesThePersistedReadingWithItsCatalogSpace() {
-        var reading = TestData.reading("AULA-301", TestData.NOW, 8, 600, 1.5);
+        var reading = TestData.reading("AULA-301", TestData.NOW, 8);
         var space = TestData.andeanClassroom();
 
         assertEquals(reading, new TelemetryRecorded(reading, space).telemetry());
@@ -22,6 +22,6 @@ class TelemetryRecordedTest {
     void rejectsEventsWithoutTheReadingOrSpace() {
         assertThrows(DomainValidationException.class, () -> new TelemetryRecorded(null, TestData.andeanClassroom()));
         assertThrows(DomainValidationException.class,
-                () -> new TelemetryRecorded(TestData.reading("AULA-301", TestData.NOW, 8, 600, 1.5), null));
+                () -> new TelemetryRecorded(TestData.reading("AULA-301", TestData.NOW, 8), null));
     }
 }

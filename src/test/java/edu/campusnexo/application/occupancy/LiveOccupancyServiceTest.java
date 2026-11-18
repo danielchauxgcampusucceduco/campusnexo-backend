@@ -26,7 +26,7 @@ class LiveOccupancyServiceTest {
     @Test
     @DisplayName("Calcula puestos libres y estado de saturación de la biblioteca")
     void libraryFreeSeats() {
-        telemetry.save(TestData.reading("BIB-PISO-2", TestData.NOW.minusSeconds(120), 108, 900, 3));
+        telemetry.save(TestData.reading("BIB-PISO-2", TestData.NOW.minusSeconds(120), 108));
         List<SpaceOccupancyStatus> result = service.current(SpaceType.BIBLIOTECA);
         assertEquals(1, result.size());
         assertEquals(12, result.get(0).freeSeats());
@@ -37,8 +37,8 @@ class LiveOccupancyServiceTest {
     @Test
     @DisplayName("Sin lecturas recientes el estado es SIN_DATOS y se ordena al final")
     void staleReadingsHaveNoData() {
-        telemetry.save(TestData.reading("BIB-PISO-2", TestData.NOW.minus(Duration.ofHours(2)), 10, 600, 1));
-        telemetry.save(TestData.reading("AULA-301", TestData.NOW.minusSeconds(60), 8, 600, 1));
+        telemetry.save(TestData.reading("BIB-PISO-2", TestData.NOW.minus(Duration.ofHours(2)), 10));
+        telemetry.save(TestData.reading("AULA-301", TestData.NOW.minusSeconds(60), 8));
         List<SpaceOccupancyStatus> result = service.current(null);
         assertEquals("AULA-301", result.get(0).space().spaceId());
         assertEquals(OccupancyStatus.LIBRE, result.get(0).status());

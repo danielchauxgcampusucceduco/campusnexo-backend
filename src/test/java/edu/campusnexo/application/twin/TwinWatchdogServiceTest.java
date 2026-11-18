@@ -24,8 +24,7 @@ class TwinWatchdogServiceTest {
             fixture.reevaluation, new AlertRecorder(alertRows), Duration.ofSeconds(30), Duration.ofMinutes(15));
 
     private void frame() {
-        fixture.pipeline.process(new TelemetrySnapshot("LAB-IA-102", fixture.clock.instant(), true, List.of(), 600, 21.0,
-                14.0, 55.0, 300.0, 0, 1.0), "HTTPS · prueba");
+        fixture.pipeline.process(new TelemetrySnapshot("LAB-IA-102", fixture.clock.instant(), true, List.of()), "HTTPS · prueba");
     }
 
     @Test

@@ -53,7 +53,7 @@ class MongoTwinHistoryAdapterTest {
         SpaceTwinState inClass = empty.toBuilder()
                 .occupancy(new OccupancyBelief(25, 1.0, TestData.NOW.plusSeconds(60)))
                 .presence(new Presence(1, 24))
-                .sensing(new Sensing(true, TestData.NOW.plusSeconds(60), null, true))
+                .sensing(new Sensing(true, TestData.NOW.plusSeconds(60), true))
                 .updatedAt(TestData.NOW.plusSeconds(60))
                 .build();
 

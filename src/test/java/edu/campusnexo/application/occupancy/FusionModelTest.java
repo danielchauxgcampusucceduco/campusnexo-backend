@@ -32,14 +32,14 @@ class FusionModelTest {
     @DisplayName("La fusión coincide con los casos de referencia compartidos con el servicio de IA")
     void matchesTheSharedReferenceCases() throws IOException {
         List<String[]> cases = cases();
-        assertEquals(6, cases.size());
+        assertEquals(7, cases.size());
         for (String[] row : cases) {
             Integer camera = row[1].isBlank() ? null : Integer.valueOf(row[1]);
-            FusedOccupancy fused = fusion.fuse(camera, Double.parseDouble(row[2]), Integer.parseInt(row[3]),
-                    Double.parseDouble(row[4]), Double.parseDouble(row[5]));
-            assertEquals(Double.parseDouble(row[6]), fused.estimate(), 0.01, row[0] + " estimate");
-            assertEquals(Double.parseDouble(row[7]), fused.standardDeviation(), 0.01, row[0] + " sigma");
-            assertEquals(Double.parseDouble(row[9]), fused.confidencePct(Integer.parseInt(row[8])), 0.05, row[0] + " confidence");
+            Integer wifi = row[2].isBlank() ? null : Integer.valueOf(row[2]);
+            FusedOccupancy fused = fusion.fuse(camera, wifi);
+            assertEquals(Double.parseDouble(row[4]), fused.estimate(), 0.01, row[0] + " estimate");
+            assertEquals(Double.parseDouble(row[5]), fused.standardDeviation(), 0.01, row[0] + " sigma");
+            assertEquals(Double.parseDouble(row[6]), fused.confidencePct(Integer.parseInt(row[3])), 0.05, row[0] + " confidence");
         }
     }
 }

@@ -25,7 +25,7 @@ class TelemetryEventPublisherTest {
         TelemetryEventPublisher publisher = new TelemetryEventPublisher(List.of(failing, healthy),
                 (observer, event, failure) -> reported.add(failure));
 
-        publisher.publish(new TelemetryRecorded(TestData.reading("AULA-301", TestData.NOW, 10, 600, 1),
+        publisher.publish(new TelemetryRecorded(TestData.reading("AULA-301", TestData.NOW, 10),
                 TestData.andeanClassroom()));
 
         assertEquals(List.of("failing", "healthy"), calls);
@@ -51,7 +51,7 @@ class TelemetryEventPublisherTest {
         TelemetryEventPublisher publisher = new TelemetryEventPublisher(List.of(flaky, broken),
                 (observer, event, failure) -> reported.add(failure), Runnable::run, 3, java.time.Duration.ZERO);
 
-        publisher.publish(new TelemetryRecorded(TestData.reading("AULA-301", TestData.NOW, 10, 600, 1),
+        publisher.publish(new TelemetryRecorded(TestData.reading("AULA-301", TestData.NOW, 10),
                 TestData.andeanClassroom()));
 
         assertEquals(3, calls.size());
@@ -67,7 +67,7 @@ class TelemetryEventPublisherTest {
         TelemetryEventPublisher publisher = new TelemetryEventPublisher(List.of(event -> calls.add("observer")),
                 (observer, event, failure) -> { }, queued::add, 1, java.time.Duration.ZERO);
 
-        publisher.publish(new TelemetryRecorded(TestData.reading("AULA-301", TestData.NOW, 10, 600, 1),
+        publisher.publish(new TelemetryRecorded(TestData.reading("AULA-301", TestData.NOW, 10),
                 TestData.andeanClassroom()));
         assertEquals(0, calls.size());
         queued.forEach(Runnable::run);

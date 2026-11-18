@@ -4,8 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import edu.campusnexo.domain.twin.HvacControlState;
+import edu.campusnexo.domain.twin.SpaceStatus;
+import edu.campusnexo.domain.twin.TelemetrySnapshot;
 import edu.campusnexo.support.TwinTestFixture;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -17,26 +19,20 @@ class TwinQueryServiceTest {
         var views = fixture.queries.spaces();
 
         assertEquals(fixture.catalog.listSpaces(null).size(), views.size());
-        assertTrue(views.stream().allMatch(view -> view.state().hvacState() == (view.space().hvacInstalled()
-                ? HvacControlState.APAGADO : HvacControlState.SIN_CLIMATIZACION)));
+        assertTrue(views.stream().allMatch(view -> view.state().status() == SpaceStatus.LIBRE
+                && !view.state().sensing().reporting()));
         assertTrue(fixture.twins.findAllTwins().isEmpty());
         assertTrue(views.stream().allMatch(view -> view.rois() != null));
     }
 
     @Test
-    void aggregatesSavingsAndReturnsTheRequestedNumberOfRecentTraces() {
-        fixture.pipeline.process(
-                new edu.campusnexo.domain.twin.TelemetrySnapshot("LAB-IA-102", fixture.clock.instant(), true,
-                        java.util.List.of(), 430, 19.5, 13.5, 52, 400, 0, 1.0),
+    void returnsTheRequestedNumberOfRecentTraces() {
+        fixture.pipeline.process(new TelemetrySnapshot("LAB-IA-102", fixture.clock.instant(), true, List.of()),
                 "MQTT · test");
 
-        var savings = fixture.queries.savings();
-
-        long withUnit = fixture.catalog.listSpaces(null).stream().filter(space -> space.hvacInstalled()).count();
-        assertEquals(withUnit, savings.spaces().size(), "solo los espacios con equipo pueden ahorrar");
-        assertTrue(savings.totalKwh() >= 0);
         assertEquals(1, fixture.queries.recentTraces(1).size());
         assertNotNull(fixture.queries.space("LAB-IA-102").state());
+        assertTrue(fixture.queries.space("LAB-IA-102").state().sensing().reporting());
     }
 
     @Test

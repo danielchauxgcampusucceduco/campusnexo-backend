@@ -50,26 +50,8 @@ class HttpAiAdvisorAdapterTest {
     }
 
     @Test
-    void sendsReadingsAndMapsAnomalies() {
-        server.expect(requestTo("http://ai.test/v1/sensors/anomalies"))
-                .andExpect(content().json("""
-                        {"readings":[{"space_id":"301-A","co2_ppm":9000.0,"temperature_c":22.0}]}
-                        """))
-                .andRespond(withSuccess("""
-                        {"anomalies":[{"space_id":"301-A","sensor":"co2_ppm","timestamp":"2026-10-24T13:59:00Z",
-                         "kind":"FUERA_DE_RANGO","value":9000.0,"detail":"fuera de 300–5000 ppm"}],"readings_analyzed":1}
-                        """, MediaType.APPLICATION_JSON));
-
-        List<AiAdvisorPort.SensorAnomaly> anomalies = adapter.detectAnomalies(
-                List.of(TestData.reading("301-A", TestData.NOW.minusSeconds(60), 10, 9_000, 1.0)));
-
-        assertEquals("FUERA_DE_RANGO", anomalies.getFirst().kind());
-        assertEquals(Instant.parse("2026-10-24T13:59:00Z"), anomalies.getFirst().at());
-    }
-
-    @Test
     void sendsHistoryAndRejectsAForecastOfAnotherRoom() {
-        OccupancySample sample = new OccupancySample(TestData.NOW, "301-A", 12, 12, 1, 1, 11, 12, 800, true, true, List.of());
+        OccupancySample sample = new OccupancySample(TestData.NOW, "301-A", 12, 12, 1, 1, 11, 12, true, true, List.of());
         server.expect(requestTo("http://ai.test/v1/occupancy/forecast"))
                 .andExpect(content().json("""
                         {"space_id":"301-A","capacity":30,"timezone":"America/Bogota","horizon_hours":6,
@@ -105,7 +87,7 @@ class HttpAiAdvisorAdapterTest {
                         .contentType(MediaType.APPLICATION_JSON));
 
         assertThrows(AiAdvisorPort.AiRejectedRequestException.class, () -> adapter.forecastOccupancy("301-A", 30,
-                List.of(new OccupancySample(TestData.NOW, "301-A", 5, 5, 1, 1, 4, 5, 600, true, false, List.of())), 12,
+                List.of(new OccupancySample(TestData.NOW, "301-A", 5, 5, 1, 1, 4, 5, true, false, List.of())), 12,
                 "America/Bogota"));
     }
 }

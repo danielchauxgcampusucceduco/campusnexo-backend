@@ -14,7 +14,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class OccupancyDecoratorsTest {
-    private static final OccupancyQuery QUERY = new OccupancyQuery("AULA-301", 32, 48, null, 820, 20, 420);
+    private static final OccupancyQuery QUERY = new OccupancyQuery("AULA-301", 32, 48, null, 20);
     private static final OccupancyEstimate AI_RESULT =
             new OccupancyEstimate("AULA-301", 18, 82, false, true, OccupancySource.SERVICIO_IA, "ok");
 
@@ -61,13 +61,12 @@ class OccupancyDecoratorsTest {
     }
 
     @Test
-    @DisplayName("La heurística local combina CO2 y Wi-Fi y reporta confianza baja")
+    @DisplayName("Sin cámara, la heurística local usa el Wi-Fi y reporta confianza baja")
     void localHeuristic() {
         OccupancyEstimate result = new LocalHeuristicOccupancyEstimator().estimate(QUERY);
-        // Same fusion as the twin. CO2: (820 − 420)·48/1000 = 19.2, σ = 0.35·19.2 + 2 = 8.72;
-        // Wi-Fi: 20·0.8 = 16, σ = 0.30·16 + 2 = 6.8. Inverse-variance mean = 17.2 → 17, σ = 5.36.
-        assertEquals(17, result.occupancyEstimate());
-        assertEquals(83.2, result.confidencePct(), 0.05, "1 − σ/capacidad = 1 − 5.36/32");
+        // Same fusion as the twin. Wi-Fi only: 20·0.8 = 16 people, σ = 0.30·16 + 2 = 6.8.
+        assertEquals(16, result.occupancyEstimate());
+        assertEquals(78.8, result.confidencePct(), 0.05, "1 − σ/capacidad = 1 − 6.8/32");
         assertEquals(OccupancySource.RESPALDO_LOCAL, result.source());
     }
 }

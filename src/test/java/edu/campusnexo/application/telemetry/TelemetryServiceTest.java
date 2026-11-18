@@ -32,7 +32,7 @@ class TelemetryServiceTest {
             Duration.ofMinutes(5), Duration.ofDays(30));
 
     private static RecordTelemetryCommand command(String spaceId, Instant at) {
-        return new RecordTelemetryCommand(spaceId, at, 18, 0, 21, 820, 23.1, 58, 410, 2.4);
+        return new RecordTelemetryCommand(spaceId, at, 18, 0, 21, null);
     }
 
     @Test
@@ -78,7 +78,7 @@ class TelemetryServiceTest {
     void keysetPagination() {
         for (int minute = 0; minute < 3; minute++) {
             for (String space : java.util.List.of("AULA-301", "BIB-PISO-2")) {
-                repository.save(TestData.reading(space, TestData.NOW.minus(java.time.Duration.ofMinutes(minute)), 5, 600, 1));
+                repository.save(TestData.reading(space, TestData.NOW.minus(java.time.Duration.ofMinutes(minute)), 5));
             }
         }
         java.util.List<edu.campusnexo.domain.telemetry.Telemetry> first = service.recent(null, 4);

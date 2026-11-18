@@ -36,7 +36,7 @@ class AlertRecorderTest {
     }
 
     private static Alert alert(Instant at) {
-        return Alert.raise("A-301", AlertType.CO2_ALTO, AlertSeverity.ADVERTENCIA, at,
+        return Alert.raise("A-301", AlertType.FALLO_CAMARA, AlertSeverity.ADVERTENCIA, at,
                 "CO2 alto", 1200, 1000);
     }
 }

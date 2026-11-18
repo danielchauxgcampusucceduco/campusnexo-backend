@@ -13,7 +13,7 @@ class KalmanParametersTest {
         KalmanParameters parameters = KalmanParameters.defaults();
 
         assertEquals(0.8, parameters.processNoisePerMinute());
-        assertEquals(420, parameters.outdoorCo2Ppm());
+        assertEquals(0.64, parameters.cameraVariance());
         assertEquals(0.8, parameters.peoplePerDevice());
     }
 
@@ -21,7 +21,6 @@ class KalmanParametersTest {
     void rejectsZeroMeasurementVariance() {
         KalmanParameters defaults = KalmanParameters.defaults();
         assertThrows(DomainValidationException.class, () -> new KalmanParameters(
-                defaults.processNoisePerMinute(), 0, defaults.co2RelativeError(), defaults.wifiRelativeError(),
-                defaults.peoplePerDevice(), defaults.outdoorCo2Ppm(), defaults.co2PpmPerPersonSqm()));
+                defaults.processNoisePerMinute(), 0, defaults.wifiRelativeError(), defaults.peoplePerDevice()));
     }
 }

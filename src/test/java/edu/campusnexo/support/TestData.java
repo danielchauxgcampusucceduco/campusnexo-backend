@@ -1,12 +1,8 @@
 package edu.campusnexo.support;
 
 import edu.campusnexo.domain.catalog.CampusSpace;
-import edu.campusnexo.domain.catalog.ClimateProfile;
 import edu.campusnexo.domain.catalog.SeatLayout;
 import edu.campusnexo.domain.catalog.SpaceType;
-import edu.campusnexo.domain.climate.ClimateContext;
-import edu.campusnexo.domain.climate.HvacMode;
-import edu.campusnexo.domain.climate.HvacState;
 import edu.campusnexo.domain.telemetry.Telemetry;
 import java.time.Instant;
 import java.util.List;
@@ -20,28 +16,33 @@ public final class TestData {
 
     public static CampusSpace andeanClassroom() {
         return new CampusSpace("AULA-301", "Aula 301", SpaceType.AULA, 32, 48, "BLQ-ING-SUR", "Bloque C",
-                "SEDE-ANDINA", "Sede Andina", "Pasto", ClimateProfile.SEDE_ANDINA, 14.5, 865);
+                "SEDE-ANDINA", "Sede Andina", "Pasto");
     }
 
     public static CampusSpace tropicalClassroom() {
         return new CampusSpace("AULA-MAGNA-204", "Aula Magna 204", SpaceType.AULA, 48, 72, "BLQ-AUL-NORTE",
-                "Aulas Magnas", "SEDE-TROPICAL", "Sede Tropical", "Barranquilla", ClimateProfile.SEDE_TROPICAL,
-                31.8, 1020);
+                "Aulas Magnas", "SEDE-TROPICAL", "Sede Tropical", "Barranquilla");
     }
 
     public static CampusSpace mildClassroom() {
         return new CampusSpace("AULA-ADM-101", "Aula 101", SpaceType.AULA, 32, 48, "BLQ-ADM-OCC", "Bloque A",
-                "SEDE-TEMPLADA", "Sede Templada", "Medellín", ClimateProfile.SEDE_TEMPLADA, 22.8, 940);
+                "SEDE-TEMPLADA", "Sede Templada", "Medellín");
     }
 
     public static CampusSpace library() {
         return new CampusSpace("BIB-PISO-2", "Biblioteca - Piso 2", SpaceType.BIBLIOTECA, 120, 210, "BLQ-BIB-SUR",
-                "Biblioteca Central", "SEDE-ANDINA", "Sede Andina", "Pasto", ClimateProfile.SEDE_ANDINA, 14.5, 865);
+                "Biblioteca Central", "SEDE-ANDINA", "Sede Andina", "Pasto");
     }
 
     public static CampusSpace lab() {
         return new CampusSpace("LAB-IA-102", "Laboratorio IA 102", SpaceType.LABORATORIO, 24, 54, "BLQ-ING-SUR",
-                "Bloque C", "SEDE-ANDINA", "Sede Andina", "Pasto", ClimateProfile.SEDE_ANDINA, 14.5, 865);
+                "Bloque C", "SEDE-ANDINA", "Sede Andina", "Pasto");
+    }
+
+    /** A staff office: not a student space, so the camera does not follow it and it is never offered as available. */
+    public static CampusSpace office() {
+        return new CampusSpace("4A-GESTION-HUMANA", "Gestión Humana", SpaceType.ADMINISTRATIVA, 2, 7.8, "BLOQUE-A",
+                "Bloque A", "UCC-PASTO", "Campus Pasto", "Pasto");
     }
 
     /** Room of the UCC Pasto campus, e.g. {@code room("203-A", SpaceType.AULA, 30, 5, 6, 1)}. */
@@ -49,11 +50,11 @@ public final class TestData {
         String block = code.endsWith("A") || code.matches("\\dA-.*") ? "BLOQUE-A" : "BLOQUE-B";
         return new CampusSpace(code, "Salón " + code, type, capacity, capacity * 1.8, block,
                 block.equals("BLOQUE-A") ? "Bloque A" : "Bloque B", "UCC-PASTO", "Campus Pasto", "Pasto",
-                ClimateProfile.SEDE_ANDINA, 13.5, 865, Character.isDigit(code.charAt(0)) ? code.charAt(0) - '0' : 2,
+                Character.isDigit(code.charAt(0)) ? code.charAt(0) - '0' : 2,
                 rows == null ? null : new SeatLayout(rows, columns), computers);
     }
 
-    /** Rooms of the campus plan the twin tests use, plus the two pilot rooms; the library has no climate unit. */
+    /** Rooms of the campus plan the twin tests use, plus the two pilot rooms and one office. */
     public static List<CampusSpace> campusRooms() {
         return Stream.of(
                 room("420-A", SpaceType.AULA, 30, 5, 6, 1),
@@ -66,21 +67,14 @@ public final class TestData {
                 room("309-A", SpaceType.SALA_COMPUTO, 24, 4, 6, 24),
                 room("3B-DE-BIOPROCESOS-LABORATORIO", SpaceType.LABORATORIO, 15, 3, 5, 3),
                 room("2B-LABORATORIO-MULTIFUNCIONAL", SpaceType.LABORATORIO, 35, 5, 7, 8),
-                room("BIBLIOTECA-2A", SpaceType.BIBLIOTECA, 120, null, null, 15).withHvacInstalled(false),
+                room("BIBLIOTECA-2A", SpaceType.BIBLIOTECA, 120, null, null, 15),
                 room("301-A", SpaceType.SALA_COMPUTO, 30, 5, 6, 30),
-                room("303-A", SpaceType.AULA, 36, 6, 6, 1)).toList();
+                room("303-A", SpaceType.AULA, 36, 6, 6, 1),
+                office()).toList();
     }
 
-    public static Telemetry reading(String spaceId, Instant at, int people, double co2, double powerKw) {
-        return new Telemetry(spaceId, at, people, 0, people, co2, 22, 55, 300, powerKw);
-    }
-
-    public static ClimateContext context(int occupancy, double indoorC, double outsideC, double humidity,
-                                         double lux, double co2) {
-        return new ClimateContext(occupancy, co2, indoorC, outsideC, humidity, lux, HvacState.initial());
-    }
-
-    public static ClimateContext context(int occupancy, double indoorC, HvacMode current, int minutesInMode) {
-        return new ClimateContext(occupancy, 600, indoorC, 18, 50, 300, new HvacState(current, minutesInMode));
+    /** A reading of a counter (no separate camera count, no Wi-Fi). */
+    public static Telemetry reading(String spaceId, Instant at, int people) {
+        return new Telemetry(spaceId, at, people, 0);
     }
 }

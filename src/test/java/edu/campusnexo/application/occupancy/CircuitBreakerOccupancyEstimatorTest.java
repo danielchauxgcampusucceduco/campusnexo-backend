@@ -20,7 +20,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class CircuitBreakerOccupancyEstimatorTest {
-    private static final OccupancyQuery QUERY = new OccupancyQuery("AULA-301", 32, 48, 12, 820, 20, 420);
+    private static final OccupancyQuery QUERY = new OccupancyQuery("AULA-301", 32, 48, 12, 20);
     private static final OccupancyEstimate OK =
             new OccupancyEstimate("AULA-301", 12, 90, true, true, OccupancySource.SERVICIO_IA, "ok");
 

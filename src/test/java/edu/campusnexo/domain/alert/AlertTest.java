@@ -14,7 +14,7 @@ class AlertTest {
     void raiseCreatesAnAuditableAlertWithMeasuredAndThresholdValues() {
         Instant at = Instant.parse("2026-10-21T15:00:00Z");
 
-        Alert alert = Alert.raise("AULA-301", AlertType.CO2_ALTO, AlertSeverity.ADVERTENCIA,
+        Alert alert = Alert.raise("AULA-301", AlertType.FALLO_CAMARA, AlertSeverity.ADVERTENCIA,
                 at, "Ventilar", 1_200, 1_000);
 
         assertNotNull(alert.alertId());
@@ -26,8 +26,8 @@ class AlertTest {
     @Test
     void rejectsAnAlertWithoutItsSpaceOrTimestamp() {
         assertThrows(DomainValidationException.class, () -> Alert.raise(
-                " ", AlertType.CO2_ALTO, AlertSeverity.CRITICA, Instant.now(), "Ventilar", 1_200, 1_000));
+                " ", AlertType.FALLO_CAMARA, AlertSeverity.CRITICA, Instant.now(), "Ventilar", 1_200, 1_000));
         assertThrows(DomainValidationException.class, () -> Alert.raise(
-                "AULA-301", AlertType.CO2_ALTO, AlertSeverity.CRITICA, null, "Ventilar", 1_200, 1_000));
+                "AULA-301", AlertType.FALLO_CAMARA, AlertSeverity.CRITICA, null, "Ventilar", 1_200, 1_000));
     }
 }

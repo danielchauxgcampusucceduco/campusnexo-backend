@@ -26,7 +26,7 @@ class EspacioAdminServiceTest {
     @Test
     @DisplayName("Las medidas tomadas en sitio reemplazan las ilustrativas del salón piloto")
     void adjustsThePilotRoom() {
-        var ajustado = service.ajustar("301-A", new Medidas(28, 58.5, 4, 7, 28, true));
+        var ajustado = service.ajustar("301-A", new Medidas(28, 58.5, 4, 7, 28));
 
         assertEquals(28, catalog.findById("301-A").orElseThrow().capacity());
         assertEquals(58.5, ajustado.areaSqm());
@@ -37,11 +37,11 @@ class EspacioAdminServiceTest {
     @Test
     @DisplayName("Un salón puede quedar sin rejilla de puestos, pero filas y columnas van juntas")
     void seatGridIsAllOrNothing() {
-        assertNull(service.ajustar("301-A", new Medidas(30, 60, null, null, 0, true)).seatLayout());
+        assertNull(service.ajustar("301-A", new Medidas(30, 60, null, null, 0)).seatLayout());
         assertThrows(DomainValidationException.class,
-                () -> service.ajustar("301-A", new Medidas(30, 60, 5, null, 30, true)));
+                () -> service.ajustar("301-A", new Medidas(30, 60, 5, null, 30)));
         assertThrows(DomainValidationException.class,
-                () -> service.ajustar("301-A", new Medidas(0, 60, 5, 6, 30, true)));
+                () -> service.ajustar("301-A", new Medidas(0, 60, 5, 6, 30)));
     }
 
     @Test
@@ -50,7 +50,7 @@ class EspacioAdminServiceTest {
         activos.save("301-A", 30, Activo.registrar(TipoActivo.SILLA, "301A-SILLA-30", 0, false));
 
         var error = assertThrows(ConflictException.class,
-                () -> service.ajustar("301-A", new Medidas(24, 50, 4, 6, 24, true)));
+                () -> service.ajustar("301-A", new Medidas(24, 50, 4, 6, 24)));
 
         assertEquals("puestos_fuera_de_rejilla", error.code());
         assertEquals(30, catalog.findById("301-A").orElseThrow().capacity(), "nada cambia");
@@ -59,6 +59,6 @@ class EspacioAdminServiceTest {
     @Test
     @DisplayName("Un salón que no existe no se crea al ajustarlo")
     void unknownRoom() {
-        assertThrows(SpaceNotFoundException.class, () -> service.ajustar("999-Z", new Medidas(10, 20, null, null, 0, false)));
+        assertThrows(SpaceNotFoundException.class, () -> service.ajustar("999-Z", new Medidas(10, 20, null, null, 0)));
     }
 }
