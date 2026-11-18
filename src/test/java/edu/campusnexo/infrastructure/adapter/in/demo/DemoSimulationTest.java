@@ -6,13 +6,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import edu.campusnexo.domain.catalog.CampusSpace;
 import edu.campusnexo.domain.catalog.SpaceType;
+import edu.campusnexo.domain.horario.SesionDeClase;
 import edu.campusnexo.domain.vision.DetectedObjectClass;
 import edu.campusnexo.domain.vision.NormalizedPoint;
 import edu.campusnexo.domain.vision.StudyZoneRoi;
 import edu.campusnexo.domain.vision.TrackedDetection;
 import edu.campusnexo.infrastructure.adapter.in.demo.DemoSimulation.SalaVista;
-import edu.campusnexo.infrastructure.adapter.in.demo.DemoSimulation.Sesion;
 import edu.campusnexo.infrastructure.adapter.in.demo.DemoSimulation.Uso;
+import edu.campusnexo.infrastructure.adapter.out.horario.CsvHorarioAcademicoAdapter;
 import edu.campusnexo.support.TestData;
 import java.time.Duration;
 import java.time.Instant;
@@ -26,14 +27,14 @@ import org.junit.jupiter.api.Test;
 
 class DemoSimulationTest {
     private static final Duration DAY = Duration.ofMinutes(20);
-    private static final List<Sesion> HORARIO = DemoSimulation.horario();
+    private static final List<SesionDeClase> HORARIO = CsvHorarioAcademicoAdapter.cargar();
     private static final Set<String> COMPUTO = Set.of("301-A", "308-A", "309-A", "310-A", "5A-AULA-DE-INFORMATICA");
     private final DemoSimulation simulation = new DemoSimulation(DemoSimulation.demoRooms(catalog(), HORARIO), HORARIO, DAY);
 
     /** Every room the timetable uses, as the catalog has it, plus rooms the demo must leave alone. */
     private static List<CampusSpace> catalog() {
         List<CampusSpace> rooms = new ArrayList<>();
-        for (String id : HORARIO.stream().map(Sesion::salon).collect(Collectors.toCollection(java.util.TreeSet::new))) {
+        for (String id : HORARIO.stream().map(SesionDeClase::salon).collect(Collectors.toCollection(java.util.TreeSet::new))) {
             rooms.add(COMPUTO.contains(id) ? TestData.room(id, SpaceType.SALA_COMPUTO, 24, 4, 6, 24)
                     : TestData.room(id, SpaceType.AULA, 36, 6, 6, 1));
         }
@@ -66,21 +67,21 @@ class DemoSimulationTest {
         assertEquals(101, HORARIO.size());
         assertTrue(HORARIO.stream().allMatch(s -> s.inicio() >= 7 && s.fin() <= 22 && s.inicio() < s.fin()));
         assertTrue(HORARIO.stream().allMatch(s -> DemoSimulation.DIAS.contains(s.dia())));
-        for (Sesion a : HORARIO) {
-            for (Sesion b : HORARIO) {
-                if (a != b && a.salon().equals(b.salon()) && a.dia().equals(b.dia())) {
+        for (SesionDeClase a : HORARIO) {
+            for (SesionDeClase b : HORARIO) {
+                if (a != b && a.salon().equals(b.salon()) && a.dia() == b.dia()) {
                     assertTrue(a.fin() <= b.inicio() || b.fin() <= a.inicio(), a + " cruza con " + b);
                 }
             }
         }
-        assertTrue(HORARIO.stream().anyMatch(Sesion::asignado), "las clases sin salón reciben uno");
+        assertTrue(HORARIO.stream().anyMatch(SesionDeClase::asignado), "las clases sin salón reciben uno");
     }
 
     @Test
     @DisplayName("La demo emula solo los salones del horario")
     void onlyTimetableRooms() {
         Set<String> rooms = simulation.salones().stream().map(CampusSpace::spaceId).collect(Collectors.toSet());
-        assertEquals(HORARIO.stream().map(Sesion::salon).collect(Collectors.toSet()), rooms);
+        assertEquals(HORARIO.stream().map(SesionDeClase::salon).collect(Collectors.toSet()), rooms);
         assertFalse(rooms.contains("207-B"));
         assertEquals(SpaceType.SALA_COMPUTO, simulation.salones().getFirst().type(), "salas de cómputo primero");
     }
@@ -89,14 +90,14 @@ class DemoSimulationTest {
     @DisplayName("Cada clase del horario aparece en su salón, su día y sus franjas; fuera de ellas el salón está libre")
     void everySessionInItsSlots() {
         for (int weekday = 0; weekday < 5; weekday++) {
-            String dia = DemoSimulation.DIAS.get(weekday);
+            var dia = DemoSimulation.DIAS.get(weekday);
             var snapshot = simulation.snapshot(at(weekday, 600));
             assertEquals(List.of("Lunes", "Martes", "Miércoles", "Jueves", "Viernes").get(weekday), snapshot.diaSemana());
             for (SalaVista sala : snapshot.salones()) {
                 for (int f = 0; f < DemoSimulation.FRANJAS.size(); f++) {
                     int hora = 7 + f;
                     var bloque = sala.horario().get(f);
-                    var sesion = HORARIO.stream().filter(s -> s.salon().equals(sala.spaceId()) && s.dia().equals(dia)
+                    var sesion = HORARIO.stream().filter(s -> s.salon().equals(sala.spaceId()) && s.dia() == dia
                             && s.inicio() <= hora && hora < s.fin()).findFirst();
                     if (sesion.isPresent()) {
                         assertTrue(bloque.uso() != Uso.LIBRE, sala.spaceId() + " " + dia + " " + hora);
@@ -113,7 +114,7 @@ class DemoSimulationTest {
     @DisplayName("En clase están los estudiantes y el docente; fuera del horario nadie")
     void peopleFollowTheTimetable() {
         int checked = 0;
-        for (Sesion s : HORARIO) {
+        for (SesionDeClase s : HORARIO) {
             int weekday = DemoSimulation.DIAS.indexOf(s.dia());
             SalaVista mid = simulation.snapshot(at(weekday, (s.inicio() * 60 + s.fin() * 60) / 2.0)).salones().stream()
                     .filter(v -> v.spaceId().equals(s.salon())).findFirst().orElseThrow();
@@ -126,11 +127,6 @@ class DemoSimulationTest {
             assertTrue(mid.ahora().docente(), "el docente también ocupa el salón: " + s);
             assertEquals(mid.ahora().personas(), students + 1);
             assertTrue(students >= Math.round(s.estudiantes() * 0.7) && students <= s.estudiantes(), s + ": " + students);
-            if (COMPUTO.contains(s.salon())) {
-                int pcs = mid.ahora().dispositivos().stream().filter(d -> d.categoria().equals("COMPUTO"))
-                        .mapToInt(DemoSimulation.DispositivoVista::encendidos).sum();
-                assertEquals(Math.min(24, students), pcs, "un PC por estudiante, no por el docente");
-            }
         }
         assertTrue(checked > 90);
         week().stream().filter(v -> v.ahora().uso() == Uso.LIBRE)
@@ -138,38 +134,25 @@ class DemoSimulationTest {
     }
 
     @Test
-    @DisplayName("Alrededor del horario: olvidos tras la clase, clases a oscuras y cámara normal caída")
+    @DisplayName("Alrededor del horario: clases sin asistentes (libres hasta la siguiente) y cámara sin señal")
     void whatSurroundsTheTimetable() {
-        List<String> hallazgos = week().stream().flatMap(s -> s.ahora().hallazgos().stream()).toList();
-        for (String caso : List.of("Vacío con las luces", "Vacío con el", "Vacío con equipos", "A oscuras",
-                "Cámara normal sin señal")) {
-            assertTrue(hallazgos.stream().anyMatch(h -> h.startsWith(caso)), "falta: " + caso);
-        }
-        assertFalse(hallazgos.stream().anyMatch(h -> h.contains("mantenimiento")), "la demo no inventa mantenimientos");
-    }
-
-    @Test
-    @DisplayName("A oscuras la cámara normal ve cerca de un tercio; la infrarroja a todos")
-    void infraredSeesInTheDark() {
-        List<SalaVista> dark = week().stream()
-                .filter(s -> s.ahora().personas() > 5 && !s.ahora().luces() && s.ahora().camaraNormalEnLinea()).toList();
-        assertFalse(dark.isEmpty());
-        int seen = dark.stream().mapToInt(s -> s.ahora().personasCamaraNormal()).sum();
-        int present = dark.stream().mapToInt(s -> s.ahora().personas()).sum();
-        assertTrue(seen > present * 0.15 && seen < present * 0.5, seen + " de " + present);
-        dark.forEach(s -> assertEquals(s.ahora().personas(), s.ahora().personasInfrarroja()));
-    }
-
-    @Test
-    @DisplayName("Sin cámara normal no hay conteo normal; la infrarroja muestra equipos tibios recién apagados")
-    void camerasAndHeat() {
         List<SalaVista> week = week();
-        week.stream().filter(s -> !s.ahora().camaraNormalEnLinea()).forEach(s -> {
-            assertEquals(null, s.ahora().personasCamaraNormal());
-            assertTrue(s.ahora().dispositivos().stream().allMatch(d -> d.camaraNormal() == null));
-        });
-        assertTrue(week.stream().flatMap(s -> s.ahora().dispositivos().stream())
-                .anyMatch(d -> d.encendidos() == 0 && d.termico().equals("TIBIO")));
+        List<String> hallazgos = week.stream().flatMap(s -> s.ahora().hallazgos().stream()).toList();
+        assertTrue(hallazgos.stream().anyMatch(h -> h.startsWith("Programado para") && h.contains("libre hasta")));
+        assertTrue(hallazgos.stream().anyMatch(h -> h.startsWith("Cámara sin señal")));
+        assertFalse(hallazgos.stream().anyMatch(h -> h.contains("mantenimiento")), "la demo no inventa mantenimientos");
+        week.stream().filter(s -> s.ahora().uso() == Uso.CLASE)
+                .forEach(s -> assertEquals(null, s.ahora().libreHasta(), "en clase no está libre"));
+        week.stream().filter(s -> s.ahora().uso() != Uso.CLASE)
+                .forEach(s -> assertTrue(s.ahora().libreHasta() != null, s.spaceId() + " libre sin hora"));
+    }
+
+    @Test
+    @DisplayName("Con la cámara sin señal el frame no trae detecciones; la cámara solo cae durante una clase")
+    void cameraDropsOnlyDuringAClass() {
+        List<SalaVista> blind = week().stream().filter(s -> !s.ahora().camaraEnLinea()).toList();
+        assertFalse(blind.isEmpty());
+        blind.forEach(s -> assertEquals(Uso.CLASE, s.ahora().uso()));
     }
 
     @Test

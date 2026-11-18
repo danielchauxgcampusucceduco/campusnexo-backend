@@ -2,11 +2,13 @@ package edu.campusnexo.infrastructure.adapter.in.web;
 
 import edu.campusnexo.application.exception.ResourceNotFoundException;
 import edu.campusnexo.application.port.in.CampusCatalogUseCase;
+import edu.campusnexo.application.port.in.DisponibilidadUseCase;
 import edu.campusnexo.application.port.in.EmulatedDataUseCase;
 import edu.campusnexo.application.port.in.ProcessSpaceTelemetryUseCase;
 import edu.campusnexo.application.port.in.SpaceTwinView;
 import edu.campusnexo.application.port.in.TwinQueryUseCase;
 import edu.campusnexo.domain.catalog.CampusSpace;
+import edu.campusnexo.domain.horario.SesionDeClase;
 import edu.campusnexo.domain.twin.TelemetrySnapshot;
 import edu.campusnexo.domain.vision.BoundingBox;
 import edu.campusnexo.domain.vision.DetectedObjectClass;
@@ -34,9 +36,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * The system demo ({@code DEMO_SIMULATION=true}): a compressed academic day over the campus rooms, with what a
- * normal and an infrared camera see. While someone watches it, the same frames feed the digital twin as an emulated
- * sensor, so the rest of the dashboard reacts too, and so do the two cameras of the library (the reading room and the
+ * The system demo ({@code DEMO_SIMULATION=true}): a compressed academic week over the timetable rooms, with what each
+ * room's camera sees. While someone watches it, the same frames feed the digital twin as an emulated sensor, so the rest
+ * of the dashboard reacts too (availability, alerts), and so do the two cameras of the library (the reading room and the
  * corner one over the silent-study tables); with nobody watching it writes nothing. A room where a real camera already
  * reports is left to that camera. Leaving the demo ({@code DELETE}) stops it and erases every emulated figure.
  */
@@ -55,6 +57,7 @@ class DemoController {
     private final ProcessSpaceTelemetryUseCase pipeline;
     private final TwinQueryUseCase twins;
     private final EmulatedDataUseCase emulated;
+    private final DisponibilidadUseCase disponibilidad;
     private final Clock clock;
     private final Duration dayLength;
     private volatile DemoSimulation simulation;
@@ -65,11 +68,12 @@ class DemoController {
     private final Object feeding = new Object();
 
     DemoController(CampusCatalogUseCase catalog, ProcessSpaceTelemetryUseCase pipeline, TwinQueryUseCase twins,
-                   EmulatedDataUseCase emulated, Clock clock, @Value("${app.demo.day-length:20m}") Duration dayLength) {
+                   EmulatedDataUseCase emulated, DisponibilidadUseCase disponibilidad, Clock clock, @Value("${app.demo.day-length:20m}") Duration dayLength) {
         this.catalog = catalog;
         this.pipeline = pipeline;
         this.twins = twins;
         this.emulated = emulated;
+        this.disponibilidad = disponibilidad;
         this.clock = clock;
         this.dayLength = dayLength;
     }
@@ -155,23 +159,23 @@ class DemoController {
                 .collect(Collectors.toSet());
     }
 
-    /** A camera of the library: students and belongings at its tables, lights on, nothing else. */
+    /** A camera of the library: students and belongings at its tables. */
     static TelemetrySnapshot libraryFrame(CampusSpace library, List<StudyZoneRoi> tables, Instant now) {
-        List<TrackedDetection> seen = DemoSimulation.mesas(tables, now);
-        int people = (int) seen.stream().filter(d -> d.objectClass() == DetectedObjectClass.PERSON).count();
-        return new TelemetrySnapshot(library.spaceId(), now, true, seen, 430 + 900.0 * people / library.capacity(),
-                18.5, null, 55, 450, people, 0.3, true, 0, true);
+        return new TelemetrySnapshot(library.spaceId(), now, true, DemoSimulation.mesas(tables, now), null, true);
     }
 
     private DemoSimulation simulation() {
         if (simulation == null) {
-            List<DemoSimulation.Sesion> horario = DemoSimulation.horario();
+            List<SesionDeClase> horario = disponibilidad.horario();
             simulation = new DemoSimulation(DemoSimulation.demoRooms(catalog.listSpaces(null), horario), horario, dayLength);
         }
         return simulation;
     }
 
-    /** The fused count (infrared) as person detections, plus the room's lights and devices. */
+    /**
+     * What the room's camera sends: the people as detections on the floor, or nothing with the camera offline while
+     * its signal is lost.
+     */
     static TelemetrySnapshot frame(SalaVista sala, Instant now) {
         DemoSimulation.Ahora ahora = sala.ahora();
         List<TrackedDetection> people = new ArrayList<>();
@@ -180,8 +184,7 @@ class DemoController {
             people.add(new TrackedDetection(track++, DetectedObjectClass.PERSON, 0.9, new BoundingBox(
                     Math.max(0, p.x() - 0.02), Math.max(0, p.y() - 0.04), Math.min(1, p.x() + 0.02), Math.min(1, p.y() + 0.04))));
         }
-        return new TelemetrySnapshot(sala.spaceId(), now, true, people, ahora.co2Ppm(), ahora.temperaturaC(), null, 60,
-                ahora.luces() ? 420 : 12, ahora.personas(), ahora.potenciaKw(), ahora.luces(),
-                ahora.dispositivosEncendidos(), true);
+        return new TelemetrySnapshot(sala.spaceId(), now, ahora.camaraEnLinea(),
+                ahora.camaraEnLinea() ? people : List.of(), null, true);
     }
 }
