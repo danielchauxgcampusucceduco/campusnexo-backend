@@ -3,7 +3,7 @@
 ## Idioma
 
 - **Código** (clases, métodos, variables, paquetes y Javadoc): inglés.
-- **Valores de catálogo y estados visibles para el usuario** (`SEDE_ANDINA`, `BIBLIOTECA`, `CALEFACCION`, `CO2_ALTO`...): español, porque aparecen tal cual en la API y en el dashboard.
+- **Valores de catálogo y estados visibles para el usuario** (`SEDE_ANDINA`, `BIBLIOTECA`, `SOBRECUPO`, `HORARIO_SIN_USO`...): español, porque aparecen tal cual en la API y en el dashboard.
 - **Mensajes de error, documentación y commits de explicación**: español. Los prefijos de commit siguen Conventional Commits (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `build:`, `ci:`).
 
 ## Capas

@@ -1,6 +1,6 @@
 # ADR 0002: Actuadores físicos solo por decisión explícita
 
-- Estado: aceptada
+- Estado: reemplazada por [0012](0012-solo-camara-y-disponibilidad.md): sin el módulo de sensores y relés ya no hay clima ni actuadores
 - Fecha: 2026-10-21
 
 ## Contexto

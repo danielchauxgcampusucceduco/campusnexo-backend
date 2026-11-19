@@ -6,7 +6,7 @@ La implementación más delgada que atraviesa el sistema de punta a punta. No bu
 |---|---|
 | Servicios en procesos separados que se comunican de verdad | Backend Java, servicio de IA en Python, PostgreSQL, MongoDB y Mosquitto en contenedores distintos, por HTTP, MQTT y STOMP |
 | Capas separadas, dependencias en una sola dirección y sin atajos | `HexagonalArchitectureTest` (ArchUnit) falla el build si el dominio importa infraestructura o si hay ciclos; cada evento deja una traza que recorre las seis capas |
-| Un evento publicado y al menos dos consumidores separados | Un frame publica la lectura a cinco observadores (CO₂, aforo, energía, no-show, registro) y el cambio del gemelo a dos seguidores: el tablero por STOMP y el historial en MongoDB |
+| Un evento publicado y al menos dos consumidores separados | Un frame de la cámara publica la lectura a tres observadores (aforo, no-show y registro) y el cambio del gemelo a dos seguidores: el tablero por STOMP y el historial en MongoDB |
 
 ## Requisitos
 
@@ -43,18 +43,19 @@ Usa una de las claves de `APP_SENSOR_KEYS` del `.env`:
 ```bash
 curl -s -X POST http://localhost:8080/api/v1/twin/telemetry \
   -H "Content-Type: application/json" -H "X-API-Key: <clave-de-sensor>" \
-  -d '{"space_id":"303-A","camera_online":true,"emulated":true,
-       "detections":[{"track_id":1,"class":"person","confidence":0.9,"bbox":[0.48,0.11,0.52,0.19]},
-                     {"track_id":2,"class":"person","confidence":0.9,"bbox":[0.10,0.80,0.14,0.88]}],
-       "sensors":{"co2_ppm":1250,"temperature_c":17.0,"humidity_pct":55}}'
+  -d '{"space_id":"HEMEROTECA-3A-ESTUDIO","camera_online":true,"emulated":true,
+       "detections":[{"track_id":1,"class":"person","confidence":0.9,"bbox":[0.20,0.30,0.26,0.42]},
+                     {"track_id":2,"class":"person","confidence":0.9,"bbox":[0.60,0.30,0.66,0.42]},
+                     {"track_id":3,"class":"person","confidence":0.9,"bbox":[0.40,0.70,0.46,0.82]}]}'
 ```
 
-La respuesta trae el gemelo de 303-A recalculado: ocupación, docentes y estudiantes presentes, y escenarios reconocidos.
+El frame es solo de cámara: detecciones, sin sensores de ambiente. La respuesta trae el gemelo de la sala de estudio privado de la hemeroteca recalculado: ocupación, docentes y estudiantes presentes, y escenarios reconocidos.
 
 ## 3. Ver los consumidores del evento
 
-- **Tablero (STOMP):** el salón 303-A cambia en `http://localhost:5173` sin recargar.
-- **Alertas (Observer):** con CO₂ de 1250 ppm aparece la alerta de CO₂ alto en la vista Alertas.
+- **Tablero (STOMP):** la sala cambia en el plano del piso 3 de `http://localhost:5173` sin recargar.
+- **Alertas (Observer):** 3 personas en una sala de aforo 2 generan la alerta de **sobrecupo** en la vista Alertas.
+- **Disponibilidad:** la sala deja de figurar en «Libres ahora» de la vista Disponibilidad.
 - **Historial (MongoDB):**
 
   ```bash

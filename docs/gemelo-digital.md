@@ -1,53 +1,54 @@
-# Gemelo digital, visión edge, Arduino y control térmico
+# Gemelo digital, visión edge y disponibilidad
 
 ## El campus
 
-Un solo campus: Universidad Cooperativa de Colombia, campus Pasto (Calle 18 # 47-150, Torobajo). Los salones salen del plano institucional **PLANOS_UCC_2025_-_B.dwg** (actualización de planimetría 2025-B, pisos 0 a 5): la migración `V9` carga los 107 espacios que se reconocen en ese plano, con el área medida sobre él, y `V10` agrega los salones piloto 301-A (sala de cómputo, 30 puestos) y 303-A (aula, 36 pupitres), que no figuran en ese plano y tienen medidas ilustrativas.
+Un solo campus: Universidad Cooperativa de Colombia, campus Pasto (Calle 18 # 47-150, Torobajo). Los salones salen del plano institucional **PLANOS_UCC_2025_-_B.dwg** (actualización de planimetría 2025-B, pisos 0 a 5): la migración `V9` carga los 107 espacios que se reconocen en ese plano, con el área medida sobre él, `V10` agrega los salones piloto 301-A (sala de cómputo, 30 puestos) y 303-A (aula, 36 pupitres), que no figuran en ese plano, y `V17` las dos salas de las esquinas de la hemeroteca: `HEMEROTECA-3A-ASESORIAS` (asesorías, aforo 6) y `HEMEROTECA-3A-ESTUDIO` (estudio privado, aforo 2). Sus medidas son ilustrativas.
 
 - Los salones con código en el plano lo conservan: `AULA 420 A` → `420-A`, `AULA No 402 B` → `402-B`, las salas de informática 1 a 5 → `308-A` a `312-A`, el auditorio Urcunina → `608-B`.
 - Los espacios sin código reciben uno con su piso, bloque y nombre (`4A-SALA-DE-JUNTAS-GALERAS`); la biblioteca, la hemeroteca, la cafetería y el auditorio del bloque A tienen códigos cortos (`BIBLIOTECA-2A`, `HEMEROTECA-3A`, `CAFETERIA-1A`, `AUDITORIO-0A`).
 - **Bloque A**: salones con pupitres, salas de estudio, auditorio, oficinas y logística. **Bloque B**: biblioteca, cafetería, laboratorios, salas de cómputo y el auditorio Urcunina. Los espacios sin letra en el plano se asignan a un bloque según ese criterio.
 
-**Salones de clase**: todos tienen **36 pupitres** (6 filas × 6), dato confirmado del campus. **Equipo de clima** (`hvac_installed`): por supuesto del prototipo, que debe confirmar la planta física, lo tienen los salones, laboratorios, salas de cómputo y auditorios; los demás nunca se climatizan (`SIN_CLIMATIZACION`) ni acumulan ahorro. Para los demás espacios, el aforo, la cuadrícula y los computadores se **estiman** a partir de su tipo y su área (2 m² por equipo en una sala de cómputo…): son valores ilustrativos, no el inventario oficial. Las salas de informática `308-A` a `312-A` son del bloque A.
+**Hardware**: una **cámara de visión PoE** por espacio, cableada al portátil de borde (switch o inyector PoE), y el portátil en la red del campus por Ethernet. No hay sensores de ambiente ni relés: el sistema no mide clima, CO₂ ni consumo, y no apaga nada.
+
+**Espacios seguidos**: solo los que puede usar un estudiante (`SpaceType.accesibleParaEstudiantes()`): aulas, salas de cómputo, laboratorios, biblioteca, salas de estudio, auditorios y cafetería. Las oficinas y la logística siguen en el catálogo y en el plano, pero no se monitorean.
+
+**Salones de clase**: todos tienen **36 pupitres** (6 filas × 6), dato confirmado del campus. Para los demás espacios, el aforo, la cuadrícula y los computadores se **estiman** a partir de su tipo y su área (2 m² por equipo en una sala de cómputo…): son valores ilustrativos, no el inventario oficial. Las salas de informática `308-A` a `312-A` son del bloque A.
 
 ## Flujo
 
 ```text
-Cámara + YOLO/ByteTrack (repo de IA: edge/)  Arduino del salón (tools/arduino)
-   │ MQTT ucc/pasto/{bloque}/{piso}/{salón}/camara   │ MQTT ucc/pasto/{bloque}/{piso}/{salón}/ambiente
-   ▼                                          ▼
-MqttInbox (uno por canal): confirma al broker DESPUÉS de procesar; a lo sumo un mensaje en espera por salón
-YoloMqttTelemetryInboundAdapter        ArduinoMqttEnvironmentInboundAdapter
-POST /api/v1/twin/telemetry (SENSOR)   POST /api/v1/twin/environment (SENSOR)
-   └──► ProcessSpaceTelemetryUseCase     └──► ProcessEnvironmentReadingUseCase     ◄── TwinControlUseCase
-        ProcessCameraFrameService             ProcessEnvironmentReadingService         SpaceReevaluationService
+Cámara PoE ──Ethernet──► portátil de borde: YOLO/ByteTrack (repo de IA: edge/) ──red del campus──►
+   │ MQTT ucc/pasto/{bloque}/{piso}/{salón}/camara      o      POST /api/v1/twin/telemetry (SENSOR)
+   ▼
+MqttInbox: confirma al broker DESPUÉS de procesar; a lo sumo un mensaje en espera por salón
+YoloMqttTelemetryInboundAdapter / TwinIngestionController
+   └──► ProcessSpaceTelemetryUseCase                                   ◄── TwinControlUseCase
+        ProcessCameraFrameService                                          SpaceReevaluationService
           1. ReadingAdmission: fecha creíble o 400 sin tocar nada
           2. reservas y regiones de pupitre (Proxy en memoria) leídas antes del candado
           3. ¿más nuevo que el último frame del salón? si no, se ignora (reentrega MQTT)
-          ├─ OccupancyKalmanDomainService     cámara + CO2 + Wi-Fi → ocupación (x, P)
+          ├─ OccupancyKalmanDomainService     cámara + Wi-Fi opcional → ocupación (x, P)
           └─ StudyZoneRoi.evaluateDeskGhosting ray casting por pupitre + cronómetro de abandono
-                          ▼ (los tres casos de uso comparten)
+                          ▼
 TwinWriter         candado por salón; cada intento en UNA transacción (UnitOfWork): lee → decide → guarda con
                    revisión → guarda la lectura; si otra instancia escribió antes, se recalcula (hasta 3 veces)
 TwinDecisionEngine (sin lecturas ni efectos)
-   ├─ SpaceStatusPolicy                 aforo, reserva, no-show, pop-up, mantenimiento
-   ├─ ThermalInertiaMpcDomainService    modelo RC sobre la banda de confort de la familia climática
-   ├─ HvacSettingChain                  sin equipo → mantenimiento → docente → compresor → familia → MPC
-   ├─ RoomConditionPolicy               personas + luces + equipos → estado general del salón
-   └─ IdleEquipmentShutdownPolicy       vacío > 5 min con energía encendida → orden al Arduino
+   └─ SpaceStatusPolicy                 aforo, reserva, no-show, pop-up, mantenimiento
 TelemetryUseCase.ingest                 lectura (con el conteo crudo de la cámara) en la misma transacción;
                                         los observadores de alertas se notifican al confirmar
 TwinPublisher
-   ├─ HvacActuatorCommandPort           Esp32HvacActuatorAdapter (MQTT) o LoggingHvacActuatorAdapter
-   ├─ RoomEquipmentCommandPort          ArduinoEquipmentCommandAdapter (MQTT) o LoggingEquipmentCommandAdapter
-   └─ TwinChangeNotifierPort            StompTwinChangeNotifierAdapter (/topic/twin, /topic/traces)
+   └─ TwinChangeNotifierPort × N        StompTwinChangeNotifierAdapter (/topic/twin, /topic/traces), historial MongoDB
+
+TwinWatchdogScheduler (cada 30 s, TWIN_WATCHDOG_INTERVAL)
+   ├─ cámaras que dejaron de enviar → FALLO_CAMARA
+   └─ DisponibilidadService.vigilarHorario → HORARIO_SIN_USO
 ```
 
-Las órdenes llegan a los equipos reales solo con `MQTT_ENABLED=true` **y** `ACTUATORS_MODE=mqtt`; por defecto (`log`) van al log y al dashboard. Las decisiones de un mismo salón nunca se pisan: dentro de una instancia esperan su turno y entre instancias la columna `revision` de `space_twin_states` rechaza una escritura basada en un estado viejo, y la decisión se recalcula con el estado nuevo.
+El gemelo no ordena nada a ningún equipo: solo informa. Las decisiones de un mismo salón nunca se pisan: dentro de una instancia esperan su turno y entre instancias la columna `revision` de `space_twin_states` rechaza una escritura basada en un estado viejo, y la decisión se recalcula con el estado nuevo.
 
-**Cada lectura se aplica una vez y en orden.** El gemelo guarda la hora de captura del último frame de la cámara y de la última lectura del Arduino. Una reentrega de MQTT (QoS 1) o un mensaje que llega tarde no cambian nada y se cuentan en `campusnexo_readings_discarded_total{reason="duplicada"|"fuera_de_orden"}`; la base de datos lo garantiza además con `UNIQUE (space_id, recorded_at)`. El cliente MQTT usa sesión persistente (`clean session = false`, `MQTT_INSTANCE_ID` estable) y confirmación manual: si el proceso cae entre recibir y procesar, el broker vuelve a entregar el mensaje. Si llega un frame nuevo de un salón mientras el anterior sigue esperando, el viejo se descarta (`reemplazada`): el atraso queda acotado al número de salones. Un mensaje mal formado o inválido se confirma y se cuenta (`rechazada`); una falla de infraestructura se reintenta 3 veces antes de contarse como `fallida`.
+**Cada lectura se aplica una vez y en orden.** El gemelo guarda la hora de captura del último frame de la cámara. Una reentrega de MQTT (QoS 1) o un mensaje que llega tarde no cambian nada y se cuentan en `campusnexo_readings_discarded_total{reason="duplicada"|"fuera_de_orden"}`; la base de datos lo garantiza además con `UNIQUE (space_id, recorded_at)`. El cliente MQTT usa sesión persistente (`clean session = false`, `MQTT_INSTANCE_ID` estable) y confirmación manual: si el proceso cae entre recibir y procesar, el broker vuelve a entregar el mensaje. Si llega un frame nuevo de un salón mientras el anterior sigue esperando, el viejo se descarta (`reemplazada`): el atraso queda acotado al número de salones. Un mensaje mal formado o inválido se confirma y se cuenta (`rechazada`); una falla de infraestructura se reintenta 3 veces antes de contarse como `fallida`.
 
-**Estado general del salón** (`RoomConditionPolicy`): `OCUPADO` o `SOBRECUPO` si hay personas; si está vacío, `LIBRE`, `LUCES_SIN_OCUPACION`, `EQUIPOS_SIN_USO` o `LUCES_Y_EQUIPOS_SIN_USO`; `MANTENIMIENTO` tiene prioridad. Si un salón lleva más de `EQUIPMENT_IDLE_SHUTDOWN` (5 min) vacío con luces o equipos encendidos, se envía una orden de apagado al Arduino una sola vez por periodo; el gemelo la da por cumplida hasta que la siguiente lectura del Arduino la confirma o la corrige.
+**Uso del salón** (lo calcula el tablero a partir del gemelo): `MANTENIMIENTO` si está fuera de servicio, `SOBRECUPO` con más personas que puestos, `OCUPADO` con personas y `LIBRE` vacío.
 
 **Pupitres y asientos.** Los puestos de cada salón salen de su cuadrícula (`SeatGrid`): una región por pupitre, dejando libre la franja del frente (tablero, docente, puerta). La sala general de la biblioteca usa en cambio ocho mesas dibujadas a mano. Las oficinas y la logística no tienen cuadrícula: solo cuentan personas.
 
@@ -59,13 +60,12 @@ Todas exigen sesión (👁 VIEWER para leer); 📡 = clave de sensor, 🛠 = OPE
 
 | Método | Ruta | Uso |
 |---|---|---|
-| `GET` | `/api/v1/twin/spaces` | Gemelo de los 107 espacios: estado, estado general, luces, equipos, pupitres, Kalman y MPC |
+| `GET` | `/api/v1/twin/spaces` | Gemelo de los espacios: estado, ocupación, pupitres, docentes y estudiantes, Kalman y escenarios |
 | `GET` | `/api/v1/twin/spaces/{salón}` | Un salón |
-| `GET` | `/api/v1/twin/savings` | Ahorro estimado por salón |
+| `GET` | `/api/v1/disponibilidad?fecha=` | Franjas de una hora (7:00 a 22:00) de cada espacio de estudiantes, ver abajo |
 | `GET` | `/api/v1/twin/traces?limit=20` | Últimas trazas de la arquitectura |
 | `POST` 📡 | `/api/v1/twin/telemetry` | Frame de cámara por HTTP (mismo JSON que MQTT) |
-| `POST` 📡 | `/api/v1/twin/environment` | Lectura del Arduino por HTTP (mismo JSON que MQTT) |
-| `POST` 🛠 | `/api/v1/twin/spaces/{salón}/override`, `/popup`, `/maintenance` | Controles manuales |
+| `POST` 🛠 | `/api/v1/twin/spaces/{salón}/popup`, `/maintenance` | Controles manuales |
 | `GET` 🔐 | `/actuator/prometheus` | Contadores operativos: lecturas descartadas, conflictos de escritura, respaldos de IA, estado del circuito y latencia del frame al gemelo |
 
 ## Contrato MQTT de entrada
@@ -83,75 +83,24 @@ Tópico: `ucc/pasto/bloque_b/piso_2/{space_id}/camara` (suscripción `ucc/+/+/+/
     { "track_id": 17, "class": "person", "confidence": 0.91, "bbox": [0.31, 0.40, 0.36, 0.52] },
     { "track_id": 18, "class": "laptop", "confidence": 0.78, "bbox": [0.12, 0.42, 0.18, 0.47] }
   ],
-  "sensors": {
-    "co2_ppm": 760, "temperature_c": 20.5, "outdoor_temperature_c": 14.0, "humidity_pct": 52,
-    "illuminance_lux": 420, "wifi_devices": 40, "active_power_kw": 5.4
-  }
+  "wifi_devices": 40
 }
 ```
 
 - `bbox` usa el formato `xyxyn` de YOLO (normalizado de 0 a 1). Las clases aceptadas son `person`, `laptop`, `backpack` y `book`; las demás se ignoran.
-- Son obligatorios `sensors.co2_ppm`, `sensors.temperature_c` y `sensors.humidity_pct`. Si falta `timestamp`, se usa la hora de llegada; si falta `outdoor_temperature_c`, el promedio del campus.
+- Solo la cámara: `wifi_devices` es opcional (celulares conectados que reporte la red del campus). Si falta `timestamp`, se usa la hora de llegada. Un frame de un firmware anterior con `sensors` se acepta y ese bloque se ignora.
 - **No se publican imágenes**: solo cajas y conteos agregados (minimización de datos, Ley 1581 de 2012). El desenfoque en el dashboard es una representación visual de ese principio.
-
-### Arduino del salón
-
-Tópico: `ucc/pasto/bloque_a/piso_2/{space_id}/ambiente` (suscripción `ucc/+/+/+/+/ambiente`). Firmware de referencia: `tools/arduino/campusnexo_salon` (DHT22, fotorresistencia, sensor de corriente ACS712 y dos relés).
-
-```json
-{ "space_id": "423-A", "temperature_c": 19.2, "humidity_pct": 53, "illuminance_lux": 390,
-  "lights_on": true, "devices_on": 0, "co2_ppm": 640 }
-```
-
-Son obligatorios `temperature_c`, `humidity_pct` y `lights_on`. `co2_ppm` es opcional (solo salones con sensor de CO₂) y `devices_on` no puede superar los computadores del salón.
-
-## Contratos MQTT de salida
-
-`{bloque}` y `{piso}` salen del código del salón (`201-A` → `bloque_a`, `piso_2`).
-
-**Clima (ESP32).** Tópico `ucc/pasto/{bloque}/{piso}/{space_id}/clima/comando`. QoS 1, mensaje retenido y solo cuando cambia la estrategia, el modo o (con el equipo encendido) el setpoint. `strategy` es la estrategia del gemelo; `mode` es lo que debe hacer el equipo: `CALEFACCION`, `ENFRIAMIENTO`, `DESHUMIDIFICACION` o `APAGADO`.
-
-```json
-{ "command_id": "…", "space_id": "421-A", "strategy": "PRE_CALENTAMIENTO_IA", "mode": "CALEFACCION",
-  "compressor_on": true, "setpoint_c": 19.5, "issued_at": "2026-10-20T11:40:00Z",
-  "reason": "Clase en 20 min y llegaría a 16.8 °C: se pre-calienta (34 min necesarios)" }
-```
-
-Los espacios sin equipo de clima no reciben órdenes.
-
-El firmware del ESP32 es responsable de los enclavamientos eléctricos; el backend solo indica la estrategia deseada.
-
-**Luces y equipos (Arduino).** Tópico `ucc/pasto/{bloque}/{piso}/{space_id}/equipos/comando`. QoS 1 y **sin** retener: una orden vieja no debe apagar un salón que volvió a usarse cuando la placa se reconecta.
-
-```json
-{ "command_id": "…", "space_id": "309-A", "lights_off": true, "suspend_devices": true,
-  "issued_at": "2026-10-20T15:00:00Z", "reason": "Salón vacío hace 12 min con luces encendidas, 24/24 equipos encendidos" }
-```
 
 ## Modelos
 
 **Kalman (ocupación).** Usa un modelo de paseo aleatorio. La predicción es `x⁻ = x` y `P⁻ = P + Q·Δt`. Después corrige en secuencia con cada medición `z` de varianza `R`: `K = P⁻/(P⁻+R)`, `x = x⁻ + K(z − x⁻)`, `P = (1 − K)P⁻`. Las mediciones son:
 
 - la cámara (R = 0,64);
-- el CO₂ por balance de masa, `(CO₂ − CO₂ₑₓₜ)·A/1000`, con un error relativo del 35 %;
-- el Wi-Fi, a 0,8 personas por dispositivo y con un error relativo del 30 %.
+- el Wi-Fi, si llega, a 0,8 personas por dispositivo y con un error relativo del 30 %.
 
-Si la cámara cae, el filtro sigue estimando con las otras dos señales y la varianza aumenta.
-
-**MPC térmico.** Modelo RC de primer orden, `T(k+1) = Tₑₓₜ + (T(k) − Tₑₓₜ)·e^(−Δt/τ) + g·n·(50/A)·Δt/60`, con τ = 120 min y paso de 5 min. En cada frame simula la trayectoria sin climatizar y elige la estrategia más barata que mantiene la **banda de confort de la familia climática** del salón (andina 19–24 °C, la misma que usa la recomendación):
-
-- `CORTE_INERCIA_TERMICA` si la trayectoria se mantiene en la banda hasta que termina la clase;
-- `PRE_CALENTAMIENTO_IA` o `PRE_ENFRIAMIENTO_IA` si una clase próxima empezaría bajo o sobre la banda y el tiempo restante apenas alcanza para llevarlo a ella (en Pasto, el caso habitual es calentar en la mañana);
-- `ECO_SETBACK_ENTRE_CLASES` entre clases;
-- `BLOQUEO_AHORRO_VACIO` si el espacio está vacío y no hay clase próxima;
-- `VENTILACION_CO2_ACTIVA` si el CO₂ supera el umbral;
-- `CONFORT_ACTIVO` en el resto de los casos.
-
-Cada propuesta declara su modo (calentar o enfriar). Después decide la **cadena de reglas HVAC** (`HvacSettingChain`): un espacio sin equipo queda `SIN_CLIMATIZACION`; el mantenimiento apaga de inmediato; el control del docente lleva el salón al centro de la banda; la protección del compresor retiene un cambio que acortaría su ciclo (10 min encendido, 5 min de reposo); la estrategia de la familia elige el modo con gente en el salón (la tropical deshumidifica sobre 70 % de humedad aunque la temperatura esté bien). El resultado (`HvacSetting`: estrategia, modo, setpoint, desde cuándo y por qué) es lo que se comanda al ESP32 y lo que la recomendación toma como estado real del equipo.
+Si la cámara cae, el filtro conserva la última estimación (o usa el Wi-Fi) y la varianza aumenta con el tiempo.
 
 **Puestos.** El algoritmo de ray casting (regla par-impar) asigna cada objeto a su puesto según el centro de su caja. Una persona en el puesto lo deja `OCUPADO_VERIFICADO`. Pertenencias sin persona lo pasan a `ALERTA_ACAPARAMIENTO` y arranca el cronómetro; a los 15 minutos el puesto queda `LIBERADO_POR_ABANDONO`.
-
-**Ahorro.** Solo en espacios con equipo de clima. Se compara contra una línea base declarada, la de un temporizador convencional: la climatización al 100 % mientras el salón está en uso programado (una reserva en curso o que empieza en 30 min, o personas dentro), a cualquier hora, con potencia nominal de 0,12 kW/m². Es un contrafactual de modelo, no una medición de contador. Climatizar fuera del uso programado (precalentar antes de lo que lo haría el temporizador) cuenta como consumo adicional. Las conversiones usan la tarifa del campus (COP/kWh) y un factor de emisión configurable (`EMISSION_FACTOR_KG_CO2_PER_KWH`).
 
 Todos los parámetros están en `app.twin.*` y son **ilustrativos**: no son mediciones calibradas.
 
@@ -164,14 +113,26 @@ Todos los parámetros están en `app.twin.*` y son **ilustrativos**: no son medi
 | Escenario | Se reconoce cuando |
 |---|---|
 | `CLASE_EN_CURSO` | Hay un docente en su zona y al menos un estudiante en su puesto |
-| `CO2_ALTO` | CO₂ ≥ 1000 ppm o el clima ya ventila por CO₂ |
 | `FALLO_CAMARA` | La cámara se reportó caída o lleva más de 2 min sin enviar (un salón sin cámara no falla) |
 | `SOBRECUPO`, `NO_SHOW`, `SUBUTILIZADO`, `POPUP_PARCIALES` | El estado de reserva y aforo lo dice |
-| `LUCES_ENCENDIDAS`, `EQUIPOS_ENCENDIDOS` | El salón vacío tiene luces o equipos encendidos |
-| `OVERRIDE_DOCENTE`, `MANTENIMIENTO` | Hay un control manual activo |
+| `MANTENIMIENTO` | El salón está fuera de servicio |
 | `ACAPARAMIENTO` | Un puesto tiene pertenencias sin persona |
 
 El backend no simula nada. Cualquier fuente de datos usa las mismas rutas y su propia clave de dispositivo; si sus frames no vienen de una cámara real los marca con `emulated: true`, el gemelo lo guarda en `Sensing.emulated` y el tablero muestra la insignia "Emulado".
+
+## Disponibilidad
+
+`GET /api/v1/disponibilidad?fecha=YYYY-MM-DD` (cualquier rol; sin fecha, hoy en `America/Bogota`) devuelve, para cada espacio de estudiantes, franjas de una hora entre las 7:00 y las 22:00:
+
+| Estado | De dónde sale |
+|---|---|
+| `CLASE` | El horario académico (`horario/horario-isw-2620.csv`, generado con `tools/horario`) |
+| `RESERVADO` | Una reserva del sistema |
+| `OCUPADO` | La hora actual, si la cámara ve personas |
+| `PROGRAMADO_SIN_USO` | Una clase o reserva en curso hace 15 min (`NO_SHOW_GRACE`) sin nadie: libre en la práctica |
+| `LIBRE` | Nada de lo anterior |
+
+Cada espacio trae además `ahora`, `personas`, `conCamara` y `libreHasta` (la hora de la próxima clase o reserva). Cada 30 s, `vigilarHorario` revisa las clases en curso y registra `HORARIO_SIN_USO` («Programado para X y nadie llegó: libre») con el enfriamiento de alertas, para que el administrador pueda ofrecer el espacio. En otra fecha no hay cámara: solo cuentan el horario y las reservas.
 
 ## Puestos de trabajo y CPU
 
@@ -185,7 +146,7 @@ Un puesto es la mesa, la silla y el computador de un asiento de la rejilla (Comp
 docker compose up --build -d          # PostgreSQL, MongoDB, Mosquitto y backend
 # cámara real (repo de IA): python -m edge.calibrar --space-id 301-A --source 0
 #                            python -m edge.yolo_edge_publisher --calibracion calibracion-301A.json --source 0 --mqtt localhost
-# lectura del Arduino sin placa:
-mosquitto_pub -t ucc/pasto/bloque_a/piso_4/423-A/ambiente \
-  -m '{"temperature_c":19.2,"humidity_pct":53,"illuminance_lux":390,"lights_on":true,"devices_on":0}'
+# frame de cámara sin cámara (3 personas en la sala de estudio privado, aforo 2 → SOBRECUPO):
+mosquitto_pub -t ucc/pasto/bloque_a/piso_3/HEMEROTECA-3A-ESTUDIO/camara \
+  -m '{"space_id":"HEMEROTECA-3A-ESTUDIO","camera_online":true,"detections":[{"track_id":1,"class":"person","confidence":0.9,"bbox":[0.2,0.3,0.26,0.42]},{"track_id":2,"class":"person","confidence":0.9,"bbox":[0.6,0.3,0.66,0.42]},{"track_id":3,"class":"person","confidence":0.9,"bbox":[0.4,0.7,0.46,0.82]}]}'
 ```

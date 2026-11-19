@@ -41,7 +41,7 @@ aws cloudformation describe-stacks --stack-name campusnexo-vpn --query "Stacks[0
    | `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD` | Neon |
    | `MONGODB_URI` | Atlas |
    | `APP_USERS` | Al menos un ADMIN: `nombre:ADMIN:<hash>` generado con `python tools/auth/hash_password.py` |
-   | `APP_SENSOR_KEYS` | Claves de 24+ caracteres para cámaras, Arduinos, agentes de PC y kioscos (una por dispositivo), separadas por comas |
+   | `APP_SENSOR_KEYS` | Claves de 24+ caracteres para cámaras, agentes de PC y kioscos (una por dispositivo), separadas por comas |
    | `ADMIN_ALLOWED_NETWORKS` | Salida de la VPN. Obligatoria: en producción el backend no arranca sin ella |
    | `AI_SERVICE_URL` | URL pública de `campusnexo-ai` |
    | `CORS_ALLOWED_ORIGINS` | `https://campusnexo*.vercel.app` y el dominio final |

@@ -5,21 +5,20 @@
 El campus Pasto de la Universidad Cooperativa de Colombia tiene 107 espacios en dos bloques. La administración no sabe, salvo recorriendo los pisos:
 
 - qué salones reservados quedan vacíos (*no-show*) y cuáles se llenan por encima del aforo;
-- dónde quedan luces y computadores encendidos sin nadie, en especial en las salas de cómputo después de clase;
+- qué espacios para estudiantes están libres y hasta qué hora, incluidas las clases programadas a las que nadie llegó;
+- qué computadores quedan encendidos sin nadie, en especial en las salas de cómputo después de clase;
 - si hay clase de verdad: un docente frente a estudiantes, no solo personas en el salón;
 - qué puestos (CPU, silla y mesa) existen en cada sala y cuáles faltan o fallan;
-- qué sensores reportan valores imposibles, cómo se ocupará un salón y qué salón conviene a cada curso;
-- cómo evitar que el clima caliente salones vacíos, en una ciudad de unos 13,5 °C.
+- cómo se ocupará un salón y qué salón conviene a cada curso.
 
 ## 2. Propuesta
 
 Un **gemelo digital operativo**: cada salón tiene un estado que se recalcula con lo que reportan sus dispositivos:
-- la cámara del borde (personas, sin imágenes);
-- el Arduino (temperatura, luz, corriente);
+- la cámara PoE, cableada al portátil de borde que está en la red del campus (personas, sin imágenes);
 - el agente de cada PC (latido);
 - el kiosco de la puerta (check-in del titular).
 
-Las reglas del sistema viven en Java (backend hexagonal) y el aprendizaje automático en Python (servicio de IA y borde). La administración ve el campus en vivo, recibe alertas, registra personas y puestos, y pide a la IA asignaciones, anomalías y pronósticos. Sus rutas solo responden con rol ADMIN y desde la VPN de la universidad.
+Las reglas del sistema viven en Java (backend hexagonal) y el aprendizaje automático en Python (servicio de IA y borde). La administración ve el campus en vivo, recibe alertas, registra personas y puestos, consulta la disponibilidad por hora y pide a la IA asignaciones y pronósticos. Sus rutas solo responden con rol ADMIN y desde la VPN de la universidad.
 
 **Privacidad por diseño (Ley 1581 de 2012):**
 - la cámara procesa en el salón y solo envía posiciones;
@@ -34,21 +33,21 @@ Las reglas del sistema viven en Java (backend hexagonal) y el aprendizaje autom�
 | Personal de operación | Reservas, controles manuales, mantenimiento | `OPERATOR` |
 | Jurado o stakeholder | Observa el campus en vivo | `VIEWER` |
 | Docente / Estudiante | Titular de una reserva; confirma su llegada con su código | Entidad del dominio, sin cuenta |
-| Cámara, Arduino, agente de PC, kiosco | Reportan al gemelo | `SENSOR` (clave por dispositivo) |
+| Cámara, agente de PC, kiosco | Reportan al gemelo | `SENSOR` (clave por dispositivo) |
 
 ## 4. Clases y objetos principales
 
 | Concepto | Clase | Tipo |
 |---|---|---|
 | Espacio del campus | `CampusSpace`, `SeatLayout`, `RoomCode` | `record` (objetos de valor inmutables) |
-| Estado del salón | `SpaceTwinState` (con `Builder`), `SpaceStatus`, `RoomCondition`, `HvacControlState` | `record` + `enum` |
+| Estado del salón | `SpaceTwinState` (con `Builder`), `SpaceStatus` | `record` + `enum` |
 | Personas en el salón por rol | `Presence` | `record` |
 | Docente y estudiante | `Persona` → `Docente`, `Estudiante` | clase abstracta sellada + subclases |
 | Puesto de trabajo | `ElementoDeInventario`, `Activo` → `Cpu`, `Silla`, `Mesa`, `PuestoDeTrabajo` | interfaz sellada + clase abstracta + Composite |
 | Registro por cámara | `PropuestaDePuestos`, `PuestoPropuesto`, `EmparejamientoCpu` | `record` |
-| Escenarios | `EscenarioOperativo`, `DetectorDeEscenario` (12 implementaciones), `ReconocedorDeEscenarios` | `enum` + interfaz + Strategy |
+| Escenarios | `EscenarioOperativo`, `DetectorDeEscenario` (8 implementaciones), `ReconocedorDeEscenarios` | `enum` + interfaz + Strategy |
 | Ocupación | `OccupancyKalmanDomainService`, `OccupancyBelief`, `OccupancyEstimator` (Decorator) | servicio + `record` + interfaz |
-| Clima | `ClimatePolicyFactory` (Abstract Factory), `ThermalPolicy`, `HvacSettingRule` (Chain of Responsibility) | interfaces |
+| Disponibilidad | `SesionDeClase`, `HorarioAcademicoRepository`, `DisponibilidadService` | `record` + puerto + caso de uso |
 | Reserva | `Reservation` (titular y check-in) | `record` |
 
 Ejemplo de objetos en la piloto:
@@ -94,10 +93,10 @@ classDiagram
         +reconoce(SpaceTwinState, Instant) boolean
     }
     DetectorDeEscenario <|.. ClaseEnCurso
-    DetectorDeEscenario <|.. Co2Alto
+    DetectorDeEscenario <|.. Sobrecupo
     DetectorDeEscenario <|.. FalloCamara
     DetectorDeEscenario <|.. Mantenimiento
-    note for DetectorDeEscenario "12 implementaciones: también Sobrecupo, NoShow, Subutilizado, PopupParciales, LucesEncendidas, EquiposEncendidos, OverrideDocente, Acaparamiento"
+    note for DetectorDeEscenario "8 implementaciones: también NoShow, Subutilizado, PopupParciales, Acaparamiento"
     ReconocedorDeEscenarios o-- DetectorDeEscenario
 
     class OccupancyEstimator {
@@ -141,7 +140,6 @@ erDiagram
     spaces ||--o{ study_zone_rois : regiones
     spaces ||--o{ reservations : reservas
     spaces ||--o{ alerts : alertas
-    spaces ||--o{ climate_recommendations : recomendaciones
     spaces ||--o{ occupancy_estimates : estimaciones
     spaces ||--o{ activos : puestos
     spaces ||--o| propuestas_puestos : propuesta
@@ -152,8 +150,7 @@ erDiagram
              varchar space_type
              int capacity
              int seat_rows
-             int seat_columns
-             boolean hvac_installed }
+             int seat_columns }
     personas { varchar codigo PK
                varchar tipo
                varchar nombre
@@ -174,7 +171,7 @@ erDiagram
 
 | Colección | Documento | Uso |
 |---|---|---|
-| `historial_gemelo` | Un cambio del gemelo: personas, estimación, σ, docentes, estudiantes, conteo de cámara, CO₂, escenarios, `emulated` | Pronóstico de ocupación, CSV de evaluación de la IA |
+| `historial_gemelo` | Un cambio del gemelo: personas, estimación, σ, docentes, estudiantes, conteo de cámara, escenarios, `emulated` | Pronóstico de ocupación, CSV de evaluación de la IA |
 | `trazas` | La traza hexagonal de cada decisión (caduca a los 30 días) | Auditoría y vista "Cómo funciona" |
 
 El estado del gemelo y la telemetría siguen en PostgreSQL, en una sola transacción. MongoDB recibe la copia después del commit, como mejor esfuerzo.
@@ -190,7 +187,7 @@ sequenceDiagram
     participant F as Frontend (Vercel)
     participant A as Administración
     C->>B: POST /twin/telemetry (posiciones en el piso, X-API-Key)
-    B->>B: Kalman → puestos (ray casting) → rol por zona → estado → MPC → cadena HVAC
+    B->>B: Kalman → puestos (ray casting) → rol por zona → estado → escenarios
     B->>P: gemelo + lectura (una transacción, revisión optimista)
     B-->>M: historial y traza (después del commit)
     B-->>F: STOMP /topic/twin (estado + escenarios reconocidos)
@@ -214,7 +211,7 @@ sequenceDiagram
 
 ## 9. Mejoras de diseño incorporadas
 
-1. **Una sola fuente de reglas.** Las copias en TypeScript (simulación del navegador) y en Python (térmico, mesas) se eliminaron; las reglas viven en Java y la IA solo hace aprendizaje automático.
+1. **Una sola fuente de reglas.** Las copias en TypeScript (simulación del navegador) y en Python (mesas) se eliminaron; las reglas viven en Java y la IA solo hace aprendizaje automático.
 2. **Escenarios reconocidos, no simulados.** Se deducen del estado real con detectores; el backend no contiene código de simulación.
 3. **Personas y puestos como entidades.** Antes eran texto libre y conteos; ahora tienen reglas propias (polimorfismo) y un inventario que la cámara audita.
 4. **Registro automático de puestos.** La cámara propone y el administrador confirma, lo que evita dar de alta 30 puestos a mano.

@@ -5,7 +5,7 @@
 
 ## Contexto
 
-CampusNexo recibe datos desde REST, MQTT y WebSocket, persiste en PostgreSQL e integra un servicio de estimación en Python. Las reglas de reservas, ocupación, confort y ahorro deben poder probarse sin iniciar esos sistemas externos.
+CampusNexo recibe datos desde REST, MQTT y WebSocket, persiste en PostgreSQL e integra un servicio de estimación en Python. Las reglas de reservas, ocupación y disponibilidad deben poder probarse sin iniciar esos sistemas externos.
 
 ## Decisión
 
