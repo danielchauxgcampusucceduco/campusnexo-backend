@@ -8,7 +8,6 @@ import edu.campusnexo.application.port.in.ProcessSpaceTelemetryUseCase;
 import edu.campusnexo.application.port.in.SpaceTwinView;
 import edu.campusnexo.application.port.in.TwinQueryUseCase;
 import edu.campusnexo.domain.catalog.CampusSpace;
-import edu.campusnexo.domain.horario.SesionDeClase;
 import edu.campusnexo.domain.twin.TelemetrySnapshot;
 import edu.campusnexo.domain.vision.BoundingBox;
 import edu.campusnexo.domain.vision.DetectedObjectClass;
@@ -16,6 +15,7 @@ import edu.campusnexo.domain.vision.StudyZoneRoi;
 import edu.campusnexo.domain.vision.TrackedDetection;
 import edu.campusnexo.infrastructure.adapter.in.demo.DemoSimulation.SalaVista;
 import edu.campusnexo.infrastructure.adapter.in.demo.DemoSimulation;
+import edu.campusnexo.infrastructure.adapter.in.demo.HorarioSimulado;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,6 +55,11 @@ class DemoController {
     static final String NAME = "Demo · " + DemoController.class.getSimpleName();
     private static final Logger log = LoggerFactory.getLogger(DemoController.class);
     private static final Duration WATCHED_FOR = Duration.ofMinutes(10);
+    /**
+     * A room whose picture did not change is sent again only after this long, under the 2 minutes after which the twin
+     * takes a silent camera for a failed one: with the whole campus in the demo, most rooms are empty most of the time.
+     */
+    static final Duration HEARTBEAT = Duration.ofSeconds(90);
 
     private final CampusCatalogUseCase catalog;
     private final ProcessSpaceTelemetryUseCase pipeline;
@@ -69,6 +75,11 @@ class DemoController {
     /** Set while someone leaves: a batch under way stops after its current frame instead of holding the exit. */
     private volatile boolean leaving;
     private final Object feeding = new Object();
+    /** What was last sent for each room, and when. */
+    private final Map<String, Enviado> enviados = new ConcurrentHashMap<>();
+
+    private record Enviado(String firma, Instant at) {
+    }
 
     DemoController(CampusCatalogUseCase catalog, ProcessSpaceTelemetryUseCase pipeline, TwinQueryUseCase twins,
                    EmulatedDataUseCase emulated, DisponibilidadUseCase disponibilidad, Clock clock, @Value("${app.demo.day-length:20m}") Duration dayLength) {
@@ -93,6 +104,7 @@ class DemoController {
     /** Starts the demo (staff only): from now on it feeds the twin while someone watches it. */
     @PostMapping
     DemoSimulation.Snapshot start() {
+        enviados.clear();
         active = true;
         return snapshot();
     }
@@ -112,6 +124,7 @@ class DemoController {
         active = false;
         lastViewed = Instant.EPOCH;
         leaving = true;
+        enviados.clear();
         // Waits only for the frame in progress, so no emulated frame lands after the purge.
         synchronized (feeding) {
             try {
@@ -140,7 +153,7 @@ class DemoController {
             if (leaving) {
                 return;
             }
-            if (real.contains(sala.spaceId())) {
+            if (real.contains(sala.spaceId()) || !debeEnviar(sala, now)) {
                 continue;
             }
             try {
@@ -170,6 +183,18 @@ class DemoController {
         }
     }
 
+    /** True when the room's picture changed since its last frame, or that frame is {@link #HEARTBEAT} old. */
+    private boolean debeEnviar(SalaVista sala, Instant now) {
+        DemoSimulation.Ahora ahora = sala.ahora();
+        String firma = ahora.uso() + "|" + ahora.personas() + "|" + ahora.docente() + "|" + ahora.camaraEnLinea();
+        Enviado antes = enviados.get(sala.spaceId());
+        if (antes != null && antes.firma().equals(firma) && Duration.between(antes.at(), now).compareTo(HEARTBEAT) < 0) {
+            return false;
+        }
+        enviados.put(sala.spaceId(), new Enviado(firma, now));
+        return true;
+    }
+
     /** Rooms whose last frame came from a real camera: the demo must not overwrite them. */
     private Set<String> withRealCamera() {
         return twins.spaces().stream()
@@ -183,10 +208,20 @@ class DemoController {
         return new TelemetrySnapshot(library.spaceId(), now, true, DemoSimulation.mesas(tables, now), null, true);
     }
 
+    /**
+     * The whole campus: the real Software Engineering timetable plus a generated one for every other program
+     * ({@link HorarioSimulado}), over the rooms of the catalog.
+     */
     private DemoSimulation simulation() {
         if (simulation == null) {
-            List<SesionDeClase> horario = disponibilidad.horario();
-            simulation = new DemoSimulation(DemoSimulation.demoRooms(catalog.listSpaces(null), horario), horario, dayLength);
+            List<CampusSpace> espacios = catalog.listSpaces(null);
+            HorarioSimulado.Resultado campus = HorarioSimulado.campus(disponibilidad.horario(), espacios,
+                    HorarioSimulado.programas());
+            if (campus.sinSalon() > 0) {
+                log.info("Demo: {} sesiones generadas no encontraron salón libre y se omiten", campus.sinSalon());
+            }
+            simulation = new DemoSimulation(DemoSimulation.demoRooms(espacios, campus.sesiones()), campus.sesiones(),
+                    campus.programas(), dayLength);
         }
         return simulation;
     }

@@ -1,0 +1,26 @@
+# Programas del campus Pasto para la simulación. Con ellos HorarioSimulado genera un horario de demostración:
+# NO es la programación oficial (solo Ingeniería de Software usa su horario real 2620, de horario/horario-isw-2620.csv).
+# semestres: los de la fuente indicada; "supuesto" = valor de referencia del prototipo, se ajusta aquí sin tocar código.
+# jornada: DIURNA (7:00-18:00) o NOCTURNA (18:00-22:00). sesiones: por semana y grupo; horas: de cada sesión.
+# espacios: tipo principal y, tras "+", el de una de cada tres sesiones (práctica de laboratorio con medio grupo, o sala de cómputo).
+codigo;programa;nivel;semestres;grupos;estudiantes;jornada;sesiones;horas;espacios;asignaturas;fuente
+DER;Derecho;Pregrado;9;2;34;DIURNA;6;3;AULA;Introducción al Derecho|Derecho Constitucional|Derecho Civil|Derecho Penal|Derecho Procesal|Derecho Laboral|Derecho Administrativo|Consultorio Jurídico;usuario: presencial, 9 semestres
+MED;Medicina;Pregrado;12;2;30;DIURNA;6;3;AULA+LABORATORIO;Anatomía|Fisiología|Bioquímica|Farmacología|Patología|Semiología|Medicina Interna|Cirugía|Pediatría;supuesto: 12 semestres
+ODO;Odontología;Pregrado;10;1;30;DIURNA;6;3;AULA+LABORATORIO;Anatomía Dental|Biomateriales|Operatoria Dental|Periodoncia|Endodoncia|Ortodoncia|Clínica Integral;usuario: 10 semestres
+ENF;Enfermería;Pregrado;8;2;32;DIURNA;6;3;AULA+LABORATORIO;Fundamentos de Enfermería|Anatomía|Farmacología|Cuidado del Adulto|Salud Materna|Salud Pública|Cuidado Crítico;supuesto: 8 semestres
+IND;Ingeniería Industrial;Pregrado;10;1;34;DIURNA;6;3;AULA+SALA_COMPUTO;Cálculo|Física|Estadística|Investigación de Operaciones|Producción|Logística|Gestión de Calidad|Simulación de Procesos;supuesto: 10 semestres
+TAE;Técnico laboral Auxiliar en Enfermería;Técnico laboral;3;2;28;NOCTURNA;4;3;AULA+LABORATORIO;Procedimientos Básicos|Primeros Auxilios|Atención al Paciente|Salud Comunitaria;supuesto: 3 semestres
+CAF;Especialización en Producción y Comercio del Café;Especialización;2;1;18;NOCTURNA;2;4;AULA;Producción de Café|Calidad y Catación|Comercio Internacional;supuesto: 2 semestres
+PED;Especialización en Pediatría;Especialización médico-quirúrgica;6;1;8;NOCTURNA;2;4;AULA;Seminario de Pediatría|Club de Revistas|Investigación Clínica;supuesto: 6 semestres (3 años)
+GIN;Especialización en Ginecología y Obstetricia;Especialización médico-quirúrgica;6;1;8;NOCTURNA;2;4;AULA;Seminario de Obstetricia|Club de Revistas|Investigación Clínica;supuesto: 6 semestres (3 años)
+MIN;Especialización en Medicina Interna;Especialización médico-quirúrgica;6;1;8;NOCTURNA;2;4;AULA;Seminario de Medicina Interna|Club de Revistas|Investigación Clínica;supuesto: 6 semestres (3 años)
+PSQ;Especialización en Psiquiatría;Especialización médico-quirúrgica;6;1;8;NOCTURNA;2;4;AULA;Seminario de Psiquiatría|Psicopatología|Investigación Clínica;supuesto: 6 semestres (3 años)
+DME;Especialización en Derecho Médico;Especialización;2;1;20;NOCTURNA;2;4;AULA;Responsabilidad Médica|Bioética y Derecho|Legislación en Salud;supuesto: 2 semestres
+PIN;Especialización en Propiedad Intelectual;Especialización;2;1;18;NOCTURNA;2;4;AULA;Derecho de Autor|Propiedad Industrial|Gestión de Intangibles;supuesto: 2 semestres
+PER;Especialización en Periodoncia;Especialización odontológica;4;1;8;NOCTURNA;2;4;AULA+LABORATORIO;Periodoncia Clínica|Implantología|Seminario de Investigación;supuesto: 4 semestres
+ORT;Especialización en Ortodoncia;Especialización odontológica;4;1;8;NOCTURNA;2;4;AULA+LABORATORIO;Ortodoncia Clínica|Biomecánica|Seminario de Investigación;supuesto: 4 semestres
+END;Especialización en Endodoncia;Especialización odontológica;4;1;8;NOCTURNA;2;4;AULA+LABORATORIO;Endodoncia Clínica|Microbiología Oral|Seminario de Investigación;supuesto: 4 semestres
+DPS;Especialización en Dirección de la Producción con Sistemas Integrados de Gestión;Especialización;2;1;20;NOCTURNA;2;4;AULA;Sistemas Integrados de Gestión|Dirección de Operaciones|Auditoría;supuesto: 2 semestres
+ELA;Especialización en Estudios Latinoamericanos;Especialización;2;1;18;NOCTURNA;2;4;AULA;Historia de América Latina|Pensamiento Latinoamericano|Seminario de Investigación;supuesto: 2 semestres
+DPP;Especialización en Derecho Procesal Penal;Especialización;2;1;20;NOCTURNA;2;4;AULA;Sistema Penal Acusatorio|Pruebas|Litigación Oral;supuesto: 2 semestres (puede ser una oferta anterior)
+MDH;Maestría en Derechos Humanos y Gobernanza;Maestría;4;1;20;NOCTURNA;2;4;AULA;Derechos Humanos|Gobernanza|Seminario de Tesis;supuesto: 4 semestres

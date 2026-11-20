@@ -54,12 +54,27 @@ public final class DemoSimulation {
 
     private final List<CampusSpace> salones;
     private final List<SesionDeClase> horario;
+    private final List<ProgramaVista> programas;
     private final Duration dayLength;
 
     public DemoSimulation(List<CampusSpace> salones, List<SesionDeClase> horario, Duration dayLength) {
+        this(salones, horario, List.of(), dayLength);
+    }
+
+    /** With the programs the timetable covers, so the screen can list and filter them. */
+    public DemoSimulation(List<CampusSpace> salones, List<SesionDeClase> horario, List<HorarioSimulado.Programa> programas,
+                          Duration dayLength) {
         this.salones = List.copyOf(salones);
         this.horario = List.copyOf(horario);
+        this.programas = programas.stream().map(p -> new ProgramaVista(p.codigo(), p.nombre(), p.nivel(), p.semestres(),
+                (int) this.horario.stream().map(SesionDeClase::grupo).filter(g -> dePrograma(g, p.codigo())).distinct().count(),
+                (int) this.horario.stream().filter(s -> dePrograma(s.grupo(), p.codigo())).count(), p.fuente())).toList();
         this.dayLength = dayLength;
+    }
+
+    /** A group belongs to a program by its prefix: {@code MED4A} is the fourth semester of Medicine, group A. */
+    static boolean dePrograma(String grupo, String codigo) {
+        return grupo.startsWith(codigo) && grupo.length() > codigo.length() && Character.isDigit(grupo.charAt(codigo.length()));
     }
 
     /** The demo set: the rooms of the timetable that the catalog has, computer rooms first. */
@@ -137,12 +152,17 @@ public final class DemoSimulation {
     /** {@code dia} counts the loops of the simulated week; {@code diaSemana} names the weekday it plays. */
     public record Snapshot(Instant generadoEn, int dia, String diaSemana, String programa, String hora,
                            int minutoDelDia, int franjaActual, double minutosSimuladosPorMinuto, List<Franja> franjas,
-                           List<SalaVista> salones, boolean activa) {
+                           List<SalaVista> salones, List<ProgramaVista> programas, boolean activa) {
         /** The same picture, saying whether the demo is feeding the twin (someone started it from Simulación). */
         public Snapshot activa(boolean activa) {
             return new Snapshot(generadoEn, dia, diaSemana, programa, hora, minutoDelDia, franjaActual,
-                    minutosSimuladosPorMinuto, franjas, salones, activa);
+                    minutosSimuladosPorMinuto, franjas, salones, programas, activa);
         }
+    }
+
+    /** A program of the timetable: its groups this week and its weekly sessions; {@code fuente} as in the CSV. */
+    public record ProgramaVista(String codigo, String nombre, String nivel, int semestres, int grupos, int sesionesPorSemana,
+                                String fuente) {
     }
 
     public record SalaVista(String spaceId, String nombre, SpaceType tipo, String edificio, int piso, int aforo,
@@ -171,8 +191,9 @@ public final class DemoSimulation {
         double minuto = DAY_START + (double) Math.floorMod(now.toEpochMilli(), dayMs) / dayMs * (DAY_END - DAY_START);
         List<SalaVista> vistas = salones.stream().map(s -> vista(s, dia, minuto)).toList();
         int entero = (int) minuto;
-        return new Snapshot(now, dia, NOMBRES_DIA.get(Math.floorMod(dia, DIAS.size())), PROGRAMA, hora(entero), entero,
-                franjaDe(minuto), (DAY_END - DAY_START) / (dayMs / 60_000.0), FRANJAS, vistas, false);
+        String programa = programas.size() > 1 ? "las carreras del campus Pasto" : PROGRAMA;
+        return new Snapshot(now, dia, NOMBRES_DIA.get(Math.floorMod(dia, DIAS.size())), programa, hora(entero), entero,
+                franjaDe(minuto), (DAY_END - DAY_START) / (dayMs / 60_000.0), FRANJAS, vistas, programas, false);
     }
 
     static int franjaDe(double minuto) {
