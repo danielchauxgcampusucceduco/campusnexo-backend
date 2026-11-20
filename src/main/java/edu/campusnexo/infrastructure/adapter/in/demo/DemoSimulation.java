@@ -137,7 +137,12 @@ public final class DemoSimulation {
     /** {@code dia} counts the loops of the simulated week; {@code diaSemana} names the weekday it plays. */
     public record Snapshot(Instant generadoEn, int dia, String diaSemana, String programa, String hora,
                            int minutoDelDia, int franjaActual, double minutosSimuladosPorMinuto, List<Franja> franjas,
-                           List<SalaVista> salones) {
+                           List<SalaVista> salones, boolean activa) {
+        /** The same picture, saying whether the demo is feeding the twin (someone started it from Simulación). */
+        public Snapshot activa(boolean activa) {
+            return new Snapshot(generadoEn, dia, diaSemana, programa, hora, minutoDelDia, franjaActual,
+                    minutosSimuladosPorMinuto, franjas, salones, activa);
+        }
     }
 
     public record SalaVista(String spaceId, String nombre, SpaceType tipo, String edificio, int piso, int aforo,
@@ -167,7 +172,7 @@ public final class DemoSimulation {
         List<SalaVista> vistas = salones.stream().map(s -> vista(s, dia, minuto)).toList();
         int entero = (int) minuto;
         return new Snapshot(now, dia, NOMBRES_DIA.get(Math.floorMod(dia, DIAS.size())), PROGRAMA, hora(entero), entero,
-                franjaDe(minuto), (DAY_END - DAY_START) / (dayMs / 60_000.0), FRANJAS, vistas);
+                franjaDe(minuto), (DAY_END - DAY_START) / (dayMs / 60_000.0), FRANJAS, vistas, false);
     }
 
     static int franjaDe(double minuto) {

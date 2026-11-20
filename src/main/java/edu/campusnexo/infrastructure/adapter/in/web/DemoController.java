@@ -14,8 +14,8 @@ import edu.campusnexo.domain.vision.BoundingBox;
 import edu.campusnexo.domain.vision.DetectedObjectClass;
 import edu.campusnexo.domain.vision.StudyZoneRoi;
 import edu.campusnexo.domain.vision.TrackedDetection;
-import edu.campusnexo.infrastructure.adapter.in.demo.DemoSimulation;
 import edu.campusnexo.infrastructure.adapter.in.demo.DemoSimulation.SalaVista;
+import edu.campusnexo.infrastructure.adapter.in.demo.DemoSimulation;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -28,19 +28,23 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
  * The system demo ({@code DEMO_SIMULATION=true}): a compressed academic week over the timetable rooms, with what each
- * room's camera sees. While someone watches it, the same frames feed the digital twin as an emulated sensor, so the rest
- * of the dashboard reacts too (availability, alerts), and so do the two cameras of the library (the reading room and the
- * corner one over the silent-study tables); with nobody watching it writes nothing. A room where a real camera already
- * reports is left to that camera. Leaving the demo ({@code DELETE}) stops it and erases every emulated figure.
+ * room's camera sees. Nothing is emulated until the staff starts it from Simulación ({@code POST}); from then, while
+ * someone watches it, the same frames feed the digital twin as an emulated sensor, so the rest of the dashboard reacts
+ * too (availability, alerts), and so do the two cameras of the library. A room where a real camera already reports is
+ * left to that camera. Leaving the demo ({@code DELETE}) stops it and erases every emulated figure; so does a restart,
+ * which never resumes a demo on its own.
  */
 @RestController
 @EnableScheduling
@@ -50,8 +54,6 @@ class DemoController {
     static final String NAME = "Demo · " + DemoController.class.getSimpleName();
     private static final Logger log = LoggerFactory.getLogger(DemoController.class);
     private static final Duration WATCHED_FOR = Duration.ofMinutes(10);
-    /** A screen poll already on its way when someone left does not start the demo again. */
-    private static final Duration AFTER_LEAVING = Duration.ofSeconds(10);
 
     private final CampusCatalogUseCase catalog;
     private final ProcessSpaceTelemetryUseCase pipeline;
@@ -62,7 +64,8 @@ class DemoController {
     private final Duration dayLength;
     private volatile DemoSimulation simulation;
     private volatile Instant lastViewed = Instant.EPOCH;
-    private volatile Instant leftAt = Instant.EPOCH;
+    /** Started by hand from Simulación; looking at the screen alone never starts it. */
+    private volatile boolean active;
     /** Set while someone leaves: a batch under way stops after its current frame instead of holding the exit. */
     private volatile boolean leaving;
     private final Object feeding = new Object();
@@ -81,17 +84,33 @@ class DemoController {
     @GetMapping
     DemoSimulation.Snapshot snapshot() {
         Instant now = clock.instant();
-        if (now.isAfter(leftAt.plus(AFTER_LEAVING))) {
+        if (active) {
             lastViewed = now;
         }
-        return simulation().snapshot(now);
+        return simulation().snapshot(now).activa(active);
+    }
+
+    /** Starts the demo (staff only): from now on it feeds the twin while someone watches it. */
+    @PostMapping
+    DemoSimulation.Snapshot start() {
+        active = true;
+        return snapshot();
+    }
+
+    /** A restart does not resume the demo: whatever it had emulated before is erased, so a sign-in shows real data only. */
+    @EventListener(ApplicationReadyEvent.class)
+    void eraseLeftovers() {
+        List<String> cleaned = emulated.purge();
+        if (!cleaned.isEmpty()) {
+            log.info("Demo: al arrancar se borraron los datos emulados de {} espacios", cleaned.size());
+        }
     }
 
     /** Leaves the demo: it stops, and the rooms it fed start again with no emulated data left. */
     @DeleteMapping
     Map<String, List<String>> leave() {
+        active = false;
         lastViewed = Instant.EPOCH;
-        leftAt = clock.instant();
         leaving = true;
         // Waits only for the frame in progress, so no emulated frame lands after the purge.
         synchronized (feeding) {
@@ -113,7 +132,7 @@ class DemoController {
 
     private void feed() {
         Instant now = clock.instant();
-        if (Duration.between(lastViewed, now).compareTo(WATCHED_FOR) > 0) {
+        if (!active || Duration.between(lastViewed, now).compareTo(WATCHED_FOR) > 0) {
             return;
         }
         Set<String> real = withRealCamera();
