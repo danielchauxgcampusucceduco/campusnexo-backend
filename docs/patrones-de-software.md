@@ -138,7 +138,7 @@ En el último caso, el chequeo programado (`vigilarHorario`) registra la alerta 
 | ¿Y si el frame trae una fecha imposible? | Se rechaza antes de tocar nada (`ReadingAdmission`). |
 | ¿Qué pasa si la IA se cae en plena sustentación? | La primera evaluación responde con el respaldo; desde la tercera falla el circuito se abre y el respaldo responde al instante. Evidencia: `ResilienceChainTest`, `CircuitBreakerOccupancyEstimatorTest`. |
 | ¿Cómo sabe el sistema que un salón programado está libre? | Cruza el horario con la cámara. Si a los 15 minutos de empezar la clase no hay nadie, la franja pasa a `PROGRAMADO_SIN_USO` y el administrador recibe `HORARIO_SIN_USO` (`DisponibilidadServiceTest`). |
-| ¿Hay simulación en el sistema? | Solo la demo, y se declara. Con `DEMO_SIMULATION=true` y solo después de iniciarla a mano en la vista Simulación, recorre la semana del horario 2620 de Ingeniería de Software y entra al gemelo por el mismo pipeline que una cámara, con cada frame marcado `emulated: true`. «Salir de la simulación» la detiene y borra todo lo emulado (`EmulatedDataService`). |
+| ¿Hay simulación en el sistema? | Solo la demo, y se declara. Con `DEMO_SIMULATION=true` y solo después de iniciarla a mano en la vista Simulación, recorre una semana de todas las carreras del campus (Ingeniería de Software con su horario real 2620, las demás con uno generado por `HorarioSimulado`) y entra al gemelo por el mismo pipeline que una cámara, con cada frame marcado `emulated: true`. «Salir de la simulación» la detiene y borra todo lo emulado (`EmulatedDataService`). |
 
 ## Límites que se deben decir en la defensa
 
